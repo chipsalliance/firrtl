@@ -3,9 +3,11 @@ package interval
 
 import firrtl._
 import firrtl.ir.Circuit
+import firrtl.options.Phase
 import firrtl.passes._
 import firrtl.passes.CheckTypes.InvalidConnect
 import firrtl.passes.CheckWidths.DisjointSqueeze
+import firrtl.stage.{FirrtlCircuitAnnotation, FirrtlStage, Forms}
 import firrtl.testutils.FirrtlFlatSpec
 
 class IntervalSpec extends FirrtlFlatSpec {
@@ -525,4 +527,56 @@ class IntervalSpec extends FirrtlFlatSpec {
       compileToVerilog(input)
     }
   }
+
+  "Interval shift left" should "should not fail due to Dshl in CheckTypes" in {
+    val input =
+      """
+        |circuit IntervalShifter :
+        |  module IntervalShifter :
+        |    input clock : Clock
+        |    input reset : UInt<1>
+        |    output io : { flip inValue : Interval[-128, 127].0, flip dynamicShiftValue : UInt<3>, shiftRightResult : Interval[-64, 63].0, shiftLeftResult : Interval[-256, 255].0, dynamicShiftRightResult : Interval[-128, 127].0, dynamicShiftLeftResult : Interval[-16384, 16383].0}
+        |
+        |    node _T = shl(io.inValue, 1) @[IntervalSpec.scala 107:36]
+        |    io.shiftLeftResult <= _T @[IntervalSpec.scala 107:22]
+        |    node _T_1 = shr(io.inValue, 1) @[IntervalSpec.scala 109:24]
+        |    node _T_2 = squz(_T_1, io.shiftRightResult) @[IntervalSpec.scala 109:73]
+        |    io.shiftRightResult <= _T_2 @[IntervalSpec.scala 109:9]
+        |    node _T_3 = dshl(io.inValue, io.dynamicShiftValue) @[IntervalSpec.scala 111:43]
+        |    io.dynamicShiftLeftResult <= _T_3 @[IntervalSpec.scala 111:29]
+        |    node _T_4 = dshr(io.inValue, io.dynamicShiftValue) @[IntervalSpec.scala 112:44]
+        |    io.dynamicShiftRightResult <= _T_4 @[IntervalSpec.scala 112:30]
+        |
+        |""".stripMargin
+
+    class TreadleLikePhase extends Phase {
+      private val targets = Forms.LowFormOptimized
+
+      private def compiler = new firrtl.stage.transforms.Compiler(targets, currentState = Nil)
+      private val transforms = compiler.flattenedTransformOrder
+
+      override def transform(annotationSeq: AnnotationSeq): AnnotationSeq = {
+
+        annotationSeq.flatMap {
+          case FirrtlCircuitAnnotation(circuit) =>
+            val state = CircuitState(circuit, annotationSeq)
+            val newState = transforms.foldLeft(state) {
+              case (prevState, transform) => transform.runTransform(prevState)
+            }
+            None
+          case other =>
+            Some(other)
+        }
+      }
+    }
+
+    val firrtlCircuit = Parser.parse(input)
+
+    val annos = (new FirrtlStage).transform(Seq(FirrtlCircuitAnnotation(firrtlCircuit)))
+
+    val finalAnnos = (new TreadleLikePhase).transform(annos)
+
+    finalAnnos.nonEmpty should be (true)
+  }
 }
+
