@@ -4,7 +4,7 @@ package firrtl.passes
 
 import firrtl.analyses.InstanceKeyGraph
 import firrtl.annotations.{CircuitTarget, MemoryInitAnnotation, MemoryRandomInitAnnotation, ModuleTarget, ReferenceTarget}
-import firrtl.{CircuitForm, CircuitState, InstanceKind, Kind, MemKind, PortKind, RenameMap, SymbolTable, Transform, UnknownForm, Utils}
+import firrtl.{CircuitForm, CircuitState, DependencyAPIMigration, InstanceKind, Kind, MemKind, PortKind, RenameMap, SymbolTable, Transform, UnknownForm, Utils}
 import firrtl.ir._
 import firrtl.options.Dependency
 import firrtl.stage.TransformManager.TransformDependency
@@ -16,10 +16,7 @@ import scala.collection.mutable
   *   - the type of a memory is still a bundle with depth 2 (mem -> port -> field), see [[MemPortUtils.memType]]
   *   - the type of a module instance is still a bundle with depth 1 (instance -> port)
   */
-object NewLowerTypes extends Transform {
-  override def inputForm: CircuitForm = UnknownForm
-  override def outputForm: CircuitForm = UnknownForm
-
+object NewLowerTypes extends Transform with DependencyAPIMigration {
   override def prerequisites: Seq[TransformDependency] = Seq(
     Dependency(RemoveAccesses), // we require all SubAccess nodes to have been removed
     Dependency(CheckTypes),     // we require all types to be correct
