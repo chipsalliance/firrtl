@@ -6,8 +6,8 @@ lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   name := "firrtl",
   version := "1.4-SNAPSHOT",
-  scalaVersion := "2.12.11",
-  crossScalaVersions := Seq("2.11.12", "2.12.11", "2.13.3"),
+  scalaVersion := "2.12.12",
+  crossScalaVersions := Seq("2.11.12", "2.12.12", "2.13.3"),
   scalacOptions := Seq(
     "-deprecation",
     "-unchecked",

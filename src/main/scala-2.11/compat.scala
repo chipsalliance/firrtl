@@ -29,17 +29,6 @@ object compat {
 
   }
 
-  object instances {
-
-  /** 
-    * Store Emission option per Target
-    * Guarantee only one emission option per Target 
-    */
-   private[firrtl] class EmissionOptionMap[V <: EmissionOption](val df : V) extends collection.mutable.WeakHashMap[ReferenceTarget, V] {
-    override def default(key: ReferenceTarget) = df
-  }
-  }  
-
   object Annos {
     def annos(cs:CircuitState, presetAnnos:Seq[PresetAnnotation]) = cs.annotations.to[ArrayBuffer] -- presetAnnos
   }
