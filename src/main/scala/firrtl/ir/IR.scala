@@ -424,6 +424,71 @@ case class DefMemory(
   def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
+
+sealed trait MemPortType {
+  def serialize: String
+}
+
+object MemRead extends MemPortType {
+  def serialize = "read"
+}
+
+object MemWrite extends MemPortType {
+  def serialize = "write"
+}
+
+case class DefMemPort(
+  info: Info,
+  name: String,
+  mem: Expression,
+  addr: Expression,
+  en: Expression,
+  mask: Option[Expression],
+  direction: MemPortType) extends Statement with IsDeclaration {
+  def serialize: String = {
+    val maskSyntax = if (direction == MemWrite && mask.isDefined) s", with (mask => ${mask.get.serialize})" else ""
+    s"${direction.serialize} memport $name = $mem[${addr.serialize}], ${en.serialize}${maskSyntax}${info.serialize}"
+  }
+  def mapExpr(f: Expression => Expression): Statement = {
+    this.copy(mem = f(mem), addr = f(addr), en = f(en), mask = mask.map(f))
+  }
+  def mapStmt(f: Statement => Statement): Statement = this
+  def mapType(f: Type => Type): Statement = this
+  def mapString(f: String => String): Statement = this.copy(name = f(name))
+  def mapInfo(f: Info => Info): Statement = this.copy(f(info))
+  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = {
+    f(mem)
+    f(addr)
+    f(en)
+    mask.foreach(f)
+  }
+  def foreachType(f: Type => Unit): Unit = Unit
+  def foreachString(f: String => Unit): Unit = f(name)
+  def foreachInfo(f: Info => Unit): Unit = f(info)
+}
+
+case class DefMemAccess(
+  info: Info,
+  name: String,
+  mem: Expression,
+  addr: Expression) extends Statement with IsDeclaration {
+  def serialize: String = s"memaccess $name = $mem[${addr.serialize}]"
+  def mapExpr(f: Expression => Expression): Statement = this.copy(mem = f(mem), addr = f(addr))
+  def mapStmt(f: Statement => Statement): Statement = this
+  def mapType(f: Type => Type): Statement = this
+  def mapString(f: String => String): Statement = this.copy(name = f(name))
+  def mapInfo(f: Info => Info): Statement = this.copy(f(info))
+  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = {
+    f(mem)
+    f(addr)
+  }
+  def foreachType(f: Type => Unit): Unit = Unit
+  def foreachString(f: String => Unit): Unit = f(name)
+  def foreachInfo(f: Info => Unit): Unit = f(info)
+}
+
 case class DefNode(info: Info, name: String, value: Expression) extends Statement with IsDeclaration {
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement = DefNode(info, name, f(value))
