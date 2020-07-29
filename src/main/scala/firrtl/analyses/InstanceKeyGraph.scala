@@ -32,6 +32,9 @@ class InstanceKeyGraph(c: ir.Circuit) {
   private lazy val fullHierarchy: mutable.LinkedHashMap[InstanceKey, Seq[Seq[InstanceKey]]] =
     graph.pathsInDAG(circuitTopInstance)
 
+  /** returns the underlying graph */
+  def getGraph: DiGraph[InstanceKey] = graph
+
   /** maps module names to the DefModule node */
   def moduleMap: Map[String, ir.DefModule] = nameToModule
 
@@ -40,6 +43,24 @@ class InstanceKeyGraph(c: ir.Circuit) {
 
   /** Returns a sequence that can be turned into a map from module name to instances defined in said module. */
   def getChildInstances: Seq[(String, Seq[InstanceKey])] = childInstances
+
+  /** A count of the *static* number of instances of each module. For any module other than the top (main) module,
+    * this is equivalent to the number of inst statements in the circuit instantiating each module,
+    * irrespective of the number of times (if any) the enclosing module appears in the hierarchy.
+    * Note that top module of the circuit has an associated count of one, even though it is never directly instantiated.
+    * Any modules *not* instantiated at all will have a count of zero.
+    */
+  lazy val staticInstanceCount: Map[OfModule, Int] = {
+    val foo = mutable.LinkedHashMap.empty[OfModule, Int]
+    childInstances.foreach {
+      case (main, _) if main == c.main => foo += main.OfModule  -> 1
+      case (other, _)                  => foo += other.OfModule -> 0
+    }
+    childInstances.flatMap(_._2).map(_.OfModule).foreach {
+      mod => foo += mod -> (foo(mod) + 1)
+    }
+    foo.toMap
+  }
 
   /** Finds the absolute paths (each represented by a Seq of instances
     * representing the chain of hierarchy) of all instances of a particular
@@ -54,6 +75,15 @@ class InstanceKeyGraph(c: ir.Circuit) {
     val instances = vertices.filter(_.module == module).toSeq
     instances.flatMap{ i => fullHierarchy.getOrElse(i, Nil) }
   }
+
+  /** Given a circuit, returns a map from module name to a map
+    * in turn mapping instances names to corresponding module names
+    */
+  def getChildInstanceMap: mutable.LinkedHashMap[OfModule, mutable.LinkedHashMap[Instance, OfModule]] =
+    mutable.LinkedHashMap(childInstances.map { case (k, v) =>
+      val moduleMap: mutable.LinkedHashMap[Instance, OfModule] = mutable.LinkedHashMap(v.map(_.toTokens):_*)
+      TargetToken.OfModule(k) -> moduleMap
+    }:_*)
 }
 
 

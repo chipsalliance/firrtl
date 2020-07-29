@@ -4,6 +4,7 @@ package firrtlTests.analyses
 
 import firrtl.analyses.InstanceKeyGraph
 import firrtl.analyses.InstanceKeyGraph.InstanceKey
+import firrtl.annotations.TargetToken.OfModule
 import firrtl.testutils.FirrtlFlatSpec
 
 class InstanceKeyGraphSpec extends FirrtlFlatSpec {
@@ -121,4 +122,91 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
     iGraph.findInstancesInHierarchy("Child3") shouldBe Nil
   }
 
+  behavior of "InstanceKeyGraph.staticInstanceCount"
+
+  it should "report that there is one instance of the top module" in {
+    val input =
+      """|circuit Foo:
+         |  module Foo:
+         |    skip
+         |""".stripMargin
+    val iGraph = new InstanceKeyGraph(parse(input))
+    val expectedCounts = Map(OfModule("Foo") -> 1)
+    iGraph.staticInstanceCount should be (expectedCounts)
+  }
+
+  it should "report correct number of instances for a sample circuit" in {
+    val input =
+      """|circuit Foo:
+         |  module Baz:
+         |    skip
+         |  module Bar:
+         |    inst baz1 of Baz
+         |    inst baz2 of Baz
+         |    inst baz3 of Baz
+         |    skip
+         |  module Foo:
+         |    inst bar1 of Bar
+         |    inst bar2 of Bar
+         |""".stripMargin
+    val iGraph = new InstanceKeyGraph(parse(input))
+    val expectedCounts = Map(OfModule("Foo") -> 1,
+      OfModule("Bar") -> 2,
+      OfModule("Baz") -> 3)
+    iGraph.staticInstanceCount should be (expectedCounts)
+  }
+
+  it should "report zero instances for dead modules" in {
+    val input =
+      """|circuit Foo:
+         |  module Bar:
+         |    skip
+         |  module Foo:
+         |    skip
+         |""".stripMargin
+    val iGraph = new InstanceKeyGraph(parse(input))
+    val expectedCounts = Map(OfModule("Foo") -> 1,
+      OfModule("Bar") -> 0)
+    iGraph.staticInstanceCount should be (expectedCounts)
+  }
+
+  behavior of "InstanceKeyGraph.getChildInstanceMap"
+
+  it should "preserve Module declaration order" in {
+    val input = """
+                  |circuit Top :
+                  |  module Top :
+                  |    inst c1 of Child1
+                  |    inst c2 of Child2
+                  |    inst c3 of Child1
+                  |    inst c4 of Child1
+                  |    inst c5 of Child1
+                  |  module Child1 :
+                  |    inst a of Child1a
+                  |    inst b of Child1b
+                  |    skip
+                  |  module Child1a :
+                  |    skip
+                  |  module Child1b :
+                  |    skip
+                  |  module Child2 :
+                  |    skip
+                  |""".stripMargin
+    val circuit = parse(input)
+    val instGraph = new InstanceKeyGraph(circuit)
+    val childMap = instGraph.getChildInstanceMap
+
+    val modules = childMap.keys.toSeq.map(_.value)
+    assert(modules == Seq("Top", "Child1", "Child1a", "Child1b", "Child2"))
+
+    assert(childMap(OfModule("Child1a")).isEmpty)
+    assert(childMap(OfModule("Child1b")).isEmpty)
+    assert(childMap(OfModule("Child2")).isEmpty)
+
+    val topInstances = childMap(OfModule("Top")).map { case (k,v) => k.value -> v.value}.toSeq
+    assert(topInstances == Seq("c1" -> "Child1", "c2" -> "Child2", "c3" -> "Child1", "c4" -> "Child1", "c5" -> "Child1"))
+
+    val child1Instance = childMap(OfModule("Child1")).map { case (k,v) => k.value -> v.value}.toSeq
+    assert(child1Instance == Seq("a" -> "Child1a", "b" -> "Child1b"))
+  }
 }
