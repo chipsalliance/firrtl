@@ -122,19 +122,16 @@ object WiringUtils {
     val visited = new mutable.HashMap[Seq[WDefInstance], Boolean]
       .withDefaultValue(false)
 
-    i.fullHierarchy.keys.filter { case WDefInstance(_,_,m,_) => m == source }
-      .foreach( i.fullHierarchy(_)
-                 .foreach { l =>
-                   queue.enqueue(l)
-                   owners(l) = Vector(l)
-                 }
-      )
+    val sourcePaths = i.fullHierarchy.collect { case (k,v) if k.module == source =>  v }
+    sourcePaths.flatten.foreach { l =>
+      queue.enqueue(l)
+      owners(l) = Vector(l)
+    }
 
-    val sinkInsts = i.fullHierarchy.keys
-      .filter { case WDefInstance(_, _, module, _) =>
-        sinks.map(getModuleName(_)).contains(module) }
-      .flatMap { k => i.fullHierarchy(k)          }
-      .toSet
+    val sinkModuleNames = sinks.map(getModuleName).toSet
+    val sinkPaths = i.fullHierarchy.collect { case (k,v) if sinkModuleNames.contains(k.module) => v }
+    // sinkInsts needs to have unique entries but is also iterated over which is why we use a LinkedHashSet
+    val sinkInsts = mutable.LinkedHashSet() ++ sinkPaths.flatten
 
     /** If we're lucky and there is only one source, then that source owns
       * all sinks. If we're unlucky, we need to do a full (slow) BFS
