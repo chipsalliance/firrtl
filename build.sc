@@ -49,7 +49,7 @@ class firrtlCrossModule(crossVersion: String) extends ScalaModule with SbtModule
     ivy"org.json4s::json4s-native:3.6.8",
     ivy"org.apache.commons:commons-text:1.7",
     ivy"org.antlr:antlr4-runtime:4.7.1",
-    ivy"com.google.protobuf:protobuf-java:3.5.1"
+    ivy"com.google.protobuf:protobuf-java:3.12.4"
   )
   
   object test extends Tests {
