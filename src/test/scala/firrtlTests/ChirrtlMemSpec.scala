@@ -11,7 +11,8 @@ import firrtl.PrimOps.AsClock
 import firrtl.testutils._
 import firrtl.testutils.FirrtlCheckers._
 
-class ChirrtlMemSpec extends LowTransformSpec {
+object ChirrtlMemSpec {
+
   object MemEnableCheckPass extends Pass {
     type Netlist = collection.mutable.HashMap[String, Expression]
     def buildNetlist(netlist: Netlist)(s: Statement): Statement = {
@@ -53,11 +54,20 @@ class ChirrtlMemSpec extends LowTransformSpec {
     }
   }
 
-  def transform = new SeqTransform {
+
+  object ChirrtlMemSpecTransform extends SeqTransform {
     def inputForm = LowForm
     def outputForm = LowForm
     def transforms = Seq(new ConstantPropagation, MemEnableCheckPass)
   }
+
+}
+
+class ChirrtlMemSpec extends LowTransformSpec {
+
+  import ChirrtlMemSpec._
+
+  def transform = ChirrtlMemSpecTransform
 
   "Sequential Memory" should "have correct enable signals" in {
     val input = """
