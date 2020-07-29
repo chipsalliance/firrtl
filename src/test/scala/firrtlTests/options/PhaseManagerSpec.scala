@@ -386,6 +386,38 @@ object OrderingFixture {
 
 }
 
+object ActualTargetsFixture {
+
+  class A extends IdentityPhase {
+    override def invalidates(a: Phase) = false
+  }
+
+  class B extends IdentityPhase {
+    override def prerequisites = Seq(Dependency[A])
+    override def invalidates(a: Phase) = false
+  }
+
+  class C extends IdentityPhase {
+    override def prerequisites = Seq(Dependency[A], Dependency[B])
+    override def optionalPrerequisiteOf = Seq(Dependency[D])
+    override def invalidates(a: Phase) = a match {
+      case _: A | _: B => true
+      case _ => false
+    }
+  }
+
+  class D extends IdentityPhase {
+    override def prerequisites = Seq(Dependency[B])
+    override def invalidates(a: Phase) = false
+  }
+
+  class E extends IdentityPhase {
+    override def prerequisites = Seq(Dependency[A], Dependency[B], Dependency[D])
+    override def invalidates(a: Phase) = false
+  }
+
+}
+
 class PhaseManagerSpec extends AnyFlatSpec with Matchers {
 
   def writeGraphviz(pm: PhaseManager, dir: String): Unit = {
@@ -686,6 +718,17 @@ class PhaseManagerSpec extends AnyFlatSpec with Matchers {
       val order = Seq(classOf[f.B], classOf[f.A], classOf[f.Cx], classOf[f.B], classOf[f.A])
       (new PhaseManager(targets)).flattenedTransformOrder.map(_.getClass) should be (order)
     }
+  }
+
+  it should "use actual targets to avoid unnecessary re-lowering" in {
+    val f = ActualTargetsFixture
+
+    val targets = Seq(Dependency[f.A], Dependency[f.B], Dependency[f.C], Dependency[f.D], Dependency[f.E])
+    val order = Seq(classOf[f.A], classOf[f.B], classOf[f.C], classOf[f.A], classOf[f.B], classOf[f.D], classOf[f.E])
+    val foo = new PhaseManager(targets)
+    info(foo.prettyPrint())
+    (new PhaseManager(targets)).flattenedTransformOrder.map(_.getClass) should be (order)
+
   }
 
 }

@@ -50,6 +50,15 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
     */
   def wrappers: Seq[(B) => B] = Seq.empty
 
+  /** The actual [[firrtl.options.TransformLike TransformLike]]s that will be run. This is a superset of the requested
+    * targets.
+    */
+  lazy val actualTargets: Seq[Dependency[B]] =
+    flattenedTransformOrder
+      .foldLeft(_currentState.toSet) {
+        case (acc, tx) => acc.filterNot(a => tx.invalidates(a.getObject)) + Dependency.fromTransform(tx)
+      }.toSeq
+
   /** Store of conversions between classes and objects. Objects that do not exist in the map will be lazily constructed.
     */
   protected lazy val dependencyToObject: LinkedHashMap[Dependency[B], B] = {
@@ -224,8 +233,21 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
         if ((prereqs -- state).nonEmpty) { Some(this.copy(prereqs.toSeq, state.toSeq)) }
         else                             { None                                        }
       }
-      /* "in" is added *after* invalidation because a transform my not invalidate itself! */
-      ((state ++ prereqs).map(dToO).filterNot(in.invalidates).map(oToD) + in, out ++ preprocessing :+ in)
+      /* The new state is the current state, any prerequisites, and the effect of solving a preprocessing sub-problem. The
+       * sub-problem uses "actual targets" as opposed to "targets" because the act of solving the sub-problem may result
+       * in more work than just the "targets" being run.
+       */
+      val statex: LinkedHashSet[Dependency[B]] = state ++ prereqs ++ (
+        preprocessing match {
+          case Some(a: DependencyManager[A, B]) => a.actualTargets
+          case _                                => Seq.empty
+        }
+      )
+      /* The effect of the next transform, in, is then applied:
+       *   1) invalidations are applied
+       *   2) the next transform is added to the state
+       */
+      (statex.map(dToO).filterNot(in.invalidates).map(oToD) + in, out ++ preprocessing :+ in)
     }
     val postprocessing: Option[B] = {
       if ((_targets -- s).nonEmpty) { Some(this.copy(_targets.toSeq, s.toSeq)) }
