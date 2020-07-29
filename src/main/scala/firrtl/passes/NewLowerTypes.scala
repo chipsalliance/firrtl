@@ -70,7 +70,7 @@ object NewLowerTypes extends Transform {
     state.copy(circuit = result, renames = Some(renames), annotations = newAnnos)
   }
 
-  def onModule(c: CircuitTarget, m: DefModule, memoryInit: Seq[MemoryInitAnnotation]): (DefModule, RenameMap, Seq[MemoryInitAnnotation]) = {
+  private def onModule(c: CircuitTarget, m: DefModule, memoryInit: Seq[MemoryInitAnnotation]): (DefModule, RenameMap, Seq[MemoryInitAnnotation]) = {
     val renameMap = RenameMap()
     val ref = c.module(m.name)
     // scan modules to find all references
@@ -88,9 +88,9 @@ object NewLowerTypes extends Transform {
     (newMod, renameMap, memInit)
   }
 
-  def onPort(p: Port)(symbols: LoweringTable): Seq[Port] = symbols.lower(p)
+  private def onPort(p: Port)(symbols: LoweringTable): Seq[Port] = symbols.lower(p)
 
-  def onStatement(s: Statement)(implicit symbols: LoweringTable, memInit: Seq[MemoryInitAnnotation]): Statement = s match {
+  private def onStatement(s: Statement)(implicit symbols: LoweringTable, memInit: Seq[MemoryInitAnnotation]): Statement = s match {
     // declarations
     case d : DefWire =>
       Block(symbols.lower(d.name, d.tpe, firrtl.WireKind).map { case (name, tpe, _) => d.copy(name=name, tpe=tpe) })
@@ -146,7 +146,7 @@ object NewLowerTypes extends Transform {
   }
 
   /** Replaces all Reference, SubIndex and SubField nodes with the updated references */
-  def onExpression(e: Expression)(implicit symbols: LoweringTable): Expression = e match {
+  private def onExpression(e: Expression)(implicit symbols: LoweringTable): Expression = e match {
     case r: RefLikeExpression =>
       // When reading (and not assigning to) an expression, we can always just pick the first one.
       // Only very few ground-type references are duplicated and they are all related to lowered memories.
