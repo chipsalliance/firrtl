@@ -3,6 +3,8 @@
 package firrtl.passes
 package memlib
 
+import firrtl.compat.wrappers.{ MapViewWrapper, IterWrapper }
+
 
 sealed abstract class MemPort(val name: String) { override def toString = name }
 
@@ -22,7 +24,7 @@ object MemPort {
     s.split(",").toSeq.map(MemPort.apply).map(_ match {
       case Some(x) => x
       case _ => throw new Exception(s"Error parsing MemPort string : ${s}")
-    }).groupBy(identity).mapValues(_.size)
+    }).groupBy(identity).mapValues(_.size).wrap()
   }
 }
 
@@ -57,13 +59,13 @@ object MemConf {
   }
 
   def apply(name: String, depth: BigInt, width: Int, readPorts: Int, writePorts: Int, readWritePorts: Int, maskGranularity: Option[Int]): MemConf = {
-    val ports: Map[MemPort, Int] = (if (maskGranularity.isEmpty) {
+    val ports: Map[MemPort, Int] = ((if (maskGranularity.isEmpty) {
       (if (writePorts == 0) Map.empty[MemPort, Int] else Map(WritePort -> writePorts)) ++
       (if (readWritePorts == 0) Map.empty[MemPort, Int] else Map(ReadWritePort -> readWritePorts))
     } else {
       (if (writePorts == 0) Map.empty[MemPort, Int] else Map(MaskedWritePort -> writePorts)) ++
       (if (readWritePorts == 0) Map.empty[MemPort, Int] else Map(MaskedReadWritePort -> readWritePorts))
-    }) ++ (if (readPorts == 0) Map.empty[MemPort, Int] else Map(ReadPort -> readPorts))
+    }) ++ (if (readPorts == 0) Map.empty[MemPort, Int] else Map(ReadPort -> readPorts))).wrap()
     return new MemConf(name, depth, width, ports, maskGranularity)
   }
 }

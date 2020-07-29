@@ -17,6 +17,9 @@ import logger.LazyLogging
 
 import scala.annotation.tailrec
 
+import firrtl.compat.wrappers.{ ArrISeqWrapper }
+
+
 // Datastructures
 import scala.collection.mutable
 
@@ -550,7 +553,7 @@ object DedupModules extends LazyLogging {
     }
 
     changeInternals(rename, retype, {i => i}, {(x, y) => x}, renameExps = false)(m)
-    refs
+    refs.wrap()
   }
 
   def computeRenameMap(originalNames: IndexedSeq[ReferenceTarget],
