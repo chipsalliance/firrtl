@@ -73,9 +73,8 @@ object Serializer {
     case SIntLiteral(value, width) =>
       b ++= "SInt" ; s(width) ; b ++= "(\"h" ; b ++= value.toString(16) ; b ++= "\")"
     case FixedLiteral(value, width, point) =>
-      b ++= "Fixed"
-      if(width != UnknownWidth) { b += '<' ; s(width) ; b += '>' }
-      s(point) ; b ++= "(\"h" ; b ++= value.toString(16) ; b ++= "\")"
+      b ++= "Fixed" ; s(width) ; sPoint(point)
+      b ++= "(\"h" ; b ++= value.toString(16) ; b ++= "\")"
     // WIR
     case firrtl.WVoid => b ++= "VOID"
     case firrtl.WInvalid => b ++= "INVALID"
@@ -149,6 +148,13 @@ object Serializer {
     case VarWidth(name) => b += '<'; b ++= name; b += '>'
   }
 
+  private def sPoint(node: Width)(implicit b: StringBuilder, indent: Int): Unit = node match {
+    case IntWidth(width) => b ++= "<<"; b ++= width.toString(); b ++= ">>"
+    case UnknownWidth => // empty string
+    case CalcWidth(arg) => b ++= "calcw("; s(arg); b += ')'
+    case VarWidth(name) => b ++= "<<"; b ++= name; b ++= ">>"
+  }
+
   private def s(node: Orientation)(implicit b: StringBuilder, indent: Int): Unit = node match {
     case Default => // empty string
     case Flip => b ++= "flip "
@@ -162,7 +168,7 @@ object Serializer {
     // Types
     case UIntType(width: Width) => b ++= "UInt"; s(width)
     case SIntType(width: Width) => b ++= "SInt"; s(width)
-    case FixedType(width, point) => b ++= "Fixed"; s(width); s(point)
+    case FixedType(width, point) => b ++= "Fixed"; s(width); sPoint(point)
     case BundleType(fields) => b ++= "{ "; sField(fields, ", "); b += '}'
     case VectorType(tpe, size) => s(tpe); b += '['; b ++= size.toString; b += ']'
     case ClockType => b ++= "Clock"
