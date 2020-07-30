@@ -4,7 +4,7 @@ package firrtl.analyses
 
 import firrtl.annotations._
 import firrtl.annotations.TargetToken._
-import firrtl.graph.{DiGraph, MutableDiGraph}
+import firrtl.graph.{DiGraph, EulerTour, MutableDiGraph}
 import firrtl.ir
 
 import scala.collection.mutable
@@ -23,23 +23,33 @@ class InstanceKeyGraph(c: ir.Circuit) {
   }
   private val instantiated = childInstances.flatMap(_._2).map(_.module).toSet
   private val roots = c.modules.map(_.name).filterNot(instantiated)
-  private val graph = buildGraph(childInstances, roots)
+  private val internalGraph = buildGraph(childInstances, roots)
   private val circuitTopInstance = topKey(c.main)
   // cache vertices to speed up repeat calls to findInstancesInHierarchy
-  private lazy val vertices = graph.getVertices
+  private lazy val vertices = internalGraph.getVertices
 
   /** A list of absolute paths (each represented by a Seq of instances) of all module instances in the Circuit. */
-  private lazy val fullHierarchy: mutable.LinkedHashMap[InstanceKey, Seq[Seq[InstanceKey]]] =
-    graph.pathsInDAG(circuitTopInstance)
+  private lazy val cachedFullHierarchy: mutable.LinkedHashMap[InstanceKey, Seq[Seq[InstanceKey]]] =
+    internalGraph.pathsInDAG(circuitTopInstance)
+
+  /** modules reachable from the main module as well as the main modules itself */
+  private lazy val cachedReachableModules: Seq[OfModule] =
+    circuitTopInstance.OfModule +: internalGraph.reachableFrom(circuitTopInstance).toSeq.map(_.OfModule)
+
+  private lazy val cachedUnreachableModules: Seq[OfModule] = {
+    val all = mutable.LinkedHashSet(childInstances.map(c => OfModule(c._1)):_*)
+    val reachable = mutable.LinkedHashSet(cachedReachableModules:_*)
+    all.diff(reachable).toSeq
+  }
 
   /** returns the underlying graph */
-  def getGraph: DiGraph[InstanceKey] = graph
+  def graph: DiGraph[InstanceKey] = internalGraph
 
   /** maps module names to the DefModule node */
   def moduleMap: Map[String, ir.DefModule] = nameToModule
 
   /** Module order from highest module to leaf module */
-  def moduleOrder: Seq[ir.DefModule] = graph.transformNodes(_.module).linearize.map(nameToModule(_))
+  def moduleOrder: Seq[ir.DefModule] = internalGraph.transformNodes(_.module).linearize.map(nameToModule(_))
 
   /** Returns a sequence that can be turned into a map from module name to instances defined in said module. */
   def getChildInstances: Seq[(String, Seq[InstanceKey])] = childInstances
@@ -50,7 +60,9 @@ class InstanceKeyGraph(c: ir.Circuit) {
     * Note that top module of the circuit has an associated count of one, even though it is never directly instantiated.
     * Any modules *not* instantiated at all will have a count of zero.
     */
-  lazy val staticInstanceCount: Map[OfModule, Int] = {
+  def staticInstanceCount: Map[OfModule, Int] = cachedStaticInstanceCount
+
+  private lazy val cachedStaticInstanceCount = {
     val foo = mutable.LinkedHashMap.empty[OfModule, Int]
     childInstances.foreach {
       case (main, _) if main == c.main => foo += main.OfModule  -> 1
@@ -73,7 +85,7 @@ class InstanceKeyGraph(c: ir.Circuit) {
     */
   def findInstancesInHierarchy(module: String): Seq[Seq[InstanceKey]] = {
     val instances = vertices.filter(_.module == module).toSeq
-    instances.flatMap{ i => fullHierarchy.getOrElse(i, Nil) }
+    instances.flatMap{ i => cachedFullHierarchy.getOrElse(i, Nil) }
   }
 
   /** Given a circuit, returns a map from module name to a map
@@ -84,6 +96,22 @@ class InstanceKeyGraph(c: ir.Circuit) {
       val moduleMap: mutable.LinkedHashMap[Instance, OfModule] = mutable.LinkedHashMap(v.map(_.toTokens):_*)
       TargetToken.OfModule(k) -> moduleMap
     }:_*)
+
+  /** All modules in the circuit reachable from the top module */
+  def reachableModules: Seq[OfModule] = cachedReachableModules
+
+  /** All modules *not* reachable from the top module of the circuit */
+  def unreachableModules: Seq[OfModule] = cachedUnreachableModules
+
+  /** An [[firrtl.graph.EulerTour EulerTour]] representation of the [[firrtl.graph.DiGraph DiGraph]] */
+  private lazy val tour = EulerTour(internalGraph, circuitTopInstance)
+
+  /** Finds the lowest common ancestor instances for two module names in a design */
+  def lowestCommonAncestor(moduleA: Seq[InstanceKey], moduleB: Seq[InstanceKey]): Seq[InstanceKey] =
+    tour.rmq(moduleA, moduleB)
+
+  /** A list of absolute paths (each represented by a Seq of instances) of all module instances in the Circuit. */
+  def fullHierarchy: mutable.LinkedHashMap[InstanceKey, Seq[Seq[InstanceKey]]] = cachedFullHierarchy
 }
 
 
