@@ -183,9 +183,7 @@ object WiringUtils {
     * @return a map of sink instance names to source instance names
     * @throws WiringException if a sink is equidistant to two sources
     */
-  def sinksToSourcesSeq(sinks: Seq[Named],
-                     source: String,
-                     i: InstanceKeyGraph):
+  private[firrtl] def sinksToSourcesSeq(sinks: Seq[Named], source: String, i: InstanceKeyGraph):
       Seq[(Seq[InstanceKey], Seq[InstanceKey])] = {
     // The order of owners influences the order of the results, it thus needs to be deterministic with a  LinkedHashMap.
     val owners = new mutable.LinkedHashMap[Seq[InstanceKey], Vector[Seq[InstanceKey]]]
