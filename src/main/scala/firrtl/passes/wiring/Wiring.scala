@@ -5,11 +5,13 @@ package wiring
 
 import firrtl._
 import firrtl.ir._
+
 import scala.collection.mutable
 import firrtl.annotations._
 import firrtl.annotations.AnnotationUtils._
-import firrtl.analyses.InstanceGraph
+import firrtl.analyses.InstanceKeyGraph
 import WiringUtils._
+import firrtl.analyses.InstanceKeyGraph.InstanceKey
 
 /** A data store of one sink--source wiring relationship */
 case class WiringInfo(source: ComponentName, sinks: Seq[Named], pin: String)
@@ -47,7 +49,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
            else ns.newName(tokenize(c) filterNot ("[]." contains _) mkString "_")
          })}}
 
-    val iGraph = new InstanceGraph(c)
+    val iGraph = new InstanceKeyGraph(c)
     names.zip(portNames).map{ case(WiringNames(comp, so, si, _), pn) =>
       computeModifications(c, iGraph, comp, so, si, pn) }
   }
@@ -67,7 +69,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     * to pending modifications
     */
   private def computeModifications(c: Circuit,
-                                   iGraph: InstanceGraph,
+                                   iGraph: InstanceKeyGraph,
                                    compName: String,
                                    source: String,
                                    sinks: Seq[Named],
@@ -99,7 +101,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
 
       // Compute metadata along Sink to LCA paths.
       sink.drop(lca.size - 1).sliding(2).toList.reverse.foreach {
-        case Seq(WDefInstance(_,_,pm,_), WDefInstance(_,ci,cm,_)) =>
+        case Seq(InstanceKey(_,pm), InstanceKey(ci,cm)) =>
           val to = s"$ci.${portNames(cm)}"
           val from = s"${portNames(pm)}"
           meta(pm) = makeWireC(meta(pm), portNames(pm), (to, from))
@@ -107,12 +109,12 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
             addPortOrWire = Some((portNames(cm), DecInput))
           )
         // Case where the sink is the LCA
-        case Seq(WDefInstance(_,_,pm,_)) =>
+        case Seq(InstanceKey(_,pm)) =>
           // Case where the source is also the LCA
           if (source.drop(lca.size).isEmpty) {
             meta(pm) = makeWire(meta(pm), portNames(pm))
           } else {
-            val WDefInstance(_,ci,cm,_) = source.drop(lca.size).head
+            val InstanceKey(ci,cm) = source.drop(lca.size).head
             val to = s"${portNames(pm)}"
             val from = s"$ci.${portNames(cm)}"
             meta(pm) = makeWireC(meta(pm), portNames(pm), (to, from))
@@ -120,7 +122,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
       }
 
       // Compute metadata for the Sink
-      sink.last match { case WDefInstance(_, _, m, _) =>
+      sink.last match { case InstanceKey( _, m) =>
         if (sinkComponents.contains(m)) {
           val from = s"${portNames(m)}"
           sinkComponents(m).foreach( to =>
@@ -132,7 +134,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
       }
 
       // Compute metadata for the Source
-      source.last match { case WDefInstance(_, _, m, _) =>
+      source.last match { case InstanceKey( _, m) =>
         val to = s"${portNames(m)}"
         val from = compName
         meta(m) = meta(m).copy(
@@ -142,7 +144,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
 
       // Compute metadata along Source to LCA path
       source.drop(lca.size - 1).sliding(2).toList.reverse.map {
-        case Seq(WDefInstance(_,_,pm,_), WDefInstance(_,ci,cm,_)) => {
+        case Seq(InstanceKey(_,pm), InstanceKey(ci,cm)) => {
           val to = s"${portNames(pm)}"
           val from = s"$ci.${portNames(cm)}"
           meta(pm) = meta(pm).copy(
@@ -153,12 +155,12 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
           )
         }
         // Case where the source is the LCA
-        case Seq(WDefInstance(_,_,pm,_)) => {
+        case Seq(InstanceKey(_,pm)) => {
           // Case where the sink is also the LCA. We do nothing here,
           // as we've created the connecting wire above
           if (sink.drop(lca.size).isEmpty) {
           } else {
-            val WDefInstance(_,ci,cm,_) = sink.drop(lca.size).head
+            val InstanceKey(ci,cm) = sink.drop(lca.size).head
             val to = s"$ci.${portNames(cm)}"
             val from = s"${portNames(pm)}"
             meta(pm) = meta(pm).copy(
