@@ -70,22 +70,36 @@ object NewLowerTypes extends Transform with DependencyAPIMigration {
   private def onModule(c: CircuitTarget, m: DefModule, memoryInit: Seq[MemoryInitAnnotation]): (DefModule, RenameMap, Seq[MemoryInitAnnotation]) = {
     val renameMap = RenameMap()
     val ref = c.module(m.name)
-    // scan modules to find all references
-    val scan = SymbolTable.scanModule(m, new LoweringSymbolTable)
-    // replace all declarations and references with the destructed types
-    implicit val symbols: LoweringTable = new LoweringTable(scan, renameMap, ref)
-    implicit val memInit: Seq[MemoryInitAnnotation] = memoryInit
 
-    val loweredPorts = m.ports.flatMap(symbols.lower) // we cannot use mapPort as ports might be expanded
-    val newMod = m match {
-      case e : ExtModule => e.copy(ports = loweredPorts)
-      case mod: Module => mod.copy(ports = loweredPorts).mapStmt(onStatement)
-    }
+    // first we lower the ports in order to ensure that their names are independent of the module body
+    val (mLoweredPorts, portRefs) = lowerPorts(ref, m, renameMap)
+
+    // scan modules to find all references
+    val scan = SymbolTable.scanModule(mLoweredPorts, new LoweringSymbolTable)
+    // replace all declarations and references with the destructed types
+    implicit val symbols: LoweringTable = new LoweringTable(scan, renameMap, ref, portRefs)
+    implicit val memInit: Seq[MemoryInitAnnotation] = memoryInit
+    val newMod = mLoweredPorts.mapStmt(onStatement)
 
     (newMod, renameMap, memInit)
   }
 
-  private def onPort(p: Port)(symbols: LoweringTable): Seq[Port] = symbols.lower(p)
+  // We lower ports in a separate pass in order to ensure that statements inside the module do not influence port names.
+  private def lowerPorts(ref: ModuleTarget, m: DefModule, renameMap: RenameMap):
+  (DefModule, Seq[(String, Seq[Reference])]) = {
+    val namespace = mutable.HashSet[String]() ++ m.ports.map(_.name)
+    val loweredPortsAndRefs = m.ports.flatMap { p =>
+      val fieldsAndRefs = DestructTypes.destruct(ref, Field(p.name, Utils.to_flip(p.direction), p.tpe), namespace, renameMap)
+      fieldsAndRefs.map { case (f, ref) =>
+        (Port(p.info, f.name, Utils.to_dir(f.flip), f.tpe), ref -> Seq(Reference(f.name, f.tpe, PortKind)))
+      }
+    }
+    val newM = m match {
+      case e : ExtModule => e.copy(ports = loweredPortsAndRefs.map(_._1))
+      case mod: Module => mod.copy(ports = loweredPortsAndRefs.map(_._1))
+    }
+    (newM, loweredPortsAndRefs.map(_._2))
+  }
 
   private def onStatement(s: Statement)(implicit symbols: LoweringTable, memInit: Seq[MemoryInitAnnotation]): Statement = s match {
     // declarations
@@ -164,10 +178,11 @@ private class LoweringSymbolTable extends SymbolTable {
 }
 
 // Lowers types and keeps track of references to lowered types.
-private class LoweringTable(table: LoweringSymbolTable, renameMap: RenameMap, m: ModuleTarget) {
+private class LoweringTable(table: LoweringSymbolTable, renameMap: RenameMap, m: ModuleTarget,
+                            portNameToExprs: Seq[(String, Seq[Reference])]) {
   private val namespace = mutable.HashSet[String]() ++ table.getSymbolNames
   // Serialized old access string to new ground type reference.
-  private val nameToExprs = mutable.HashMap[String, Seq[RefLikeExpression]]()
+  private val nameToExprs = mutable.HashMap[String, Seq[RefLikeExpression]]() ++ portNameToExprs
 
   def lower(mem: DefMemory): Seq[DefMemory] = {
     val (mems, refs) = DestructTypes.destructMemory(m, mem, namespace, renameMap)
