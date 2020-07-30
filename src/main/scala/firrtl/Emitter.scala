@@ -325,6 +325,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
      def c1: Int = doprim.consts(1).toInt
 
      def checkArgumentLegality(e: Expression): Unit = e match {
+       case _ if e.tpe == Utils.BoolType =>
        case _: UIntLiteral | _: SIntLiteral | _: WRef | _: WSubField =>
        case DoPrim(Not, args, _,_) => args.foreach(checkArgumentLegality)
        case DoPrim(op, args, _,_) if isCast(op) => args.foreach(checkArgumentLegality)

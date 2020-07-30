@@ -1,5 +1,8 @@
 package firrtl.fuzzer
 
+import com.pholser.junit.quickcheck.generator.{Generator, GenerationStatus}
+import com.pholser.junit.quickcheck.random.SourceOfRandomness
+
 import firrtl.{Namespace, Utils}
 import firrtl.ir._
 
@@ -209,5 +212,12 @@ object ExprGenParams {
         }
       }
     }
+  }
+}
+
+abstract class SingleExpressionCircuitGenerator(val params: ExprGenParams) extends Generator[Circuit](classOf[Circuit]) {
+  override def generate(random: SourceOfRandomness, status: GenerationStatus): Circuit = {
+    implicit val r = random
+    params.generateSingleExprCircuit[SourceOfRandomnessGen]()
   }
 }

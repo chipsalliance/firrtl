@@ -79,7 +79,8 @@ object Forms {
     Seq( Dependency[firrtl.transforms.ConstantPropagation],
          Dependency[firrtl.transforms.CombineCats],
          Dependency(passes.CommonSubexpressionElimination),
-         Dependency[firrtl.transforms.DeadCodeElimination] )
+         Dependency[firrtl.transforms.DeadCodeElimination],
+         Dependency[firrtl.transforms.InlineBooleanExpressions] )
 
   val VerilogMinimumOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
     Seq( Dependency[firrtl.transforms.BlackBoxSourceHelper],

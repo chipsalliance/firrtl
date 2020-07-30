@@ -216,7 +216,8 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       Add(6, Seq(Dependency(firrtl.passes.ResolveFlows))),
       Add(7, Seq(Dependency(firrtl.passes.Legalize))),
       Add(8, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform],
-                 Dependency(firrtl.passes.ResolveKinds)))
+                 Dependency(firrtl.passes.ResolveKinds))),
+      Add(10, Seq(Dependency[firrtl.transforms.InlineBooleanExpressions]))
     )
     compare(legacyTransforms(new LowFirrtlOptimization), tm, patches)
   }
