@@ -72,7 +72,6 @@ object Driver {
     * @param optionsManager use optionsManager config to load annotation files
     * @return Annotations read from files
     */
-  //scalastyle:off cyclomatic.complexity method.length
   def getAnnotations(
       optionsManager: ExecutionOptionsManager with HasFirrtlOptions
   ): Seq[Annotation] = {
@@ -213,7 +212,7 @@ object Driver {
     val phases: Seq[Phase] = {
       import DriverCompatibility._
       new PhaseManager(
-        Seq( Dependency[AddImplicitFirrtlFile],
+        List( Dependency[AddImplicitFirrtlFile],
              Dependency[AddImplicitAnnotationFile],
              Dependency[AddImplicitOutputFile],
              Dependency[AddImplicitEmitter],

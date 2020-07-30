@@ -7,16 +7,15 @@ import java.io.Writer
 import scala.collection.mutable
 import firrtl.ir._
 import firrtl.passes._
-import firrtl.transforms.LegalizeAndReductionsTransform
+import firrtl.transforms.FixAddingNegativeLiterals
 import firrtl.annotations._
 import firrtl.traversals.Foreachers._
 import firrtl.PrimOps._
 import firrtl.WrappedExpression._
 import Utils._
 import MemPortUtils.{memPortField, memType}
-import firrtl.options.{Dependency, HasShellOptions, PhaseException, ShellOption, Unserializable}
+import firrtl.options.{HasShellOptions, PhaseException, ShellOption, Unserializable}
 import firrtl.stage.{RunFirrtlTransformAnnotation, TransformManager}
-import firrtl.transforms.formal.RemoveVerificationStatements
 // Datastructures
 import scala.collection.mutable.ArrayBuffer
 
@@ -127,7 +126,7 @@ sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Em
         case other => other.foreach(onStmt)
       }
       onStmt(mod.body)
-      modules.distinct
+      modules.distinct.toSeq
     }
     val modMap = circuit.modules.map(m => m.name -> m).toMap
     // Turn each module into it's own circuit with it as the top and all instantied modules as ExtModules
@@ -172,18 +171,16 @@ case class VRandom(width: BigInt) extends Expression {
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = this
-  def foreachExpr(f: Expression => Unit): Unit = Unit
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = ()
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 
 class VerilogEmitter extends SeqTransform with Emitter {
   def inputForm = LowForm
   def outputForm = LowForm
 
-  override def prerequisites =
-    Dependency[RemoveVerificationStatements] +:
-    Dependency[LegalizeAndReductionsTransform] +:
+  override def prerequisites = firrtl.stage.Forms.AssertsRemoved ++
     firrtl.stage.Forms.LowFormOptimized
 
   override def optionalPrerequisiteOf = Seq.empty
@@ -264,7 +261,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case (i: BigInt) => w write i.toString
       case (i: Info) => i match {
         case NoInfo => // Do nothing
-        case ix => w.write(s" //$ix")
+        case f: FileInfo =>
+          val escaped = FileInfo.escapedToVerilog(f.escaped)
+          w.write(s" // @[$escaped]")
+        case m: MultiInfo =>
+          val escaped = FileInfo.escapedToVerilog(m.flatten.map(_.escaped).mkString(" "))
+          w.write(s" // @[$escaped]")
       }
       case (s: Seq[Any]) =>
         s foreach (emit(_, top + 1))
@@ -280,6 +282,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
      case SIntLiteral(value, IntWidth(width)) =>
        val stringLiteral = value.toString(16)
        w write (stringLiteral.head match {
+         case '-' if value == FixAddingNegativeLiterals.minNegValue(width) => s"$width'sh${stringLiteral.tail}"
          case '-' => s"-$width'sh${stringLiteral.tail}"
          case _ => s"$width'sh${stringLiteral}"
        })
@@ -391,7 +394,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
          error("Verilog emitter does not support SHIFT_RIGHT >= arg width")
        case Shr if c0 == (bitWidth(a0.tpe)-1) => Seq(a0,"[", bitWidth(a0.tpe) - 1, "]")
        case Shr => Seq(a0,"[", bitWidth(a0.tpe) - 1, ":", c0, "]")
-       case Neg => Seq("-{", cast(a0), "}")
+       case Neg => Seq("-", cast(a0))
        case Cvt => a0.tpe match {
          case (_: UIntType) => Seq("{1'b0,", cast(a0), "}")
          case (_: SIntType) => Seq(cast(a0))
@@ -458,7 +461,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
 
   def addFormalStatement(formals: mutable.Map[Expression, ArrayBuffer[Seq[Any]]],
                                  clk: Expression, en: Expression,
-                                 stmt: Seq[Any], info: Info): Unit = {
+                                 stmt: Seq[Any], info: Info, msg: StringLit): Unit = {
     throw EmitterException("Cannot emit verification statements in Verilog" +
       "(2001). Use the SystemVerilog emitter instead.")
   }
@@ -467,13 +470,15 @@ class VerilogEmitter extends SeqTransform with Emitter {
     * Store Emission option per Target
     * Guarantee only one emission option per Target 
     */
-  private[firrtl] class EmissionOptionMap[V <: EmissionOption](val df : V) extends collection.mutable.HashMap[ReferenceTarget, V] {
-    override def default(key: ReferenceTarget) = df
-    override def +=(elem : (ReferenceTarget, V)) : EmissionOptionMap.this.type = {
-      if (this.contains(elem._1))
-        throw EmitterException(s"Multiple EmissionOption for the target ${elem._1} (${this(elem._1)} ; ${elem._2})")
-      super.+=(elem)
-    } 
+  private[firrtl] class EmissionOptionMap[V <: EmissionOption](val df : V) {
+    private val m = collection.mutable.HashMap[ReferenceTarget, V]().withDefaultValue(df)
+    def +=(elem : (ReferenceTarget, V)) : EmissionOptionMap.this.type = {
+      if (m.contains(elem._1))
+        throw EmitterException(s"Multiple EmissionOption for the target ${elem._1} (${m(elem._1)} ; ${elem._2})")
+      m += (elem)
+      this
+    }
+    def apply(key: ReferenceTarget): V = m.apply(key)
   }
   
   /** Provide API to retrieve EmissionOptions based on the provided [[AnnotationSeq]]
@@ -537,24 +542,26 @@ class VerilogEmitter extends SeqTransform with Emitter {
                       circuitName: String,
                       emissionOptions: EmissionOptions)(implicit writer: Writer) {
 
-    def this(m: Module, moduleMap: Map[String, DefModule], circuitName: String, emissionOptions: EmissionOptions)(implicit writer: Writer) {
+    def this(m: Module, moduleMap: Map[String, DefModule], circuitName: String, emissionOptions: EmissionOptions)(implicit writer: Writer) = {
       this(Seq(), Map.empty, m, moduleMap, circuitName, emissionOptions)(writer)
     }
-    def this(m: Module, moduleMap: Map[String, DefModule])(implicit writer: Writer) {
+    def this(m: Module, moduleMap: Map[String, DefModule])(implicit writer: Writer) = {
       this(Seq(), Map.empty, m, moduleMap, "", new EmissionOptions(Seq.empty))(writer)
     }
 
-    val netlist = mutable.LinkedHashMap[WrappedExpression, Expression]()
+    val netlist = mutable.LinkedHashMap[WrappedExpression, InfoExpr]()
     val namespace = Namespace(m)
     namespace.newName("_RAND") // Start rand names at _RAND_0
     def build_netlist(s: Statement): Unit = {
       s.foreach(build_netlist)
       s match {
-        case sx: Connect => netlist(sx.loc) = sx.expr
+        case sx: Connect => netlist(sx.loc) = InfoExpr(sx.info, sx.expr)
         case sx: IsInvalid => error("Should have removed these!")
+        // TODO Since only register update and memories use the netlist anymore, I think nodes are
+        // unnecessary
         case sx: DefNode =>
           val e = WRef(sx.name, sx.value.tpe, NodeKind, SourceFlow)
-          netlist(e) = sx.value
+          netlist(e) = InfoExpr(sx.info, sx.value)
         case _ =>
       }
     }
@@ -657,6 +664,9 @@ class VerilogEmitter extends SeqTransform with Emitter {
     def declare(b: String, n: String, t: Type, info: Info): Unit =
       declare(b, n, t, info, None)
 
+    def assign(e: Expression, infoExpr: InfoExpr): Unit =
+      assign(e, infoExpr.expr, infoExpr.info)
+
     def assign(e: Expression, value: Expression, info: Info): Unit = {
       assigns += Seq("assign ", e, " = ", value, ";", info)
     }
@@ -678,19 +688,20 @@ class VerilogEmitter extends SeqTransform with Emitter {
     }
 
     def regUpdate(r: Expression, clk: Expression, reset: Expression, init: Expression) = {
-      def addUpdate(expr: Expression, tabs: String): Seq[Seq[Any]] = expr match {
+      def addUpdate(info: Info, expr: Expression, tabs: String): Seq[Seq[Any]] = expr match {
         case m: Mux =>
           if (m.tpe == ClockType) throw EmitterException("Cannot emit clock muxes directly")
           if (m.tpe == AsyncResetType) throw EmitterException("Cannot emit async reset muxes directly")
 
-          lazy val _if     = Seq(tabs, "if (", m.cond, ") begin")
+          val (eninfo, tinfo, finfo) = MultiInfo.demux(info)
+          lazy val _if     = Seq(tabs, "if (", m.cond, ") begin", eninfo)
           lazy val _else   = Seq(tabs, "end else begin")
-          lazy val _ifNot  = Seq(tabs, "if (!(", m.cond, ")) begin")
+          lazy val _ifNot  = Seq(tabs, "if (!(", m.cond, ")) begin", eninfo)
           lazy val _end    = Seq(tabs, "end")
-          lazy val _true   = addUpdate(m.tval, tabs + tab)
-          lazy val _false  = addUpdate(m.fval, tabs + tab)
+          lazy val _true   = addUpdate(tinfo, m.tval, tabs + tab)
+          lazy val _false  = addUpdate(finfo, m.fval, tabs + tab)
           lazy val _elseIfFalse = {
-            val _falsex = addUpdate(m.fval, tabs) // _false, but without an additional tab
+            val _falsex = addUpdate(finfo, m.fval, tabs) // _false, but without an additional tab
             Seq(tabs, "end else ", _falsex.head.tail) +: _falsex.tail
           }
 
@@ -713,15 +724,17 @@ class VerilogEmitter extends SeqTransform with Emitter {
             case (_, _: Mux)                      => (_if    +: _true) ++ _elseIfFalse
             case _                                => (_if    +: _true  :+ _else)       ++ _false :+ _end
           }
-        case e => Seq(Seq(tabs, r, " <= ", e, ";"))
+        case e => Seq(Seq(tabs, r, " <= ", e, ";", info))
       }
       if (weq(init, r)) { // Synchronous Reset
-        noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]()) ++= addUpdate(netlist(r), "")
+        val InfoExpr(info, e) = netlist(r)
+        noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]()) ++= addUpdate(info, e, "")
       } else { // Asynchronous Reset
         assert(reset.tpe == AsyncResetType, "Error! Synchronous reset should have been removed!")
         val tv = init
-        val fv = netlist(r)
-        asyncResetAlwaysBlocks += ((clk, reset, addUpdate(Mux(reset, tv, fv, mux_type_and_widths(tv, fv)), "")))
+        val InfoExpr(finfo, fv) = netlist(r)
+        // TODO add register info argument and build a MultiInfo to pass
+        asyncResetAlwaysBlocks += ((clk, reset, addUpdate(NoInfo, Mux(reset, tv, fv, mux_type_and_widths(tv, fv)), "")))
       }
     }
 
@@ -827,8 +840,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
       lines += Seq("`endif // SYNTHESIS")
     }
 
-    def addFormal(clk: Expression, en: Expression, stmt: Seq[Any], info: Info) = {
-      addFormalStatement(formals, clk, en, stmt, info)
+    def addFormal(clk: Expression, en: Expression, stmt: Seq[Any], info: Info, msg: StringLit): Unit = {
+      addFormalStatement(formals, clk, en, stmt, info, msg)
     }
 
     def formalStatement(op: Formal.Value, cond: Expression): Seq[Any] = {
@@ -939,7 +952,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         case sx: Print =>
           simulate(sx.clk, sx.en, printf(sx.string, sx.args), Some("PRINTF_COND"), sx.info)
         case sx: Verification =>
-          addFormal(sx.clk, sx.en, formalStatement(sx.op, sx.pred), sx.info)
+          addFormal(sx.clk, sx.en, formalStatement(sx.op, sx.pred), sx.info, sx.msg)
         // If we are emitting an Attach, it must not have been removable in VerilogPrep
         case sx: Attach =>
           // For Synthesis
@@ -990,7 +1003,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
             // declare("wire", LowerTypes.loweredName(en), en.tpe)
 
             //; Read port
-            assign(addr, netlist(addr), NoInfo) // Info should come from addr connection
+            assign(addr, netlist(addr))
                                                 // assign(en, netlist(en))     //;Connects value to m.r.en
             val mem = WRef(sx.name, memType(sx), MemKind, UnknownFlow)
             val memPort = WSubAccess(mem, addr, sx.dataType, UnknownFlow)
@@ -1009,7 +1022,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
             val mask = memPortField(sx, w, "mask")
             val en = memPortField(sx, w, "en")
             //Ports should share an always@posedge, so can't have intermediary wire
-            val clk = netlist(memPortField(sx, w, "clk"))
+            // TODO should we use the info here for anything?
+            val InfoExpr(_, clk) = netlist(memPortField(sx, w, "clk"))
 
             declare("wire", LowerTypes.loweredName(data), data.tpe, sx.info)
             declare("wire", LowerTypes.loweredName(addr), addr.tpe, sx.info)
@@ -1017,11 +1031,10 @@ class VerilogEmitter extends SeqTransform with Emitter {
             declare("wire", LowerTypes.loweredName(en), en.tpe, sx.info)
 
             // Write port
-            // Info should come from netlist
-            assign(data, netlist(data), NoInfo)
-            assign(addr, netlist(addr), NoInfo)
-            assign(mask, netlist(mask), NoInfo)
-            assign(en, netlist(en), NoInfo)
+            assign(data, netlist(data))
+            assign(addr, netlist(addr))
+            assign(mask, netlist(mask))
+            assign(en, netlist(en))
 
             val mem = WRef(sx.name, memType(sx), MemKind, UnknownFlow)
             val memPort = WSubAccess(mem, addr, sx.dataType, UnknownFlow)
@@ -1239,9 +1252,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
 
 class MinimumVerilogEmitter extends VerilogEmitter with Emitter {
 
-  override def prerequisites =
-    Dependency[RemoveVerificationStatements] +:
-    Dependency[LegalizeAndReductionsTransform] +:
+  override def prerequisites = firrtl.stage.Forms.AssertsRemoved ++
     firrtl.stage.Forms.LowFormMinimumOptimized
 
   override def transforms = new TransformManager(firrtl.stage.Forms.VerilogMinimumOptimized, prerequisites)
@@ -1252,14 +1263,13 @@ class MinimumVerilogEmitter extends VerilogEmitter with Emitter {
 class SystemVerilogEmitter extends VerilogEmitter {
   override val outputSuffix: String = ".sv"
 
-  override def prerequisites =
-      Dependency[LegalizeAndReductionsTransform] +:
-      firrtl.stage.Forms.LowFormOptimized
+  override def prerequisites = firrtl.stage.Forms.LowFormOptimized
 
   override def addFormalStatement(formals: mutable.Map[Expression, ArrayBuffer[Seq[Any]]],
                                   clk: Expression, en: Expression,
-                                  stmt: Seq[Any], info: Info): Unit = {
+                                  stmt: Seq[Any], info: Info, msg: StringLit): Unit = {
     val lines = formals.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]())
+    lines += Seq("// ", msg.serialize)
     lines += Seq("if (", en, ") begin")
     lines += Seq(tab, stmt, info)
     lines += Seq("end")

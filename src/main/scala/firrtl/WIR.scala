@@ -69,9 +69,9 @@ case object WVoid extends Expression {
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = this
-  def foreachExpr(f: Expression => Unit): Unit = Unit
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = ()
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 case object WInvalid extends Expression {
   def tpe = UnknownType
@@ -79,9 +79,9 @@ case object WInvalid extends Expression {
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = this
-  def foreachExpr(f: Expression => Unit): Unit = Unit
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = ()
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 // Useful for splitting then remerging references
 case object EmptyExpression extends Expression {
@@ -90,9 +90,9 @@ case object EmptyExpression extends Expression {
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = this
-  def foreachExpr(f: Expression => Unit): Unit = Unit
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = ()
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 
 object WDefInstance {
@@ -117,7 +117,7 @@ case class WDefInstanceConnector(
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
   def mapInfo(f: Info => Info): Statement = this.copy(f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = portCons foreach { case (e1, e2) => (f(e1), f(e2)) }
   def foreachType(f: Type => Unit): Unit = f(tpe)
   def foreachString(f: String => Unit): Unit = f(name)
@@ -166,6 +166,44 @@ case object Dshlw extends PrimOp {
       case _: SIntType => SIntType(w1(e))
       case _ => UnknownType
     }
+  }
+}
+
+/** Internal class used for propagating [[Info]] across [[Expression]]s
+  *
+  * In particular, this is useful in "Netlist" datastructures mapping node or other [[Statement]]s
+  * to [[Expression]]s
+  *
+  * @note This is not allowed to leak from any transform
+  */
+private[firrtl] case class InfoExpr(info: Info, expr: Expression) extends Expression {
+  def foreachExpr(f: Expression => Unit): Unit = f(expr)
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachWidth(f: Width => Unit): Unit = ()
+  def mapExpr(f: Expression => Expression): Expression = this.copy(expr = f(this.expr))
+  def mapType(f: Type => Type): Expression = this
+  def mapWidth(f: Width => Width): Expression = this
+  def tpe: Type = expr.tpe
+
+  // Members declared in firrtl.ir.FirrtlNode
+  def serialize: String = s"(${expr.serialize}: ${info.serialize})"
+}
+
+private[firrtl] object InfoExpr {
+  def wrap(info: Info, expr: Expression): Expression =
+    if (info == NoInfo) expr else InfoExpr(info, expr)
+
+  def unwrap(expr: Expression): (Info, Expression) = expr match {
+    case InfoExpr(i, e) => (i, e)
+    case other          => (NoInfo, other)
+  }
+
+  def orElse(info: Info, alt: => Info): Info = if (info == NoInfo) alt else info
+
+  // TODO this the right name?
+  def map(expr: Expression)(f: Expression => Expression): Expression = expr match {
+    case ie: InfoExpr => ie.mapExpr(f)
+    case e            => f(e)
   }
 }
 
@@ -300,8 +338,8 @@ case class CDefMemory(
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
   def mapInfo(f: Info => Info): Statement = this.copy(f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
-  def foreachExpr(f: Expression => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
+  def foreachExpr(f: Expression => Unit): Unit = ()
   def foreachType(f: Type => Unit): Unit = f(tpe)
   def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f: Info => Unit): Unit = f(info)
@@ -321,7 +359,7 @@ case class CDefMPort(info: Info,
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
   def mapInfo(f: Info => Info): Statement = this.copy(f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = exps.foreach(f)
   def foreachType(f: Type => Unit): Unit = f(tpe)
   def foreachString(f: String => Unit): Unit = f(name)

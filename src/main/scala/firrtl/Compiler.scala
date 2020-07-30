@@ -114,7 +114,6 @@ sealed abstract class CircuitForm(private val value: Int) extends Ordered[Circui
   def outputSuffix: String
 }
 
-// scalastyle:off magic.number
 // These magic numbers give an ordering to CircuitForm
 /** Chirrtl Form
   *
@@ -191,7 +190,6 @@ final case object UnknownForm extends CircuitForm(-1) {
 
   val outputSuffix: String = ".unknown.fir"
 }
-// scalastyle:on magic.number
 
 // Internal utilities to keep code DRY, not a clean interface
 private[firrtl] object Transform {
@@ -315,7 +313,7 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
   }
 
   override def optionalPrerequisites: Seq[Dependency[Transform]] = inputForm match {
-    case L => Forms.LowFormOptimized
+    case L => Forms.LowFormOptimized ++ Forms.AssertsRemoved
     case _ => Seq.empty
   }
 
@@ -451,7 +449,7 @@ object CompilerUtils extends LazyLogging {
         case ChirrtlForm =>
           Seq(new ChirrtlToHighFirrtl) ++ getLoweringTransforms(HighForm, outputForm)
         case HighForm =>
-          Seq(new IRToWorkingIR, new ResolveAndCheck, new transforms.DedupModules, new HighFirrtlToMiddleFirrtl) ++
+          Seq(new IRToWorkingIR, new ResolveAndCheck, new firrtl.transforms.DedupModules, new HighFirrtlToMiddleFirrtl) ++
             getLoweringTransforms(MidForm, outputForm)
         case MidForm => Seq(new MiddleFirrtlToLowFirrtl) ++ getLoweringTransforms(LowForm, outputForm)
         case LowForm => throwInternalError("getLoweringTransforms - LowForm") // should be caught by if above

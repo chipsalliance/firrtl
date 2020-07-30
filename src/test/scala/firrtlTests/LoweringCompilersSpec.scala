@@ -5,10 +5,8 @@ package firrtlTests
 import org.scalatest.{FlatSpec, Matchers}
 
 import firrtl._
-import firrtl.passes
 import firrtl.options.Dependency
 import firrtl.stage.{Forms, TransformManager}
-import firrtl.transforms.IdentityTransform
 
 sealed trait PatchAction { val line: Int }
 
@@ -37,75 +35,75 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
 
   def legacyTransforms(a: CoreTransform): Seq[Transform] = a match {
     case _: ChirrtlToHighFirrtl => Seq(
-      passes.CheckChirrtl,
-      passes.CInferTypes,
-      passes.CInferMDir,
-      passes.RemoveCHIRRTL)
-    case _: IRToWorkingIR => Seq(passes.ToWorkingIR)
+      firrtl.passes.CheckChirrtl,
+      firrtl.passes.CInferTypes,
+      firrtl.passes.CInferMDir,
+      firrtl.passes.RemoveCHIRRTL)
+    case _: IRToWorkingIR => Seq(firrtl.passes.ToWorkingIR)
     case _: ResolveAndCheck => Seq(
-      passes.CheckHighForm,
-      passes.ResolveKinds,
-      passes.InferTypes,
-      passes.CheckTypes,
-      passes.Uniquify,
-      passes.ResolveKinds,
-      passes.InferTypes,
-      passes.ResolveFlows,
-      passes.CheckFlows,
-      new passes.InferBinaryPoints,
-      new passes.TrimIntervals,
-      new passes.InferWidths,
-      passes.CheckWidths,
+      firrtl.passes.CheckHighForm,
+      firrtl.passes.ResolveKinds,
+      firrtl.passes.InferTypes,
+      firrtl.passes.CheckTypes,
+      firrtl.passes.Uniquify,
+      firrtl.passes.ResolveKinds,
+      firrtl.passes.InferTypes,
+      firrtl.passes.ResolveFlows,
+      firrtl.passes.CheckFlows,
+      new firrtl.passes.InferBinaryPoints,
+      new firrtl.passes.TrimIntervals,
+      new firrtl.passes.InferWidths,
+      firrtl.passes.CheckWidths,
       new firrtl.transforms.InferResets)
     case _: HighFirrtlToMiddleFirrtl => Seq(
-      passes.PullMuxes,
-      passes.ReplaceAccesses,
-      passes.ExpandConnects,
-      passes.ZeroLengthVecs,
-      passes.RemoveAccesses,
-      passes.Uniquify,
-      passes.ExpandWhens,
-      passes.CheckInitialization,
-      passes.ResolveKinds,
-      passes.InferTypes,
-      passes.CheckTypes,
-      passes.ResolveFlows,
-      new passes.InferWidths,
-      passes.CheckWidths,
-      new passes.RemoveIntervals,
-      passes.ConvertFixedToSInt,
-      passes.ZeroWidth,
-      passes.InferTypes)
+      firrtl.passes.PullMuxes,
+      firrtl.passes.ReplaceAccesses,
+      firrtl.passes.ExpandConnects,
+      firrtl.passes.ZeroLengthVecs,
+      firrtl.passes.RemoveAccesses,
+      firrtl.passes.Uniquify,
+      firrtl.passes.ExpandWhens,
+      firrtl.passes.CheckInitialization,
+      firrtl.passes.ResolveKinds,
+      firrtl.passes.InferTypes,
+      firrtl.passes.CheckTypes,
+      firrtl.passes.ResolveFlows,
+      new firrtl.passes.InferWidths,
+      firrtl.passes.CheckWidths,
+      new firrtl.passes.RemoveIntervals,
+      firrtl.passes.ConvertFixedToSInt,
+      firrtl.passes.ZeroWidth,
+      firrtl.passes.InferTypes)
     case _: MiddleFirrtlToLowFirrtl => Seq(
-      passes.LowerTypes,
-      passes.ResolveKinds,
-      passes.InferTypes,
-      passes.ResolveFlows,
-      new passes.InferWidths,
-      passes.Legalize,
+      firrtl.passes.LowerTypes,
+      firrtl.passes.ResolveKinds,
+      firrtl.passes.InferTypes,
+      firrtl.passes.ResolveFlows,
+      new firrtl.passes.InferWidths,
+      firrtl.passes.Legalize,
       firrtl.transforms.RemoveReset,
-      passes.ResolveFlows,
+      firrtl.passes.ResolveFlows,
       new firrtl.transforms.CheckCombLoops,
       new checks.CheckResets,
       new firrtl.transforms.RemoveWires)
     case _: LowFirrtlOptimization => Seq(
-      passes.RemoveValidIf,
+      firrtl.passes.RemoveValidIf,
       new firrtl.transforms.ConstantPropagation,
-      passes.PadWidths,
+      firrtl.passes.PadWidths,
       new firrtl.transforms.ConstantPropagation,
-      passes.Legalize,
-      passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
+      firrtl.passes.Legalize,
+      firrtl.passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
       new firrtl.transforms.ConstantPropagation,
-      passes.SplitExpressions,
+      firrtl.passes.SplitExpressions,
       new firrtl.transforms.CombineCats,
-      passes.CommonSubexpressionElimination,
+      firrtl.passes.CommonSubexpressionElimination,
       new firrtl.transforms.DeadCodeElimination)
     case _: MinimumLowFirrtlOptimization => Seq(
-      passes.RemoveValidIf,
-      passes.PadWidths,
-      passes.Legalize,
-      passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
-      passes.SplitExpressions)
+      firrtl.passes.RemoveValidIf,
+      firrtl.passes.PadWidths,
+      firrtl.passes.Legalize,
+      firrtl.passes.memlib.VerilogMemDelays, // TODO move to Verilog emitter
+      firrtl.passes.SplitExpressions)
   }
 
   def compare(a: Seq[Transform], b: TransformManager, patches: Seq[PatchAction] = Seq.empty): Unit = {
@@ -148,6 +146,12 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.Resolved, Forms.WorkingIR)
     val patches = Seq(
+      // ResolveFlows no longer depends in Uniquify (ResolveKinds and InferTypes are fixup passes that get moved as well)
+      Del(5), Del(6), Del(7),
+      // Uniquify now is run before InferBinary Points which claims to need Uniquify
+      Add(9, Seq(Dependency(firrtl.passes.Uniquify),
+                 Dependency(firrtl.passes.ResolveKinds),
+                 Dependency(firrtl.passes.InferTypes))),
       Add(14, Seq(Dependency.fromTransform(firrtl.passes.CheckTypes)))
     )
     compare(legacyTransforms(new ResolveAndCheck), tm, patches)
@@ -165,7 +169,8 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
                  Dependency(firrtl.passes.ResolveFlows))),
       Del(7),
       Del(8),
-      Add(7, Seq(Dependency[firrtl.passes.ExpandWhensAndCheck])),
+      Add(7, Seq(Dependency(firrtl.passes.ResolveKinds),
+                 Dependency[firrtl.passes.ExpandWhensAndCheck])),
       Del(11),
       Del(12),
       Del(13),
@@ -184,7 +189,11 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
 
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.LowForm, Forms.MidForm)
-    compare(legacyTransforms(new MiddleFirrtlToLowFirrtl), tm)
+    val patches = Seq(
+      // RemoveWires now visibly invalidates ResolveKinds
+      Add(11, Seq(Dependency(firrtl.passes.ResolveKinds)))
+    )
+    compare(legacyTransforms(new MiddleFirrtlToLowFirrtl), tm, patches)
   }
 
   behavior of "MinimumLowFirrtlOptimization"
@@ -193,7 +202,8 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
     val tm = new TransformManager(Forms.LowFormMinimumOptimized, Forms.LowForm)
     val patches = Seq(
       Add(4, Seq(Dependency(firrtl.passes.ResolveFlows))),
-      Add(5, Seq(Dependency(firrtl.passes.ResolveKinds)))
+      Add(6, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform],
+                 Dependency(firrtl.passes.ResolveKinds)))
     )
     compare(legacyTransforms(new MinimumLowFirrtlOptimization), tm, patches)
   }
@@ -205,7 +215,8 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
     val patches = Seq(
       Add(6, Seq(Dependency(firrtl.passes.ResolveFlows))),
       Add(7, Seq(Dependency(firrtl.passes.Legalize))),
-      Add(8, Seq(Dependency(firrtl.passes.ResolveKinds)))
+      Add(8, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform],
+                 Dependency(firrtl.passes.ResolveKinds)))
     )
     compare(legacyTransforms(new LowFirrtlOptimization), tm, patches)
   }
@@ -337,40 +348,6 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
         (new TransformManager(Forms.LowFormOptimized, Forms.ChirrtlForm).flattenedTransformOrder)
     val tm = new TransformManager(Forms.LowFormOptimized :+ Dependency[Transforms.LowToChirrtl])
     compare(expected, tm)
-  }
-
-  it should "schedule inputForm=LowForm after MiddleFirrtlToLowFirrtl for the LowFirrtlEmitter" in {
-    val expected =
-      new TransformManager(Forms.LowForm).flattenedTransformOrder ++
-        Seq(new Transforms.LowToLow, new firrtl.LowFirrtlEmitter)
-    val tm = (new TransformManager(Seq(Dependency[firrtl.LowFirrtlEmitter], Dependency[Transforms.LowToLow])))
-    compare(expected, tm)
-  }
-
-  it should "schedule inputForm=LowForm after MinimumLowFirrtlOptimizations for the MinimalVerilogEmitter" in {
-    val expected =
-      new TransformManager(Forms.LowFormMinimumOptimized).flattenedTransformOrder ++
-        Seq(new Transforms.LowToLow, new firrtl.MinimumVerilogEmitter)
-    val tm = (new TransformManager(Seq(Dependency[firrtl.MinimumVerilogEmitter], Dependency[Transforms.LowToLow])))
-    val patches = Seq(
-      Add(63, Seq(
-        Dependency[firrtl.transforms.formal.RemoveVerificationStatements],
-        Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
-    )
-    compare(expected, tm, patches)
-  }
-
-  it should "schedule inputForm=LowForm after LowFirrtlOptimizations for the VerilogEmitter" in {
-    val expected =
-      new TransformManager(Forms.LowFormOptimized).flattenedTransformOrder ++
-        Seq(new Transforms.LowToLow, new firrtl.VerilogEmitter)
-    val tm = (new TransformManager(Seq(Dependency[firrtl.VerilogEmitter], Dependency[Transforms.LowToLow])))
-    val patches = Seq(
-      Add(70, Seq(
-        Dependency[firrtl.transforms.formal.RemoveVerificationStatements],
-        Dependency[firrtl.transforms.LegalizeAndReductionsTransform]))
-    )
-    compare(expected, tm, patches)
   }
 
 }

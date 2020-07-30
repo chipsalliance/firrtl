@@ -5,7 +5,9 @@ package ir
 
 import Utils.{dec2string, indent, trim}
 import firrtl.constraint.{Constraint, IsKnown, IsVar}
+import org.apache.commons.text.translate.{AggregateTranslator, JavaUnicodeEscaper, LookupTranslator}
 
+import scala.collection.JavaConverters._
 import scala.math.BigDecimal.RoundingMode._
 
 /** Intermediate Representation */
@@ -22,33 +24,93 @@ case object NoInfo extends Info {
   override def toString: String = ""
   def ++(that: Info): Info = that
 }
-case class FileInfo(info: StringLit) extends Info {
-  override def toString: String = " @[" + info.serialize + "]"
-  //scalastyle:off method.name
+
+/** Stores the string of a file info annotation in its escaped form. */
+case class FileInfo(escaped: String) extends Info {
+  override def toString: String = " @[" + escaped + "]"
   def ++(that: Info): Info = if (that == NoInfo) this else MultiInfo(Seq(this, that))
+  def unescaped: String = FileInfo.unescape(escaped)
+  @deprecated("Use FileInfo.unescaped instead. FileInfo.info will be removed in FIRRTL 1.5.", "FIRRTL 1.4")
+  def info: StringLit = StringLit(this.unescaped)
 }
+
+object FileInfo {
+  @deprecated("Use FileInfo.fromUnEscaped instead. FileInfo.apply will be removed in FIRRTL 1.5.", "FIRRTL 1.4")
+  def apply(info: StringLit): FileInfo = new FileInfo(escape(info.string))
+  def fromEscaped(s: String): FileInfo = new FileInfo(s)
+  def fromUnescaped(s: String): FileInfo = new FileInfo(escape(s))
+  /** prepends a `\` to: `\`, `\n`, `\t` and `]` */
+  def escape(s: String): String = EscapeFirrtl.translate(s)
+  /** removes the `\` in front of `\`, `\n`, `\t` and `]` */
+  def unescape(s: String): String = UnescapeFirrtl.translate(s)
+  /** take an already escaped String and do the additional escaping needed for Verilog comment */
+  def escapedToVerilog(s: String) = EscapedToVerilog.translate(s)
+
+  // custom `CharSequenceTranslator` for FIRRTL Info String escaping
+  type CharMap = (CharSequence, CharSequence)
+  private val EscapeFirrtl = new LookupTranslator(Seq[CharMap](
+    "\\" -> "\\\\",
+    "\n" -> "\\n",
+    "\t" -> "\\t",
+    "]" -> "\\]"
+  ).toMap.asJava)
+  private val UnescapeFirrtl = new LookupTranslator(Seq[CharMap](
+    "\\\\" -> "\\",
+    "\\n" -> "\n",
+    "\\t" -> "\t",
+    "\\]" -> "]"
+  ).toMap.asJava)
+  // EscapeFirrtl + EscapedToVerilog essentially does the same thing as running StringEscapeUtils.unescapeJava
+  private val EscapedToVerilog = new AggregateTranslator(
+    new LookupTranslator(Seq[CharMap](
+      // ] is the one character that firrtl needs to be escaped that does not need to be escaped in
+      "\\]" -> "]",
+      "\"" -> "\\\"",
+      // \n and \t are already escaped
+      "\b" -> "\\b",
+      "\f" -> "\\f",
+      "\r" -> "\\r"
+    ).toMap.asJava),
+    JavaUnicodeEscaper.outsideOf(32, 0x7f)
+  )
+
+}
+
 case class MultiInfo(infos: Seq[Info]) extends Info {
-  private def collectStringLits(info: Info): Seq[StringLit] = info match {
-    case FileInfo(lit) => Seq(lit)
-    case MultiInfo(seq) => seq flatMap collectStringLits
+  private def collectStrings(info: Info): Seq[String] = info match {
+    case f : FileInfo => Seq(f.escaped)
+    case MultiInfo(seq) => seq flatMap collectStrings
     case NoInfo => Seq.empty
   }
   override def toString: String = {
-    val parts = collectStringLits(this)
-    if (parts.nonEmpty) parts.map(_.serialize).mkString(" @[", " ", "]")
+    val parts = collectStrings(this)
+    if (parts.nonEmpty) parts.mkString(" @[", " ", "]")
     else ""
   }
-  //scalastyle:off method.name
   def ++(that: Info): Info = if (that == NoInfo) this else MultiInfo(infos :+ that)
+  def flatten: Seq[FileInfo] = MultiInfo.flattenInfo(infos)
 }
 object MultiInfo {
   def apply(infos: Info*) = {
     val infosx = infos.filterNot(_ == NoInfo)
     infosx.size match {
       case 0 => NoInfo
-      case 1 => infosx.head
-      case _ => new MultiInfo(infosx)
+      case 1 => infos.head
+      case _ => new MultiInfo(infos)
     }
+  }
+
+  // Internal utility for unpacking implicit MultiInfo structure for muxes
+  // TODO should this be made into an API?
+  private[firrtl] def demux(info: Info): (Info, Info, Info) = info match {
+    case MultiInfo(infos) if infos.lengthCompare(3) == 0 => (infos(0), infos(1), infos(2))
+    case other => (other, NoInfo, NoInfo) // if not exactly 3, we don't know what to do
+  }
+  
+  private def flattenInfo(infos: Seq[Info]): Seq[FileInfo] = infos.flatMap {
+    case NoInfo => Seq()
+    case f : FileInfo => Seq(f)
+    case MultiInfo(infos) => flattenInfo(infos)
   }
 }
 
@@ -162,9 +224,9 @@ case class Reference(name: String, tpe: Type = UnknownType, kind: Kind = Unknown
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
   def mapWidth(f: Width => Width): Expression = this
-  def foreachExpr(f: Expression => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = ()
   def foreachType(f: Type => Unit): Unit = f(tpe)
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 
 case class SubField(expr: Expression, name: String, tpe: Type = UnknownType, flow: Flow = UnknownFlow)
@@ -175,7 +237,7 @@ case class SubField(expr: Expression, name: String, tpe: Type = UnknownType, flo
   def mapWidth(f: Width => Width): Expression = this
   def foreachExpr(f: Expression => Unit): Unit = f(expr)
   def foreachType(f: Type => Unit): Unit = f(tpe)
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 
 case class SubIndex(expr: Expression, value: Int, tpe: Type, flow: Flow = UnknownFlow)
@@ -186,7 +248,7 @@ case class SubIndex(expr: Expression, value: Int, tpe: Type, flow: Flow = Unknow
   def mapWidth(f: Width => Width): Expression = this
   def foreachExpr(f: Expression => Unit): Unit = f(expr)
   def foreachType(f: Type => Unit): Unit = f(tpe)
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 
 case class SubAccess(expr: Expression, index: Expression, tpe: Type, flow: Flow = UnknownFlow)
@@ -197,7 +259,7 @@ case class SubAccess(expr: Expression, index: Expression, tpe: Type, flow: Flow 
   def mapWidth(f: Width => Width): Expression = this
   def foreachExpr(f: Expression => Unit): Unit = { f(expr); f(index) }
   def foreachType(f: Type => Unit): Unit = f(tpe)
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 
 case class Mux(cond: Expression, tval: Expression, fval: Expression, tpe: Type = UnknownType) extends Expression {
@@ -207,7 +269,7 @@ case class Mux(cond: Expression, tval: Expression, fval: Expression, tpe: Type =
   def mapWidth(f: Width => Width): Expression = this
   def foreachExpr(f: Expression => Unit): Unit = { f(cond); f(tval); f(fval) }
   def foreachType(f: Type => Unit): Unit = f(tpe)
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 case class ValidIf(cond: Expression, value: Expression, tpe: Type) extends Expression {
   def serialize: String = s"validif(${cond.serialize}, ${value.serialize})"
@@ -216,7 +278,7 @@ case class ValidIf(cond: Expression, value: Expression, tpe: Type) extends Expre
   def mapWidth(f: Width => Width): Expression = this
   def foreachExpr(f: Expression => Unit): Unit = { f(cond); f(value) }
   def foreachType(f: Type => Unit): Unit = f(tpe)
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 abstract class Literal extends Expression {
   val value: BigInt
@@ -228,13 +290,22 @@ case class UIntLiteral(value: BigInt, width: Width) extends Literal {
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = UIntLiteral(value, f(width))
-  def foreachExpr(f: Expression => Unit): Unit = Unit
-  def foreachType(f: Type => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = ()
+  def foreachType(f: Type => Unit): Unit = ()
   def foreachWidth(f: Width => Unit): Unit = f(width)
 }
 object UIntLiteral {
   def minWidth(value: BigInt): Width = IntWidth(math.max(value.bitLength, 1))
   def apply(value: BigInt): UIntLiteral = new UIntLiteral(value, minWidth(value))
+
+  /** Utility to construct UIntLiterals masked by the width
+    *
+    * This supports truncating negative values as well as values that are too wide for the width
+    */
+  def masked(value: BigInt, width: IntWidth): UIntLiteral = {
+    val mask = (BigInt(1) << width.width.toInt) - 1
+    UIntLiteral(value & mask, width)
+  }
 }
 case class SIntLiteral(value: BigInt, width: Width) extends Literal {
   def tpe = SIntType(width)
@@ -242,8 +313,8 @@ case class SIntLiteral(value: BigInt, width: Width) extends Literal {
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = SIntLiteral(value, f(width))
-  def foreachExpr(f: Expression => Unit): Unit = Unit
-  def foreachType(f: Type => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = ()
+  def foreachType(f: Type => Unit): Unit = ()
   def foreachWidth(f: Width => Unit): Unit = f(width)
 }
 object SIntLiteral {
@@ -259,8 +330,8 @@ case class FixedLiteral(value: BigInt, width: Width, point: Width) extends Liter
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = FixedLiteral(value, f(width), f(point))
-  def foreachExpr(f: Expression => Unit): Unit = Unit
-  def foreachType(f: Type => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = ()
+  def foreachType(f: Type => Unit): Unit = ()
   def foreachWidth(f: Width => Unit): Unit = { f(width); f(point) }
 }
 case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: Type) extends Expression {
@@ -271,7 +342,7 @@ case class DoPrim(op: PrimOp, args: Seq[Expression], consts: Seq[BigInt], tpe: T
   def mapWidth(f: Width => Width): Expression = this
   def foreachExpr(f: Expression => Unit): Unit = args.foreach(f)
   def foreachType(f: Type => Unit): Unit = f(tpe)
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 
 abstract class Statement extends FirrtlNode {
@@ -293,8 +364,8 @@ case class DefWire(info: Info, name: String, tpe: Type) extends Statement with I
   def mapType(f: Type => Type): Statement = DefWire(info, name, f(tpe))
   def mapString(f: String => String): Statement = DefWire(info, f(name), tpe)
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
-  def foreachExpr(f: Expression => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
+  def foreachExpr(f: Expression => Unit): Unit = ()
   def foreachType(f: Type => Unit): Unit = f(tpe)
   def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f: Info => Unit): Unit = f(info)
@@ -315,7 +386,7 @@ case class DefRegister(
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = { f(clock); f(reset); f(init) }
   def foreachType(f: Type => Unit): Unit = f(tpe)
   def foreachString(f: String => Unit): Unit = f(name)
@@ -334,8 +405,8 @@ case class DefInstance(info: Info, name: String, module: String, tpe: Type = Unk
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
   def mapInfo(f: Info => Info): Statement = this.copy(f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
-  def foreachExpr(f: Expression => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
+  def foreachExpr(f: Expression => Unit): Unit = ()
   def foreachType(f: Type => Unit): Unit = f(tpe)
   def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f: Info => Unit): Unit = f(info)
@@ -375,8 +446,8 @@ case class DefMemory(
   def mapType(f: Type => Type): Statement = this.copy(dataType = f(dataType))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
-  def foreachExpr(f: Expression => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
+  def foreachExpr(f: Expression => Unit): Unit = ()
   def foreachType(f: Type => Unit): Unit = f(dataType)
   def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f: Info => Unit): Unit = f(info)
@@ -388,9 +459,9 @@ case class DefNode(info: Info, name: String, value: Expression) extends Statemen
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = DefNode(info, f(name), value)
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = f(value)
-  def foreachType(f: Type => Unit): Unit = Unit
+  def foreachType(f: Type => Unit): Unit = ()
   def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
@@ -411,8 +482,8 @@ case class Conditionally(
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
   def foreachStmt(f: Statement => Unit): Unit = { f(conseq); f(alt) }
   def foreachExpr(f: Expression => Unit): Unit = f(pred)
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachString(f: String => Unit): Unit = Unit
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = ()
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
 
@@ -442,17 +513,17 @@ case class Block(stmts: Seq[Statement]) extends Statement {
         its = its.tail
       }
     }
-    Block(res)
+    Block(res.toSeq)
   }
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
   def mapInfo(f: Info => Info): Statement = this
   def foreachStmt(f: Statement => Unit): Unit = stmts.foreach(f)
-  def foreachExpr(f: Expression => Unit): Unit = Unit
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachString(f: String => Unit): Unit = Unit
-  def foreachInfo(f: Info => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = ()
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = ()
+  def foreachInfo(f: Info => Unit): Unit = ()
 }
 case class PartialConnect(info: Info, loc: Expression, expr: Expression) extends Statement with HasInfo {
   def serialize: String =  s"${loc.serialize} <- ${expr.serialize}" + info.serialize
@@ -461,10 +532,10 @@ case class PartialConnect(info: Info, loc: Expression, expr: Expression) extends
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = { f(loc); f(expr) }
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachString(f: String => Unit): Unit = Unit
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = ()
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
 case class Connect(info: Info, loc: Expression, expr: Expression) extends Statement with HasInfo {
@@ -474,10 +545,10 @@ case class Connect(info: Info, loc: Expression, expr: Expression) extends Statem
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = { f(loc); f(expr) }
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachString(f: String => Unit): Unit = Unit
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = ()
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
 case class IsInvalid(info: Info, expr: Expression) extends Statement with HasInfo {
@@ -487,10 +558,10 @@ case class IsInvalid(info: Info, expr: Expression) extends Statement with HasInf
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = f(expr)
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachString(f: String => Unit): Unit = Unit
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = ()
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
 case class Attach(info: Info, exprs: Seq[Expression]) extends Statement with HasInfo {
@@ -500,10 +571,10 @@ case class Attach(info: Info, exprs: Seq[Expression]) extends Statement with Has
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = exprs.foreach(f)
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachString(f: String => Unit): Unit = Unit
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = ()
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
 case class Stop(info: Info, ret: Int, clk: Expression, en: Expression) extends Statement with HasInfo {
@@ -513,10 +584,10 @@ case class Stop(info: Info, ret: Int, clk: Expression, en: Expression) extends S
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = { f(clk); f(en) }
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachString(f: String => Unit): Unit = Unit
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = ()
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
 case class Print(
@@ -535,10 +606,10 @@ case class Print(
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
   def mapInfo(f: Info => Info): Statement = this.copy(info = f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = { args.foreach(f); f(clk); f(en) }
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachString(f: String => Unit): Unit = Unit
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = ()
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
 
@@ -565,10 +636,10 @@ case class Verification(
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
   def mapInfo(f: Info => Info): Statement = copy(info = f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = { f(clk); f(pred); f(en); }
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachString(f: String => Unit): Unit = Unit
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = ()
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
 // end formal
@@ -580,11 +651,11 @@ case object EmptyStmt extends Statement {
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this
   def mapInfo(f: Info => Info): Statement = this
-  def foreachStmt(f: Statement => Unit): Unit = Unit
-  def foreachExpr(f: Expression => Unit): Unit = Unit
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachString(f: String => Unit): Unit = Unit
-  def foreachInfo(f: Info => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
+  def foreachExpr(f: Expression => Unit): Unit = ()
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = ()
+  def foreachInfo(f: Info => Unit): Unit = ()
 }
 
 abstract class Width extends FirrtlNode {
@@ -734,14 +805,14 @@ abstract class Type extends FirrtlNode {
 abstract class GroundType extends Type {
   val width: Width
   def mapType(f: Type => Type): Type = this
-  def foreachType(f: Type => Unit): Unit = Unit
+  def foreachType(f: Type => Unit): Unit = ()
 }
 object GroundType {
   def unapply(ground: GroundType): Option[Width] = Some(ground.width)
 }
 abstract class AggregateType extends Type {
   def mapWidth(f: Width => Width): Type = this
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 case class UIntType(width: Width) extends GroundType {
   def serialize: String = "UInt" + width.serialize
@@ -854,20 +925,20 @@ case object ClockType extends GroundType {
   val width = IntWidth(1)
   def serialize: String = "Clock"
   def mapWidth(f: Width => Width): Type = this
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 /* Abstract reset, will be inferred to UInt<1> or AsyncReset */
 case object ResetType extends GroundType {
   val width = IntWidth(1)
   def serialize: String = "Reset"
   def mapWidth(f: Width => Width): Type = this
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 case object AsyncResetType extends GroundType {
   val width = IntWidth(1)
   def serialize: String = "AsyncReset"
   def mapWidth(f: Width => Width): Type = this
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 case class AnalogType(width: Width) extends GroundType {
   def serialize: String = "Analog" + width.serialize
@@ -878,8 +949,8 @@ case object UnknownType extends Type {
   def serialize: String = "?"
   def mapType(f: Type => Type): Type = this
   def mapWidth(f: Width => Width): Type = this
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 
 /** [[Port]] Direction */
@@ -975,7 +1046,7 @@ case class ExtModule(
   def mapPort(f: Port => Port): DefModule = this.copy(ports = ports map f)
   def mapString(f: String => String): DefModule = this.copy(name = f(name))
   def mapInfo(f: Info => Info): DefModule = this.copy(f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
   def foreachPort(f: Port => Unit): Unit = ports.foreach(f)
   def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f: Info => Unit): Unit = f(info)

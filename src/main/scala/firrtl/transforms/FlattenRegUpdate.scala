@@ -7,10 +7,18 @@ import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.Utils._
 import firrtl.options.Dependency
+import firrtl.InfoExpr.{orElse, unwrap}
 
 import scala.collection.mutable
 
 object FlattenRegUpdate {
+
+  // Combination function for dealing with inlining of muxes and the handling of Triples of infos
+  private def combineInfos(muxInfo: Info, tinfo: Info, finfo: Info): Info = {
+    val (eninfo, tinfoAlt, finfoAlt) = MultiInfo.demux(muxInfo)
+    // Use MultiInfo constructor to preserve NoInfos
+    new MultiInfo(List(eninfo, orElse(tinfo, tinfoAlt), orElse(finfo, finfoAlt)))
+  }
 
   /** Mapping from references to the [[firrtl.ir.Expression Expression]]s that drive them */
   type Netlist = mutable.HashMap[WrappedExpression, Expression]
@@ -26,10 +34,12 @@ object FlattenRegUpdate {
     val netlist = new Netlist()
     def onStmt(stmt: Statement): Statement = {
       stmt.map(onStmt) match {
-        case Connect(_, lhs, rhs) =>
-          netlist(lhs) = rhs
-        case DefNode(_, nname, rhs) =>
-          netlist(WRef(nname)) = rhs
+        case Connect(info, lhs, rhs) =>
+          val expr = if (info == NoInfo) rhs else InfoExpr(info, rhs)
+          netlist(lhs) = expr
+        case DefNode(info, nname, rhs) =>
+          val expr = if (info == NoInfo) rhs else InfoExpr(info, rhs)
+          netlist(WRef(nname)) = expr
         case _: IsInvalid => throwInternalError("Unexpected IsInvalid, should have been removed by now")
         case _ => // Do nothing
       }
@@ -48,25 +58,29 @@ object FlattenRegUpdate {
     * @return [[firrtl.ir.Module Module]] with register updates flattened
     */
   def flattenReg(mod: Module): Module = {
-    val regUpdates = mutable.ArrayBuffer.empty[Connect]
-    val netlist = buildNetlist(mod)
-
     // We want to flatten Mux trees for reg updates into if-trees for improved
     // QoR for conditional updates. However, when-otherwise structure often
     // leads to defaults that are repeated all over and result in unreachable
     // branches. Before performing the inline, we determine which references
     // show up on multiple paths and mark those as endpoints where we stop
     // inlining
-    val maxDepth = 4 // max depth of inlining
+    val maxDepth = 4
+
+    val regUpdates = mutable.ArrayBuffer.empty[Connect]
+    val netlist = buildNetlist(mod)
+
+    // First traversal marks expression that would be inlined multiple times as endpoints
+    // Note that we could traverse more than maxDepth times - this corresponds to an expression that
+    // is already a very deeply nested mux
     def determineEndpoints(expr: Expression): collection.Set[WrappedExpression] = {
       val seen = mutable.HashSet.empty[WrappedExpression]
       val endpoint = mutable.HashSet.empty[WrappedExpression]
       def rec(depth: Int)(e: Expression): Unit = {
-        val ex = kind(e) match {
+        val (_, ex) = kind(e) match {
           case NodeKind | WireKind if depth < maxDepth && !seen(e) =>
             seen += e
-            netlist.getOrElse(e, e)
-          case _ => e
+            unwrap(netlist.getOrElse(e, e))
+          case _ => unwrap(e)
         }
         ex match {
           case Mux(_, tval, fval, _) =>
@@ -81,19 +95,24 @@ object FlattenRegUpdate {
       endpoint
     }
 
-    def constructRegUpdate(expr: Expression): Expression = {
-      val endpoints = determineEndpoints(expr)
-      def rec(e: Expression): Expression = {
-        val ex = kind(e) match {
-          case NodeKind | WireKind if !endpoints(e)=> netlist.getOrElse(e, e)
-          case _ => e
+    def constructRegUpdate(start: Expression): (Info, Expression) = {
+      val endpoints = determineEndpoints(start)
+      def rec(e: Expression): (Info, Expression) = {
+        val (info, expr) = kind(e) match {
+          case NodeKind | WireKind if !endpoints(e) => unwrap(netlist.getOrElse(e, e))
+          case _ => unwrap(e)
         }
-        ex match {
-          case Mux(cond, tval, fval, tpe) => Mux(cond, rec(tval), rec(fval), tpe)
-          case _  => ex
+        expr match {
+          case Mux(cond, tval, fval, tpe) =>
+            val (tinfo, tvalx) = rec(tval)
+            val (finfo, fvalx) = rec(fval)
+            val infox = combineInfos(info, tinfo, finfo)
+            (infox, Mux(cond, tvalx, fvalx, tpe))
+          // Return the original expression to end flattening
+          case _  => unwrap(e)
         }
       }
-      rec(expr)
+      rec(start)
     }
 
     def onStmt(stmt: Statement): Statement = stmt.map(onStmt) match {
@@ -101,7 +120,8 @@ object FlattenRegUpdate {
         assert(resetCond.tpe == AsyncResetType || resetCond == Utils.zero,
           "Synchronous reset should have already been made explicit!")
         val ref = WRef(reg)
-        val update = Connect(NoInfo, ref, constructRegUpdate(netlist.getOrElse(ref, ref)))
+        val (info, rhs) = constructRegUpdate(netlist.getOrElse(ref, ref))
+        val update = Connect(info, ref, rhs)
         regUpdates += update
         reg
       // Remove connections to Registers so we preserve LowFirrtl single-connection semantics
@@ -110,7 +130,7 @@ object FlattenRegUpdate {
     }
 
     val bodyx = onStmt(mod.body)
-    mod.copy(body = Block(bodyx +: regUpdates))
+    mod.copy(body = Block(bodyx +: regUpdates.toSeq))
   }
 
 }
