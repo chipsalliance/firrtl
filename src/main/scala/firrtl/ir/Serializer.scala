@@ -93,6 +93,7 @@ object Serializer {
         newLineAndIndent(1) ; s(alt)(b, indent + 1)
       }
     case EmptyStmt => b ++= "skip"
+    case Block(Seq()) => b ++= "skip"
     case Block(stmts) =>
       val it = stmts.iterator
       while(it.hasNext) {
@@ -196,11 +197,8 @@ object Serializer {
     case Module(info, name, ports, body) =>
       b ++= "module " ; b ++= name ; b ++= " :" ; s(info)
       ports.foreach{ p => newLineAndIndent(1) ;  s(p) }
-      val isEmpty = body == EmptyStmt || body == Block(Seq())
-      if(!isEmpty) {
-        newLineNoIndent() // add a new line between port declaration and body
-        newLineAndIndent(1) ; s(body)(b, indent + 1)
-      }
+      newLineNoIndent() // add a new line between port declaration and body
+      newLineAndIndent(1) ; s(body)(b, indent + 1)
     case ExtModule(info, name, ports, defname, params) =>
       b ++= "extmodule " ; b ++= name ; b ++= " :" ; s(info)
       ports.foreach{ p => newLineAndIndent(1) ; s(p) }
