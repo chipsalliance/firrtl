@@ -131,6 +131,9 @@ object Serializer {
     case firrtl.CDefMPort(info, name, _, mem, exps, direction) =>
       b ++= direction.serialize ; b ++= " mport " ; b ++= name ; b ++= " = " ; b ++= mem
       b += '[' ; s(exps.head) ; b ++= "], " ; s(exps(1)) ; s(info)
+    case firrtl.WDefInstanceConnector(info, name, module, tpe, portCons) =>
+      b ++= "inst " ; b ++= name ; b ++= " of " ; b ++= module ; b ++= " with " ; s(tpe) ; b ++= " connected to ("
+      s(portCons.map(_._2), ",  ") ; b += ')' ; s(info)
   }
 
   private def s(node: Width)(implicit b: StringBuilder, indent: Int): Unit = node match {
@@ -214,7 +217,10 @@ object Serializer {
     // Bounds
     case UnknownBound => b += '?'
     case CalcBound(arg) => b ++= "calcb(" ; s(arg) ; b += ')'
-    case other => b ++= other.serialize
+    case VarBound(name) => b ++= name
+    case Open(value) => b ++ "o(" ; b ++= value.toString ; b += ')'
+    case Closed(value) => b ++ "c(" ; b ++= value.toString ; b += ')'
+    case other => other.serialize
   }
 
   /** create a new line with the appropriate indent */
