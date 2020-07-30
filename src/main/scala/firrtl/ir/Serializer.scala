@@ -46,9 +46,14 @@ object Serializer {
   private def s(node: Info)(implicit b: StringBuilder, indent: Int): Unit = node match {
     case f : FileInfo => b ++= " @[" ; b ++= f.escaped ; b ++= "]"
     case NoInfo => // empty string
-    case MultiInfo(infos) =>
-      val ii = flattenInfo(infos)
-      b ++= " @[" ; sInfo(ii, ", ") ; b ++= "]"
+    case m : MultiInfo =>
+      val infos = m.flatten
+      if(infos.nonEmpty) {
+        val lastId = infos.length - 1
+        b ++= " @["
+        infos.zipWithIndex.foreach { case (f, i) => b ++= f.escaped; if (i < lastId) b += ' ' }
+        b += ']'
+      }
   }
 
   private def s(str: StringLit)(implicit b: StringBuilder, indent: Int): Unit = b ++= str.serialize
@@ -242,17 +247,6 @@ object Serializer {
     while(it.hasNext) {
       s(it.next())
       if(!noFinalSep || it.hasNext) b ++= sep
-    }
-  }
-
-  /** serialize firrtl Info nodes with a custom separator and the option to include the separator at the end */
-  @inline
-  private def sInfo(nodes: Seq[Info], sep: String)
-               (implicit b: StringBuilder, indent: Int): Unit = {
-    val it = nodes.iterator
-    while(it.hasNext) {
-      s(it.next())
-      if(it.hasNext) b ++= sep
     }
   }
 
