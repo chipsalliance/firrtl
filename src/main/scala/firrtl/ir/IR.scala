@@ -212,6 +212,15 @@ case class UIntLiteral(value: BigInt, width: Width) extends Literal {
 object UIntLiteral {
   def minWidth(value: BigInt): Width = IntWidth(math.max(value.bitLength, 1))
   def apply(value: BigInt): UIntLiteral = new UIntLiteral(value, minWidth(value))
+
+  /** Utility to construct UIntLiterals masked by the width
+    *
+    * This supports truncating negative values as well as values that are too wide for the width
+    */
+  def masked(value: BigInt, width: IntWidth): UIntLiteral = {
+    val mask = (BigInt(1) << width.width.toInt) - 1
+    UIntLiteral(value & mask, width)
+  }
 }
 case class SIntLiteral(value: BigInt, width: Width) extends Literal {
   def tpe = SIntType(width)
@@ -392,8 +401,29 @@ object Block {
 }
 
 case class Block(stmts: Seq[Statement]) extends Statement {
-  def serialize: String = stmts map (_.serialize) mkString "\n"
-  def mapStmt(f: Statement => Statement): Statement = Block(stmts map f)
+  def serialize: String = {
+    val res = stmts.view.map(_.serialize).mkString("\n")
+    if (res.nonEmpty) res else EmptyStmt.serialize
+  }
+  def mapStmt(f: Statement => Statement): Statement = {
+    val res = new scala.collection.mutable.ArrayBuffer[Statement]()
+    var its = stmts.iterator :: Nil
+    while (its.nonEmpty) {
+      val it = its.head
+      if (it.hasNext) {
+        it.next() match {
+          case EmptyStmt => // flatten out
+          case b: Block =>
+            its = b.stmts.iterator :: its
+          case other =>
+            res.append(f(other))
+        }
+      } else {
+        its = its.tail
+      }
+    }
+    Block(res)
+  }
   def mapExpr(f: Expression => Expression): Statement = this
   def mapType(f: Type => Type): Statement = this
   def mapString(f: String => String): Statement = this

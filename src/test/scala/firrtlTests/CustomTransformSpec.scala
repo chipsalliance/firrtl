@@ -6,8 +6,7 @@ import firrtl.ir.Circuit
 import firrtl._
 import firrtl.passes.Pass
 import firrtl.ir._
-
-import firrtl.stage.{FirrtlSourceAnnotation, FirrtlStage, Forms, RunFirrtlTransformAnnotation}
+import firrtl.stage.{FirrtlSourceAnnotation, FirrtlStage, RunFirrtlTransformAnnotation}
 import firrtl.options.Dependency
 import firrtl.transforms.{IdentityTransform, LegalizeAndReductionsTransform}
 
@@ -151,33 +150,29 @@ class CustomTransformSpec extends FirrtlFlatSpec {
 
   they should "run right before the emitter* when inputForm=LowForm" in {
 
-    val custom = Dependency[IdentityLowForm]
+    val locationMap = Map(
+      Dependency[LowFirrtlEmitter]      -> Dependency[LowFirrtlEmitter],
+      Dependency[MinimumVerilogEmitter] -> Dependency[LegalizeAndReductionsTransform],
+      Dependency[VerilogEmitter]        -> Dependency[LegalizeAndReductionsTransform],
+      Dependency[SystemVerilogEmitter]  -> Dependency[LegalizeAndReductionsTransform]
+    )
 
-    def testOrder(after: Seq[Dependency[Transform]], before: Seq[Dependency[Transform]]): Unit = {
-      val expectedSlice: Seq[Dependency[Transform]] = before ++: custom +: after
-
-      info(expectedSlice.map(_.getSimpleName).mkString(" -> ") + " ok!")
-
-      val compiler = new firrtl.stage.transforms.Compiler(custom +: after)
-      info("Transform Order: \n" + compiler.prettyPrint("    "))
-
-
-      compiler
+    Seq(
+      Dependency[LowFirrtlEmitter],
+      Dependency[MinimumVerilogEmitter],
+      Dependency[VerilogEmitter],
+      Dependency[SystemVerilogEmitter]
+    ).foreach { emitter =>
+      val custom = Dependency[IdentityLowForm]
+      val tm = new firrtl.stage.transforms.Compiler(custom :: emitter :: Nil)
+      info(s"when using ${emitter.getObject.name}")
+      tm
         .flattenedTransformOrder
-        .map(Dependency.fromTransform(_))
-        .containsSlice(expectedSlice) should be (true)
+        .map(Dependency.fromTransform)
+        .sliding(2)
+        .toList should contain (Seq(custom, locationMap(emitter)))
     }
 
-    val Seq(low, lowMinOpt, lowOpt) =
-      Seq(Forms.LowForm, Forms.LowFormMinimumOptimized, Forms.LowFormOptimized)
-        .map(target => new firrtl.stage.transforms.Compiler(target))
-        .map(_.flattenedTransformOrder.map(Dependency.fromTransform(_)))
-
-    Seq( (Seq(Dependency[LowFirrtlEmitter]),                                                  Seq(low.last)      ),
-         (Seq(Dependency[LegalizeAndReductionsTransform], Dependency[MinimumVerilogEmitter]), Seq(lowMinOpt.last)),
-         (Seq(Dependency[LegalizeAndReductionsTransform], Dependency[VerilogEmitter]),        Seq(lowOpt.last)    ),
-         (Seq(Dependency[LegalizeAndReductionsTransform], Dependency[SystemVerilogEmitter]),  Seq(lowOpt.last)   )
-    ).foreach((testOrder _).tupled)
   }
 
   they should "work if placed inside an object" in {
