@@ -245,7 +245,7 @@ object Serializer {
   }
 
   /** serialize firrtl Expression nodes with a custom separator and the option to include the separator at the end */
-  private def s(nodes: Seq[Expression], sep: String, noFinalSep: Boolean = true)
+  private def s(nodes: Iterable[Expression], sep: String, noFinalSep: Boolean = true)
                (implicit b: StringBuilder, indent: Int): Unit = {
     val it = nodes.iterator
     while(it.hasNext) {
@@ -256,7 +256,7 @@ object Serializer {
 
   /** serialize firrtl Field nodes with a custom separator and the option to include the separator at the end */
   @inline
-  private def sField(nodes: Seq[Field], sep: String)
+  private def sField(nodes: Iterable[Field], sep: String)
                (implicit b: StringBuilder, indent: Int): Unit = {
     val it = nodes.iterator
     while(it.hasNext) {
@@ -266,7 +266,7 @@ object Serializer {
   }
 
   /** serialize BigInts with a custom separator */
-  private def s(consts: Seq[BigInt], sep: String)(implicit b: StringBuilder): Unit = {
+  private def s(consts: Iterable[BigInt], sep: String)(implicit b: StringBuilder): Unit = {
     val it = consts.iterator
     while(it.hasNext) {
       b ++= it.next().toString()
