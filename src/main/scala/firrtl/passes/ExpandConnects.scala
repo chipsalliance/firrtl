@@ -13,7 +13,7 @@ object ExpandConnects extends Pass {
          Dependency(ReplaceAccesses) ) ++ firrtl.stage.Forms.Deduped
 
   override def invalidates(a: Transform) = a match {
-    case ResolveFlows => true
+    case ResolveFlows | ResolveKinds => true
     case _            => false
   }
 

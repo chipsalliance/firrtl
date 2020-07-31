@@ -53,7 +53,7 @@ class DeadCodeElimination extends Transform
          Dependency(passes.VerilogPrep),
          Dependency[firrtl.AddDescriptionNodes] )
 
-  override def invalidates(a: Transform) = false
+  override def invalidates(a: Transform) = a == ResolveKinds
 
   val options = Seq(
     new ShellOption[Unit](

@@ -162,6 +162,7 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.MidForm, Forms.Deduped)
     val patches = Seq(
+      Add(3, Seq(Dependency(firrtl.passes.ResolveKinds))),
       Add(4, Seq(Dependency(firrtl.passes.ResolveFlows))),
       Add(5, Seq(Dependency(firrtl.passes.ResolveKinds))),
       Add(6, Seq(Dependency(firrtl.passes.ResolveKinds),
@@ -201,7 +202,8 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.LowFormMinimumOptimized, Forms.LowForm)
     val patches = Seq(
-      Add(4, Seq(Dependency(firrtl.passes.ResolveFlows))),
+      Add(4, Seq(Dependency(firrtl.passes.ResolveKinds),
+                 Dependency(firrtl.passes.ResolveFlows))),
       Add(6, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform],
                  Dependency(firrtl.passes.ResolveKinds)))
     )
@@ -213,10 +215,15 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.LowFormOptimized, Forms.LowForm)
     val patches = Seq(
-      Add(6, Seq(Dependency(firrtl.passes.ResolveFlows))),
-      Add(7, Seq(Dependency(firrtl.passes.Legalize))),
+      Add(2, Seq(Dependency(firrtl.passes.ResolveFlows))),
+      Add(4, Seq(Dependency(firrtl.passes.ResolveFlows))),
+      Add(6, Seq(Dependency(firrtl.passes.ResolveKinds),
+                 Dependency(firrtl.passes.ResolveFlows))),
+      Add(7, Seq(Dependency(firrtl.passes.ResolveFlows),
+                 Dependency(firrtl.passes.Legalize))),
       Add(8, Seq(Dependency[firrtl.transforms.LegalizeAndReductionsTransform],
-                 Dependency(firrtl.passes.ResolveKinds)))
+                 Dependency(firrtl.passes.ResolveKinds))),
+      Add(11, Seq(Dependency(firrtl.passes.ResolveKinds)))
     )
     compare(legacyTransforms(new LowFirrtlOptimization), tm, patches)
   }
@@ -238,7 +245,10 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       firrtl.passes.VerilogPrep,
       new firrtl.AddDescriptionNodes)
     val tm = new TransformManager(Forms.VerilogMinimumOptimized, (new firrtl.VerilogEmitter).prerequisites)
-    compare(legacy, tm)
+    val patches = Seq(
+      Add(8, Seq(Dependency(firrtl.passes.ResolveKinds)))
+    )
+    compare(legacy, tm, patches)
   }
 
   behavior of "VerilogOptimized"
@@ -259,7 +269,11 @@ class LoweringCompilersSpec extends FlatSpec with Matchers {
       firrtl.passes.VerilogPrep,
       new firrtl.AddDescriptionNodes)
     val tm = new TransformManager(Forms.VerilogOptimized, Forms.LowFormOptimized)
-    compare(legacy, tm)
+    val patches = Seq(
+      Add(8, Seq(Dependency(firrtl.passes.ResolveKinds))),
+      Add(9, Seq(Dependency(firrtl.passes.ResolveKinds)))
+    )
+    compare(legacy, tm, patches)
   }
 
   behavior of "Legacy Custom Transforms"
