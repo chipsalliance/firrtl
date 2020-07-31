@@ -960,11 +960,9 @@ In all cases, if a memory location is written to by more than one port on the sa
 
 \subsubsection{Inferred Memory Ports}
 
-An inferred memory port is one that is not explicitly declared in the original
-definition of the memory. Extra memory ports can be inferred for any memory that
-is in scope with the `read mport`, `write mport`, and `readwrite mport`
-statements. For this section, we will consider the following memory with no
-explicitly-declared ports.
+An inferred memory port is one that is not explicitly declared in the original definition of the memory.
+Extra memory ports can be inferred for any memory that is in scope with the `read mport` and `write mport` statements.
+For this section, we will consider the following memory with no explicitly-declared ports.
 
 \begin{lstlisting}
 mem syncmem :
@@ -975,7 +973,7 @@ mem syncmem :
   read-under-write => undefined
 \end{lstlisting}
 
-\subsubsection{Inferred Read Ports}
+\subsubsubsection{Inferred Read Ports}
 
 An inferred read port statement has four mandatory arguments: the name of the
 port, the memory to access, the address signal, and the clock. This has the
@@ -1007,7 +1005,7 @@ when (cmd.ren) :
   resp.rdata <= r
 \end{lstlisting}
 
-\subsubsection{Inferred Write Ports}
+\subsubsubsection{Inferred Write Ports}
 
 An inferred write port statement accepts four mandatory arguments: the name of the port, the memory
 to access, the address signal, and the clock. This has the effect of implicitly declaring the
@@ -1035,9 +1033,23 @@ Inferred write ports do not support masked writes; therefore, all write operatio
 all subfields enabled. When the conditions are such that no connection to the inferred write port
 occurs, no write operation will occur on that port.
 
-\subsubsection{Inferred Readwrite Ports}
+\subsubsection{Inferred Memory Accessors}
 
-TODO: should these exist, or just be generated as merges from InferReadWrite?
+Once an inferred memory accessor is declared, write operations can also be performed using the connection statement.
+Intuitively, when the port is used on the left-hand side of an assignment, this corresponds to connecting the right-hand side of the assignment to the `data` field of an explicit write port and asserting that port's `en` signal.
+As with any connection, the connection (and therefore the write operation) is conditional on any \verb|when| conditions that appear between the declaration of the inferred write port and the connection statement.
+
+\begin{lstlisting}
+memaccess port1 = syncmem[cmd.addr], clk
+when (cmd.wen) :
+  port1 <= cmd.wdata ; conditional write operation
+
+; last-connect semantics apply to inferred writes
+when (cmd.wen && cmd.isClear) :
+  port1 <= UInt<32>(``h00'') ; different condition
+\end{lstlisting}
+
+
 
 \subsection{Instances}\label{instances}
 FIRRTL modules are instantiated with the instance statement. The following example demonstrates creating an instance named \verb|myinstance| of the \verb|MyModule| module within the top level module \verb|Top|.

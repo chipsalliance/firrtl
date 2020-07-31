@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// See LICENSE for liAcense details.
 
 grammar FIRRTL;
 
@@ -97,6 +97,8 @@ stmt
   | 'cmem' id ':' type info?
   | 'smem' id ':' type ruw? info?
   | mdir 'mport' id '=' id '[' exp ']' exp info?
+  | 'memaccess' id '=' exp exp ('with' ':' 'en' '=>' exp )? info?
+  | 'memwrite' exp '[' exp ']' '<=' exp exp ('with' ':' 'mask' '=>' exp )? info?
   | 'inst' id 'of' id info?
   | 'node' id '=' exp info?
   | exp '<=' exp info?
