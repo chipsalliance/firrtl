@@ -34,7 +34,10 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
         |""".stripMargin
 
     val graph = new InstanceKeyGraph(parse(input)).graph.transformNodes(_.module)
-    getEdgeSet(graph) shouldBe Map("Top" -> Set("Child1", "Child2"), "Child1" -> Set("Child1a", "Child1b"), "Child2" -> Set(), "Child1a" -> Set(), "Child1b" -> Set())
+    getEdgeSet(graph) shouldBe Map(
+      "Top" -> Set("Child1", "Child2"),
+      "Child1" -> Set("Child1a", "Child1b"),
+      "Child2" -> Set(), "Child1a" -> Set(), "Child1b" -> Set())
   }
 
   it should "recognize disconnected hierarchies" in {
@@ -62,7 +65,11 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
         |""".stripMargin
 
     val graph = new InstanceKeyGraph(parse(input)).graph.transformNodes(_.module)
-    getEdgeSet(graph) shouldBe Map("Top" -> Set("Child1"), "Top2" -> Set("Child2", "Child3"), "Child2" -> Set("Child2a", "Child2b"), "Child1" -> Set(), "Child2a" -> Set(), "Child2b" -> Set(), "Child3" -> Set())
+    getEdgeSet(graph) shouldBe Map(
+      "Top" -> Set("Child1"),
+      "Top2" -> Set("Child2", "Child3"),
+      "Child2" -> Set("Child2a", "Child2b"),
+      "Child1" -> Set(), "Child2a" -> Set(), "Child2b" -> Set(), "Child3" -> Set())
   }
 
   it should "not drop duplicate nodes when they collide as a result of transformNodes" in {
@@ -205,7 +212,8 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
     val circuit = parse(input)
     val iGraph = new InstanceKeyGraph(circuit)
     iGraph.findInstancesInHierarchy("Top") shouldBe Seq(Seq(InstanceKey("Top", "Top")))
-    iGraph.findInstancesInHierarchy("Child1") shouldBe Seq(Seq(InstanceKey("Top", "Top"), InstanceKey("c", "Child1")))
+    iGraph.findInstancesInHierarchy("Child1") shouldBe
+      Seq(Seq(InstanceKey("Top", "Top"), InstanceKey("c", "Child1")))
     iGraph.findInstancesInHierarchy("Top2") shouldBe Nil
     iGraph.findInstancesInHierarchy("Child2") shouldBe Nil
     iGraph.findInstancesInHierarchy("Child2a") shouldBe Nil
@@ -295,7 +303,8 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
     assert(childMap(OfModule("Child2")).isEmpty)
 
     val topInstances = childMap(OfModule("Top")).map { case (k,v) => k.value -> v.value}.toSeq
-    assert(topInstances == Seq("c1" -> "Child1", "c2" -> "Child2", "c3" -> "Child1", "c4" -> "Child1", "c5" -> "Child1"))
+    assert(topInstances ==
+      Seq("c1" -> "Child1", "c2" -> "Child2", "c3" -> "Child1", "c4" -> "Child1", "c5" -> "Child1"))
 
     val child1Instance = childMap(OfModule("Child1")).map { case (k,v) => k.value -> v.value}.toSeq
     assert(child1Instance == Seq("a" -> "Child1a", "b" -> "Child1b"))
