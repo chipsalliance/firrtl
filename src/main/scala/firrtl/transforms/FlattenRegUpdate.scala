@@ -58,12 +58,31 @@ object FlattenRegUpdate {
     * @return [[firrtl.ir.Module Module]] with register updates flattened
     */
   def flattenReg(mod: Module): Module = {
-    // We want to flatten Mux trees for reg updates into if-trees for improved
-    // QoR for conditional updates. However, when-otherwise structure often
-    // leads to defaults that are repeated all over and result in unreachable
-    // branches. Before performing the inline, we determine which references
-    // show up on multiple paths and mark those as endpoints where we stop
-    // inlining
+    // We want to flatten Mux trees for reg updates into if-trees for improved QoR for conditional
+    // updates.  Sometimes the fan-in for a register has a mux structure with repeated
+    // sub-expressions that are themselves complex mux structures. These repeated structures can
+    // cause explosions in the size and complexity of the Verilog. In addition, user code that
+    // follows such structure often will have conditions in the sub-trees that are mutually
+    // exclusive with the conditions in the muxes closer to the register input. For example:
+    //
+    // when a :      ; when 1
+    //   r <= foo
+    // when b :      ; when 2
+    //   when a :
+    //     r <= bar  ; when 3
+    //
+    // After expand whens, when 1 is a common sub-expression that will show up twice in the mux
+    // structure from when 2:
+    //
+    // _GEN_0 = mux(a, foo, r)
+    // _GEN_1 = mux(a, bar, _GEN_0)
+    // r <= mux(b, _GEN_1, _GEN_0)
+    //
+    // Inlining _GEN_0 into _GEN_1 would result in unreachable lines in the Verilog. While we could
+    // do some optimizations here, this is *not* really a problem, it's just that Verilog metrics
+    // are based on the assumption of human-written code and as such it results in unreachable
+    // lines. Simply not inlining avoids this issue and leaves the optimizations up to synthesis
+    // tools which do a great job here.
     val maxDepth = 4
 
     val regUpdates = mutable.ArrayBuffer.empty[Connect]
