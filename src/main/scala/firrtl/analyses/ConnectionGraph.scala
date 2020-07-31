@@ -119,7 +119,7 @@ class ConnectionGraph protected(val circuit: Circuit,
   /** Optionally returns the shortcut a previous BFS search may have found out of a module, starting from target
     *
     * @param target first target to find shortcut.
-    * @return [[ReferenceTarget]] of short cut.
+    * @return [[firrtl.annotations.ReferenceTarget]] of short cut.
     */
   def getShortCut(target: ReferenceTarget): Option[Set[ReferenceTarget]] =
     foundShortCuts.get(target.pathlessTarget).map(set => set.map(_.setPathTarget(target.pathTarget)).toSet)
@@ -127,7 +127,7 @@ class ConnectionGraph protected(val circuit: Circuit,
   /** Returns the shortcut a previous BFS search may have found out of a module, starting from target
     *
     * @param target first target to find shortcut.
-    * @return [[ReferenceTarget]] of short cut.
+    * @return [[firrtl.annotations.ReferenceTarget]] of short cut.
     */
   def shortCut(target: ReferenceTarget): Set[ReferenceTarget] = getShortCut(target).get
 
@@ -205,7 +205,7 @@ class ConnectionGraph protected(val circuit: Circuit,
     }
 
     // visited nodes are in post-traversal order, so must be reversed
-    order.reverse
+    order.toSeq.reverse
   }
 
   override def getEdges(source: ReferenceTarget): collection.Set[ReferenceTarget] = {

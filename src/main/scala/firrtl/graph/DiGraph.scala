@@ -187,7 +187,7 @@ class DiGraph[T] (private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]) 
     *
     * @param start the start node
     * @param end the destination node
-    * @throws PathNotFoundException
+    * @throws firrtl.graph.PathNotFoundException
     * @return a Seq[T] of nodes defining an arbitrary valid path
     */
   def path(start: T, end: T): Seq[T] = path(start, end, Set.empty[T])
@@ -197,7 +197,7 @@ class DiGraph[T] (private[graph] val edges: LinkedHashMap[T, LinkedHashSet[T]]) 
     * @param start the start node
     * @param end the destination node
     * @param blacklist list of nodes which break path, if encountered
-    * @throws PathNotFoundException
+    * @throws firrtl.graph.PathNotFoundException
     * @return a Seq[T] of nodes defining an arbitrary valid path
     */
   def path(start: T, end: T, blacklist: Set[T]): Seq[T] = {

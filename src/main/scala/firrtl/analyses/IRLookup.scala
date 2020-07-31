@@ -46,7 +46,7 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
     *  - flow is wrong
     *  - component is wrong
     *
-    * @param t    [[ReferenceTarget]] to be queried.
+    * @param t    [[firrtl.annotations.ReferenceTarget]] to be queried.
     * @param flow flow of the target
     * @return Some(e) if expression exists, None if it does not
     */
@@ -100,7 +100,7 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
   }
 
   /**
-    * @param t    [[ReferenceTarget]] to be queried.
+    * @param t    [[firrtl.annotations.ReferenceTarget]] to be queried.
     * @param flow flow of the target
     * @return expression of `t`
     */
@@ -114,18 +114,18 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
     }
   }
 
-  /** Find [[ReferenceTarget]] with a specific [[Kind]] in a [[ModuleTarget]]
+  /** Find [[firrtl.annotations.ReferenceTarget]] with a specific [[firrtl.Kind]] in a [[firrtl.annotations.ModuleTarget]]
     *
-    * @param moduleTarget [[ModuleTarget]] to be queried.
-    * @param kind         [[Kind]] to be find.
-    * @return all [[ReferenceTarget]] in this node. */
+    * @param moduleTarget [[firrtl.annotations.ModuleTarget]] to be queried.
+    * @param kind         [[firrtl.Kind]] to be find.
+    * @return all [[firrtl.annotations.ReferenceTarget]] in this node. */
   def kindFinder(moduleTarget: ModuleTarget, kind: Kind): Seq[ReferenceTarget] = {
     def updateRefs(kind: Kind, rt: ReferenceTarget): Unit = refCache
       .getOrElseUpdate(rt.moduleTarget, mutable.LinkedHashMap.empty[Kind, mutable.ArrayBuffer[ReferenceTarget]])
       .getOrElseUpdate(kind, mutable.ArrayBuffer.empty[ReferenceTarget]) += rt
 
     require(contains(moduleTarget), s"Cannot find\n${moduleTarget.prettyPrint()}\nin circuit!")
-    if (refCache.contains(moduleTarget) && refCache(moduleTarget).contains(kind)) refCache(moduleTarget)(kind)
+    if (refCache.contains(moduleTarget) && refCache(moduleTarget).contains(kind)) refCache(moduleTarget)(kind).toSeq
     else {
       declarations(moduleTarget).foreach {
         case (rt, _: DefRegister) => updateRefs(RegKind, rt)
@@ -136,12 +136,12 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
         case (rt, _: Port) => updateRefs(PortKind, rt)
         case _ =>
       }
-      refCache.get(moduleTarget).map(_.getOrElse(kind, Seq.empty[ReferenceTarget])).getOrElse(Seq.empty[ReferenceTarget])
+      refCache.get(moduleTarget).map(_.getOrElse(kind, Seq.empty[ReferenceTarget])).getOrElse(Seq.empty[ReferenceTarget]).toSeq
     }
   }
 
   /**
-    * @param t [[ReferenceTarget]] to be queried.
+    * @param t [[firrtl.annotations.ReferenceTarget]] to be queried.
     * @return the statement containing the declaration of the target
     */
   def declaration(t: ReferenceTarget): FirrtlNode = {
@@ -151,7 +151,7 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
 
   /** Returns the references to the module's ports
     *
-    * @param mt [[ModuleTarget]] to be queried.
+    * @param mt [[firrtl.annotations.ModuleTarget]] to be queried.
     * @return the port references of `mt`
     */
   def ports(mt: ModuleTarget): Seq[ReferenceTarget] = {
@@ -160,7 +160,7 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
   }
 
   /** Given:
-    * A ReferenceTarget of ~Top|Module>ref, which is a type of {foo: {bar: UInt}}
+    * A [[firrtl.annotations.ReferenceTarget]] of ~Top|Module>ref, which is a type of {foo: {bar: UInt}}
     * Return:
     * Seq(~Top|Module>ref, ~Top|Module>ref.foo, ~Top|Module>ref.foo.bar)
     *
@@ -169,7 +169,7 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
   def allTargets(r: ReferenceTarget): Seq[ReferenceTarget] = r.allSubTargets(tpe(r))
 
   /** Given:
-    * A ReferenceTarget of ~Top|Module>ref and a type of {foo: {bar: UInt}}
+    * A [[firrtl.annotations.ReferenceTarget]] of ~Top|Module>ref and a type of {foo: {bar: UInt}}
     * Return:
     * Seq(~Top|Module>ref.foo.bar)
     *
@@ -190,7 +190,7 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
     }
 
 
-  /** @param t [[ReferenceTarget]] to be queried.
+  /** @param t [[firrtl.annotations.ReferenceTarget]] to be queried.
     * @return whether a ReferenceTarget is contained in this IRLookup
     */
   def contains(t: ReferenceTarget): Boolean = validPath(t.pathTarget) &&
@@ -198,13 +198,13 @@ class IRLookup private[analyses](private val declarations: Map[ModuleTarget, Map
     declarations(t.encapsulatingModuleTarget).contains(asLocalRef(t)) &&
     getExpr(t, UnknownFlow).nonEmpty
 
-  /** @param mt [[ModuleTarget]] or [[InstanceTarget]] to be queried.
+  /** @param mt [[firrtl.annotations.ModuleTarget]] or [[firrtl.annotations.InstanceTarget]] to be queried.
     * @return whether a ModuleTarget or InstanceTarget is contained in this IRLookup
     */
   def contains(mt: IsModule): Boolean = validPath(mt)
 
-  /** @param t [[ReferenceTarget]] to be queried.
-    * @return whether a given [[IsModule]] is valid, given the circuit's module/instance hierarchy
+  /** @param t [[firrtl.annotations.ReferenceTarget]] to be queried.
+    * @return whether a given [[firrtl.annotations.IsModule]] is valid, given the circuit's module/instance hierarchy
     */
   def validPath(t: IsModule): Boolean = {
     t match {
