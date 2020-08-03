@@ -233,6 +233,19 @@ class DoPrimVerilog extends FirrtlFlatSpec {
       lines should contain (e)
     }
   }
+
+  "Neg of a negative literal" should "emit correctly" in {
+    val compiler = new VerilogCompiler
+    val input =
+      """circuit DoubleNegative :
+        |  module DoubleNegative :
+        |    output out : SInt<3>
+        |    out <= neg(SInt<2>(-1))
+        |""".stripMargin
+    val result = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm), Seq.empty)
+    result shouldNot containLine("assign out = --2'sh1;")
+    result should containLine("assign out = 3'sh1;")
+  }
 }
 
 class VerilogEmitterSpec extends FirrtlFlatSpec {
