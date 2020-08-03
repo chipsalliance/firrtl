@@ -435,9 +435,6 @@ case class DefMemAccess(
   addr: Expression,
   clock: Expression,
   en: Expression) extends Statement with IsDeclaration {
-  def serialize: String = {
-    s"memaccess ${name} = ${addr.serialize}, ${clock.serialize}, ${en.serialize}" + info.serialize
-  }
   def mapExpr(f: Expression => Expression): Statement = this.copy(addr = f(addr), clock = f(clock), en = f(en))
   def mapStmt(f: Statement => Statement): Statement = this
   def mapType(f: Type => Type): Statement = this
@@ -460,9 +457,6 @@ case class MemMaskedWrite(
   memaccess: Expression,
   data: Expression,
   mask: Expression) extends Statement with HasInfo {
-  def serialize: String = {
-    s"maskedwrite ${mem.serialize}[${memaccess.serialize}] <= ${data.serialize}, ${mask.serialize}" + info.serialize
-  }
   def mapExpr(f: Expression => Expression): Statement = {
     this.copy(mem = f(mem), memaccess = f(memaccess), data = f(data), mask = f(mask))
   }
