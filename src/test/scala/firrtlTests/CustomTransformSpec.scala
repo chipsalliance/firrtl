@@ -19,30 +19,29 @@ object CustomTransformSpec {
   class ReplaceExtModuleTransform extends SeqTransform with FirrtlMatchers {
     // Simple module
     val delayModuleString = """
-      |circuit Delay :
-      |  module Delay :
-      |    input clock : Clock
-      |    input reset : UInt<1>
-      |    input a : UInt<32>
-      |    input en : UInt<1>
-      |    output b : UInt<32>
-      |
-      |    reg r : UInt<32>, clock
-      |    r <= r
-      |    when en :
-      |      r <= a
-      |    b <= r
-      |""".stripMargin
+                              |circuit Delay :
+                              |  module Delay :
+                              |    input clock : Clock
+                              |    input reset : UInt<1>
+                              |    input a : UInt<32>
+                              |    input en : UInt<1>
+                              |    output b : UInt<32>
+                              |
+                              |    reg r : UInt<32>, clock
+                              |    r <= r
+                              |    when en :
+                              |      r <= a
+                              |    b <= r
+                              |""".stripMargin
     val delayModuleCircuit = parse(delayModuleString)
     val delayModule = delayModuleCircuit.modules.find(_.name == delayModuleCircuit.main).get
 
     class ReplaceExtModule extends Pass {
-      def run(c: Circuit): Circuit = c.copy(
-        modules = c.modules map {
+      def run(c: Circuit): Circuit =
+        c.copy(modules = c.modules.map {
           case ExtModule(_, "Delay", _, _, _) => delayModule
-          case other => other
-        }
-      )
+          case other                          => other
+        })
     }
     def transforms = Seq(new ReplaceExtModule)
     def inputForm = LowForm
@@ -50,10 +49,10 @@ object CustomTransformSpec {
   }
 
   val input = """
-      |circuit test :
-      |  module test :
-      |    output out : UInt
-      |    out <= UInt(123)""".stripMargin
+                |circuit test :
+                |  module test :
+                |    output out : UInt
+                |    out <= UInt(123)""".stripMargin
   val errorString = "My Custom Transform failed!"
   class ErroringTransform extends Transform {
     def inputForm = HighForm
@@ -122,7 +121,7 @@ class CustomTransformSpec extends FirrtlFlatSpec {
 
   import CustomTransformSpec._
 
-  behavior of "Custom Transforms"
+  behavior.of("Custom Transforms")
 
   they should "be able to introduce high firrtl" in {
     runFirrtlTest("CustomTransform", "/features", customTransforms = List(new ReplaceExtModuleTransform))
@@ -130,22 +129,20 @@ class CustomTransformSpec extends FirrtlFlatSpec {
 
   they should "not cause \"Internal Errors\"" in {
     val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
-      firrtlOptions = FirrtlExecutionOptions(
-        firrtlSource = Some(input),
-        customTransforms = List(new ErroringTransform))
+      firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input), customTransforms = List(new ErroringTransform))
     }
-    (the [java.lang.IllegalArgumentException] thrownBy {
+    (the[java.lang.IllegalArgumentException] thrownBy {
       Driver.execute(optionsManager)
-    }).getMessage should include (errorString)
+    }).getMessage should include(errorString)
   }
 
   they should "preserve the input order" in {
-    runFirrtlTest("CustomTransform", "/features", customTransforms = List(
-                    new FirstTransform,
-                    new SecondTransform,
-                    new ThirdTransform,
-                    new ReplaceExtModuleTransform
-                  ))
+    runFirrtlTest(
+      "CustomTransform",
+      "/features",
+      customTransforms =
+        List(new FirstTransform, new SecondTransform, new ThirdTransform, new ReplaceExtModuleTransform)
+    )
   }
 
   they should "run right before the emitter* when inputForm=LowForm" in {
@@ -159,11 +156,10 @@ class CustomTransformSpec extends FirrtlFlatSpec {
       val custom = Dependency[IdentityLowForm]
       val tm = new firrtl.stage.transforms.Compiler(custom :: emitter :: Nil)
       info(s"when using ${emitter.getObject.name}")
-      tm
-        .flattenedTransformOrder
+      tm.flattenedTransformOrder
         .map(Dependency.fromTransform)
         .sliding(2)
-        .toList should contain (Seq(custom, emitter))
+        .toList should contain(Seq(custom, emitter))
     }
 
   }
@@ -174,10 +170,7 @@ class CustomTransformSpec extends FirrtlFlatSpec {
          |  module Foo:
          |    node a = UInt<1>(0)
          |""".stripMargin
-    val annotations = Seq(
-      RunFirrtlTransformAnnotation(new Foo.A),
-      FirrtlSourceAnnotation(input)
-    )
+    val annotations = Seq(RunFirrtlTransformAnnotation(new Foo.A), FirrtlSourceAnnotation(input))
     (new FirrtlStage).execute(Array.empty, annotations)
   }
 }

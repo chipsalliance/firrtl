@@ -6,7 +6,7 @@ package transforms
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.options.Dependency
-import firrtl.PrimOps.{Bits, Head, Tail, Shr}
+import firrtl.PrimOps.{Bits, Head, Shr, Tail}
 import firrtl.Utils.{isBitExtract, isTemp}
 import firrtl.WrappedExpression._
 
@@ -17,25 +17,27 @@ object InlineBitExtractionsTransform {
   // Checks if an Expression is made up of only Bits terminated by a Literal or Reference.
   // private because it's not clear if this definition of "Simple Expression" would be useful elsewhere.
   // Note that this can have false negatives but MUST NOT have false positives.
-  private def isSimpleExpr(expr: Expression): Boolean = expr match {
-    case _: WRef | _: Literal | _: WSubField => true
-    case DoPrim(op, args, _,_) if isBitExtract(op) => args.forall(isSimpleExpr)
-    case _ => false
-  }
+  private def isSimpleExpr(expr: Expression): Boolean =
+    expr match {
+      case _: WRef | _: Literal | _: WSubField => true
+      case DoPrim(op, args, _, _) if isBitExtract(op) => args.forall(isSimpleExpr)
+      case _                                          => false
+    }
 
   // replace Head/Tail/Shr with Bits for easier back-to-back Bits Extractions
-  private def lowerToDoPrimOpBits(expr: Expression): Expression = expr match {
-    case DoPrim(Head, rhs, c, tpe) if isSimpleExpr(expr) =>
-      val msb = bitWidth(rhs.head.tpe) - 1
-      val lsb = bitWidth(rhs.head.tpe) - c.head
-      DoPrim(Bits, rhs, Seq(msb,lsb), tpe)
-    case DoPrim(Tail, rhs, c, tpe) if isSimpleExpr(expr) =>
-      val msb = bitWidth(rhs.head.tpe) - c.head - 1
-      DoPrim(Bits, rhs, Seq(msb,0), tpe)
-    case DoPrim(Shr, rhs, c, tpe) if isSimpleExpr(expr) =>
-      DoPrim(Bits, rhs, Seq(bitWidth(rhs.head.tpe)-1, c.head), tpe)
-    case _ => expr // Not a candidate
-  }
+  private def lowerToDoPrimOpBits(expr: Expression): Expression =
+    expr match {
+      case DoPrim(Head, rhs, c, tpe) if isSimpleExpr(expr) =>
+        val msb = bitWidth(rhs.head.tpe) - 1
+        val lsb = bitWidth(rhs.head.tpe) - c.head
+        DoPrim(Bits, rhs, Seq(msb, lsb), tpe)
+      case DoPrim(Tail, rhs, c, tpe) if isSimpleExpr(expr) =>
+        val msb = bitWidth(rhs.head.tpe) - c.head - 1
+        DoPrim(Bits, rhs, Seq(msb, 0), tpe)
+      case DoPrim(Shr, rhs, c, tpe) if isSimpleExpr(expr) =>
+        DoPrim(Bits, rhs, Seq(bitWidth(rhs.head.tpe) - 1, c.head), tpe)
+      case _ => expr // Not a candidate
+    }
 
   /** Mapping from references to the [[firrtl.ir.Expression Expression]]s that drive them */
   type Netlist = mutable.HashMap[WrappedExpression, Expression]
@@ -49,26 +51,28 @@ object InlineBitExtractionsTransform {
     */
   def onExpr(netlist: Netlist)(expr: Expression): Expression = {
     expr.map(onExpr(netlist)) match {
-      case e @ WRef(name, _,_,_) =>
-        netlist.get(we(e))
-               .filter(isBitExtract)
-               .getOrElse(e)
+      case e @ WRef(name, _, _, _) =>
+        netlist
+          .get(we(e))
+          .filter(isBitExtract)
+          .getOrElse(e)
       // replace back-to-back Bits Extractions
       case lhs @ DoPrim(lop, ival, lc, ltpe) if isSimpleExpr(lhs) =>
         ival.head match {
           case of @ DoPrim(rop, rhs, rc, rtpe) if isSimpleExpr(of) =>
             (lop, rop) match {
-              case (Head, Head) => DoPrim(Head, rhs, Seq(lc.head min rc.head), ltpe)
+              case (Head, Head) => DoPrim(Head, rhs, Seq(lc.head.min(rc.head)), ltpe)
               case (Tail, Tail) => DoPrim(Tail, rhs, Seq(lc.head + rc.head), ltpe)
-              case (Shr,  Shr)  => DoPrim(Shr,  rhs, Seq(lc.head + rc.head), ltpe)
-              case (_,_) => (lowerToDoPrimOpBits(lhs), lowerToDoPrimOpBits(of)) match {
-                case (DoPrim(Bits, _, Seq(lmsb, llsb), _), DoPrim(Bits, _, Seq(rmsb, rlsb), _)) =>
-                  DoPrim(Bits, rhs, Seq(lmsb+rlsb,llsb+rlsb), ltpe)
-                case (_,_) => lhs  // Not a candidate
-              }
+              case (Shr, Shr)   => DoPrim(Shr, rhs, Seq(lc.head + rc.head), ltpe)
+              case (_, _) =>
+                (lowerToDoPrimOpBits(lhs), lowerToDoPrimOpBits(of)) match {
+                  case (DoPrim(Bits, _, Seq(lmsb, llsb), _), DoPrim(Bits, _, Seq(rmsb, rlsb), _)) =>
+                    DoPrim(Bits, rhs, Seq(lmsb + rlsb, llsb + rlsb), ltpe)
+                  case (_, _) => lhs // Not a candidate
+                }
             }
-            case _ => lhs  // Not a candidate
-          }
+          case _ => lhs // Not a candidate
+        }
       case other => other // Not a candidate
     }
   }
@@ -96,10 +100,13 @@ object InlineBitExtractionsTransform {
 /** Inline nodes that are simple bits */
 class InlineBitExtractionsTransform extends Transform with DependencyAPIMigration {
 
-  override def prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
-    Seq( Dependency[BlackBoxSourceHelper],
-         Dependency[FixAddingNegativeLiterals],
-         Dependency[ReplaceTruncatingArithmetic] )
+  override def prerequisites =
+    firrtl.stage.Forms.LowFormMinimumOptimized ++
+      Seq(
+        Dependency[BlackBoxSourceHelper],
+        Dependency[FixAddingNegativeLiterals],
+        Dependency[ReplaceTruncatingArithmetic]
+      )
 
   override def optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
 

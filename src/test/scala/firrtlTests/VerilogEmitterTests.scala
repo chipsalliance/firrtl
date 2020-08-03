@@ -31,7 +31,7 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |);
         |  assign b = ^a;
         |endmodule
-        |""".stripMargin.split("\n") map normalized
+        |""".stripMargin.split("\n").map(normalized)
     executeTest(input, check, compiler)
   }
   "Andr" should "emit correctly" in {
@@ -49,7 +49,7 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |);
         |  assign b = &a;
         |endmodule
-        |""".stripMargin.split("\n") map normalized
+        |""".stripMargin.split("\n").map(normalized)
     executeTest(input, check, compiler)
   }
   "Orr" should "emit correctly" in {
@@ -67,7 +67,7 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |);
         |  assign b = |a;
         |endmodule
-        |""".stripMargin.split("\n") map normalized
+        |""".stripMargin.split("\n").map(normalized)
     executeTest(input, check, compiler)
   }
   "Not" should "emit correctly" in {
@@ -85,7 +85,7 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |);
         |  assign b = ~a;
         |endmodule
-        |""".stripMargin.split("\n") map normalized
+        |""".stripMargin.split("\n").map(normalized)
     executeTest(input, check, compiler)
   }
   "inline Bits" should "emit correctly" in {
@@ -179,7 +179,7 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |  assign t = a[2:1];
         |  assign u = a[3];
         |endmodule
-        |""".stripMargin.split("\n") map normalized
+        |""".stripMargin.split("\n").map(normalized)
     executeTest(input, check, compiler)
   }
   "Rem" should "emit correctly" in {
@@ -199,7 +199,7 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |  wire [7:0] _GEN_0 = in % 8'h1;
         |  assign out = _GEN_0[0];
         |endmodule
-        |""".stripMargin.split("\n") map normalized
+        |""".stripMargin.split("\n").map(normalized)
     executeTest(input, check, compiler)
   }
   "nested cats" should "emit correctly" in {
@@ -225,12 +225,12 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |  wire [5:0] _GEN_1 = {in3,in2,in1};
         |  assign out = {in4,_GEN_1};
         |endmodule
-        |""".stripMargin.split("\n") map normalized
+        |""".stripMargin.split("\n").map(normalized)
 
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm), Seq(new CombineCats()))
-    val lines = finalState.getEmittedCircuit.value split "\n" map normalized
+    val lines = finalState.getEmittedCircuit.value.split("\n").map(normalized)
     for (e <- check) {
-      lines should contain (e)
+      lines should contain(e)
     }
   }
 }
@@ -240,9 +240,9 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
   private def compileBody(body: String): CircuitState = {
     val str = """
-      |circuit Test :
-      |  module Test :
-      |""".stripMargin + body.split("\n").mkString("    ", "\n    ", "")
+                |circuit Test :
+                |  module Test :
+                |""".stripMargin + body.split("\n").mkString("    ", "\n    ", "")
     compile(str)
   }
 
@@ -273,7 +273,7 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     compiler.compile(CircuitState(parse(input), ChirrtlForm), writer)
     val lines = writer.toString.split("\n")
     for (c <- check) {
-      lines should contain (c)
+      lines should contain(c)
     }
   }
   "The Verilog Emitter" should "support Modules with no ports" in {
@@ -302,17 +302,13 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
         |);
         |  assign out = in;
         |endmodule
-        |""".stripMargin.split("\n") map normalized
+        |""".stripMargin.split("\n").map(normalized)
     executeTest(input, check, compiler)
   }
   "The Verilog Emitter" should "support pads with width <= the width of the argument" in {
     // We do just a few passes instead of using the VerilogCompiler to ensure that the pad actually
     // reaches the VerilogEmitter and isn't removed by an optimization transform
-    val passes = Seq(
-      ToWorkingIR,
-      ResolveKinds,
-      InferTypes
-    )
+    val passes = Seq(ToWorkingIR, ResolveKinds, InferTypes)
     def input(n: Int) =
       s"""circuit Test :
          |  module Test :
@@ -325,7 +321,7 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
       val state = CircuitState(circuit, LowForm, Seq(EmitCircuitAnnotation(classOf[VerilogEmitter])))
       val emitter = new VerilogEmitter
       val result = emitter.execute(state)
-      result should containLine ("assign out = in;")
+      result should containLine("assign out = in;")
     }
   }
 
@@ -368,22 +364,25 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
 
     val moduleMap = state.circuit.modules.map(m => m.name -> m).toMap
 
-    val module = state.circuit.modules.filter(module => module.name == "Test").collectFirst { case m: firrtl.ir.Module => m }.get
+    val module =
+      state.circuit.modules.filter(module => module.name == "Test").collectFirst { case m: firrtl.ir.Module => m }.get
 
     val renderer = emitter.getRenderer(module, moduleMap)(writer)
 
-    renderer.emitVerilogBind("BindsToTest",
+    renderer.emitVerilogBind(
+      "BindsToTest",
       """
         |$readmemh("file", memory);
         |
-        |""".stripMargin)
+        |""".stripMargin
+    )
     val lines = writer.toString.split("\n")
 
     val outString = writer.toString
 
     // This confirms that the module io's were emitted
     for (c <- check) {
-      lines should contain (c)
+      lines should contain(c)
     }
   }
 
@@ -401,16 +400,20 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
         """.stripMargin
     val state = CircuitState(parse(input), ChirrtlForm)
     val result = (new VerilogCompiler).compileAndEmit(state, List())
-    result should containLines ("`ifndef SYNTHESIS",
-                                "`ifdef FIRRTL_BEFORE_INITIAL",
-                                "`FIRRTL_BEFORE_INITIAL",
-                                "`endif",
-                                "initial begin")
-    result should containLines ("end // initial",
-                                "`ifdef FIRRTL_AFTER_INITIAL",
-                                "`FIRRTL_AFTER_INITIAL",
-                                "`endif",
-                                "`endif // SYNTHESIS")
+    result should containLines(
+      "`ifndef SYNTHESIS",
+      "`ifdef FIRRTL_BEFORE_INITIAL",
+      "`FIRRTL_BEFORE_INITIAL",
+      "`endif",
+      "initial begin"
+    )
+    result should containLines(
+      "end // initial",
+      "`ifdef FIRRTL_AFTER_INITIAL",
+      "`FIRRTL_AFTER_INITIAL",
+      "`endif",
+      "`endif // SYNTHESIS"
+    )
   }
 
   "Verilog name conflicts" should "be resolved" in {
@@ -455,14 +458,14 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
          |    fork_ <= const_
          |""".stripMargin
     val state = CircuitState(parse(input), UnknownForm, Seq.empty, None)
-    val output = Seq( ToWorkingIR, ResolveKinds, InferTypes, new VerilogRename )
-      .foldLeft(state){ case (c, tx) => tx.runTransform(c) }
-    Seq( CheckHighForm )
-      .foldLeft(output.circuit){ case (c, tx) => tx.run(c) }
-    output.circuit.serialize should be (parse(check_firrtl).serialize)
+    val output = Seq(ToWorkingIR, ResolveKinds, InferTypes, new VerilogRename)
+      .foldLeft(state) { case (c, tx) => tx.runTransform(c) }
+    Seq(CheckHighForm)
+      .foldLeft(output.circuit) { case (c, tx) => tx.run(c) }
+    output.circuit.serialize should be(parse(check_firrtl).serialize)
   }
 
-  behavior of "Register Updates"
+  behavior.of("Register Updates")
 
   they should "emit using 'else if' constructs" in {
     val input =
@@ -484,10 +487,10 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     val circuit = Seq(ToWorkingIR, ResolveKinds, InferTypes).foldLeft(parse(input)) { case (c, p) => p.run(c) }
     val state = CircuitState(circuit, LowForm, Seq(EmitCircuitAnnotation(classOf[VerilogEmitter])))
     val result = (new VerilogEmitter).execute(state)
-    result should containLine ("if (sel == 2'h0) begin")
-    result should containLine ("end else if (sel == 2'h1) begin" )
-    result should containLine ("end else if (sel == 2'h2) begin")
-    result should containLine ("end else begin")
+    result should containLine("if (sel == 2'h0) begin")
+    result should containLine("end else if (sel == 2'h1) begin")
+    result should containLine("end else if (sel == 2'h2) begin")
+    result should containLine("end else begin")
   }
 
   they should "ignore self assignments in false conditions" in {
@@ -505,7 +508,7 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     val circuit = Seq(ToWorkingIR, ResolveKinds, InferTypes).foldLeft(parse(input)) { case (c, p) => p.run(c) }
     val state = CircuitState(circuit, LowForm, Seq(EmitCircuitAnnotation(classOf[VerilogEmitter])))
     val result = (new VerilogEmitter).execute(state)
-    result should not (containLine ("tmp <= tmp"))
+    result should not(containLine("tmp <= tmp"))
   }
 
   they should "ignore self assignments in true conditions and invert condition" in {
@@ -523,8 +526,8 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     val circuit = Seq(ToWorkingIR, ResolveKinds, InferTypes).foldLeft(parse(input)) { case (c, p) => p.run(c) }
     val state = CircuitState(circuit, LowForm, Seq(EmitCircuitAnnotation(classOf[VerilogEmitter])))
     val result = (new VerilogEmitter).execute(state)
-    result should containLine ("if (!(sel == 1'h0)) begin")
-    result should not (containLine ("tmp <= tmp"))
+    result should containLine("if (!(sel == 1'h0)) begin")
+    result should not(containLine("tmp <= tmp"))
   }
 
   they should "ignore self assignments in both true and false conditions" in {
@@ -542,8 +545,8 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     val circuit = Seq(ToWorkingIR, ResolveKinds, InferTypes).foldLeft(parse(input)) { case (c, p) => p.run(c) }
     val state = CircuitState(circuit, LowForm, Seq(EmitCircuitAnnotation(classOf[VerilogEmitter])))
     val result = (new VerilogEmitter).execute(state)
-    result should not (containLine ("tmp <= tmp"))
-    result should not (containLine ("always @(posedge clock) begin"))
+    result should not(containLine("tmp <= tmp"))
+    result should not(containLine("always @(posedge clock) begin"))
   }
 
   they should "properly indent muxes in either the true or false condition" in {
@@ -583,158 +586,136 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     val result = (new VerilogEmitter).execute(state)
     /* The Verilog string is used to check for no whitespace between "else" and "if". */
     val verilogString = result.getEmittedCircuit.value
-    result        should containLine ("if (sel == 3'h0) begin")
-    verilogString should include     ("end else if (sel == 3'h1) begin")
-    result        should containLine ("if (sel == 3'h2) begin")
-    verilogString should include     ("end else if (sel == 3'h3) begin")
-    result        should containLine ("if (sel == 3'h4) begin")
-    verilogString should include     ("end else if (sel == 3'h5) begin")
-    result        should containLine ("if (sel == 3'h6) begin")
-    verilogString should include     ("end else if (sel == 3'h7) begin")
-    result        should containLine ("tmp <= in_0;")
-    result        should containLine ("tmp <= in_1;")
-    result        should containLine ("tmp <= in_2;")
-    result        should containLine ("tmp <= in_3;")
-    result        should containLine ("tmp <= in_4;")
-    result        should containLine ("tmp <= in_5;")
-    result        should containLine ("tmp <= in_6;")
-    result        should containLine ("tmp <= in_7;")
-    result        should containLine ("tmp <= in_8;")
-    result        should containLine ("tmp <= in_9;")
+    result should containLine("if (sel == 3'h0) begin")
+    verilogString should include("end else if (sel == 3'h1) begin")
+    result should containLine("if (sel == 3'h2) begin")
+    verilogString should include("end else if (sel == 3'h3) begin")
+    result should containLine("if (sel == 3'h4) begin")
+    verilogString should include("end else if (sel == 3'h5) begin")
+    result should containLine("if (sel == 3'h6) begin")
+    verilogString should include("end else if (sel == 3'h7) begin")
+    result should containLine("tmp <= in_0;")
+    result should containLine("tmp <= in_1;")
+    result should containLine("tmp <= in_2;")
+    result should containLine("tmp <= in_3;")
+    result should containLine("tmp <= in_4;")
+    result should containLine("tmp <= in_5;")
+    result should containLine("tmp <= in_6;")
+    result should containLine("tmp <= in_7;")
+    result should containLine("tmp <= in_8;")
+    result should containLine("tmp <= in_9;")
   }
 
   "SInt addition" should "have casts" in {
     val compiler = new VerilogCompiler
-    val result = compileBody(
-      """input x : SInt<4>
-        |input y : SInt<4>
-        |output z : SInt
-        |z <= add(x, y)
-        |""".stripMargin
-    )
+    val result = compileBody("""input x : SInt<4>
+                               |input y : SInt<4>
+                               |output z : SInt
+                               |z <= add(x, y)
+                               |""".stripMargin)
     result should containLine("assign z = $signed(x) + $signed(y);")
   }
 
   it should "NOT cast SInt literals" in {
     val compiler = new VerilogCompiler
-    val result = compileBody(
-      """input x : SInt<4>
-        |output z : SInt
-        |z <= add(x, SInt(-1))
-        |""".stripMargin
-    )
+    val result = compileBody("""input x : SInt<4>
+                               |output z : SInt
+                               |z <= add(x, SInt(-1))
+                               |""".stripMargin)
     result should containLine("assign z = $signed(x) - 4'sh1;")
   }
 
   it should "inline asSInt casts" in {
     val compiler = new VerilogCompiler
-    val result = compileBody(
-      """input x : UInt<4>
-        |input y : UInt<4>
-        |output z : SInt
-        |node _T_1 = asSInt(x)
-        |z <= add(_T_1, asSInt(y))
-        |""".stripMargin
-    )
+    val result = compileBody("""input x : UInt<4>
+                               |input y : UInt<4>
+                               |output z : SInt
+                               |node _T_1 = asSInt(x)
+                               |z <= add(_T_1, asSInt(y))
+                               |""".stripMargin)
     result should containLine("assign z = $signed(x) + $signed(y);")
   }
 
   "Verilog Emitter" should "drop asUInt casts on Clocks" in {
     val compiler = new VerilogCompiler
-    val result = compileBody(
-      """input x : Clock
-        |input y : Clock
-        |output z : UInt<1>
-        |node _T_1 = asUInt(x)
-        |z <= eq(_T_1, asUInt(y))
-        |""".stripMargin
-    )
+    val result = compileBody("""input x : Clock
+                               |input y : Clock
+                               |output z : UInt<1>
+                               |node _T_1 = asUInt(x)
+                               |z <= eq(_T_1, asUInt(y))
+                               |""".stripMargin)
     result should containLine("assign z = x == y;")
   }
 
   it should "drop asClock casts on UInts" in {
     val compiler = new VerilogCompiler
-    val result = compileBody(
-      """input x : UInt<1>
-        |input y : UInt<1>
-        |output z : Clock
-        |node _T_1 = eq(x, y)
-        |z <= asClock(_T_1)
-        |""".stripMargin
-    )
+    val result = compileBody("""input x : UInt<1>
+                               |input y : UInt<1>
+                               |output z : Clock
+                               |node _T_1 = eq(x, y)
+                               |z <= asClock(_T_1)
+                               |""".stripMargin)
     result should containLine("assign z = x == y;")
   }
 
   it should "drop asUInt casts on AsyncResets" in {
     val compiler = new VerilogCompiler
-    val result = compileBody(
-      """input x : AsyncReset
-        |input y : AsyncReset
-        |output z : UInt<1>
-        |node _T_1 = asUInt(x)
-        |z <= eq(_T_1, asUInt(y))
-        |""".stripMargin
-    )
+    val result = compileBody("""input x : AsyncReset
+                               |input y : AsyncReset
+                               |output z : UInt<1>
+                               |node _T_1 = asUInt(x)
+                               |z <= eq(_T_1, asUInt(y))
+                               |""".stripMargin)
     result should containLine("assign z = x == y;")
   }
 
   it should "drop asAsyncReset casts on UInts" in {
     val compiler = new VerilogCompiler
-    val result = compileBody(
-      """input x : UInt<1>
-        |input y : UInt<1>
-        |output z : AsyncReset
-        |node _T_1 = eq(x, y)
-        |z <= asAsyncReset(_T_1)
-        |""".stripMargin
-    )
+    val result = compileBody("""input x : UInt<1>
+                               |input y : UInt<1>
+                               |output z : AsyncReset
+                               |node _T_1 = eq(x, y)
+                               |z <= asAsyncReset(_T_1)
+                               |""".stripMargin)
     result should containLine("assign z = x == y;")
   }
 
   it should "subtract positive literals instead of adding negative literals" in {
     val compiler = new VerilogCompiler
-    val result = compileBody(
-      """input x : SInt<8>
-        |output z : SInt<9>
-        |z <= add(x, SInt(-2))
-        |""".stripMargin
-    )
+    val result = compileBody("""input x : SInt<8>
+                               |output z : SInt<9>
+                               |z <= add(x, SInt(-2))
+                               |""".stripMargin)
     result shouldNot containLine("assign z = $signed(x) + -8'sh2;")
-    result should    containLine("assign z = $signed(x) - 8'sh2;")
+    result should containLine("assign z = $signed(x) - 8'sh2;")
   }
 
   it should "subtract positive literals even with max negative literal" in {
     val compiler = new VerilogCompiler
-    val result = compileBody(
-      """input x : SInt<2>
-        |output z : SInt<3>
-        |z <= add(x, SInt(-2))
-        |""".stripMargin
-    )
+    val result = compileBody("""input x : SInt<2>
+                               |output z : SInt<3>
+                               |z <= add(x, SInt(-2))
+                               |""".stripMargin)
     result shouldNot containLine("assign z = $signed(x) + -2'sh2;")
-    result should    containLine("assign z = $signed(x) - 3'sh2;")
+    result should containLine("assign z = $signed(x) - 3'sh2;")
   }
 
   it should "subtract positive literals even with max negative literal with no carryout" in {
     val compiler = new VerilogCompiler
-    val result = compileBody(
-      """input x : SInt<2>
-        |output z : SInt<2>
-        |z <= add(x, SInt(-2))
-        |""".stripMargin
-    )
+    val result = compileBody("""input x : SInt<2>
+                               |output z : SInt<2>
+                               |z <= add(x, SInt(-2))
+                               |""".stripMargin)
     result shouldNot containLine("assign z = $signed(x) + -2'sh2;")
-    result should    containLine("wire [2:0] _GEN_0 = $signed(x) - 3'sh2;")
-    result should    containLine("assign z = _GEN_0[1:0];")
+    result should containLine("wire [2:0] _GEN_0 = $signed(x) - 3'sh2;")
+    result should containLine("assign z = _GEN_0[1:0];")
   }
 
   it should "emit FileInfo as Verilog comment" in {
-    def result(info: String): CircuitState = compileBody(
-      s"""input x : UInt<2>
-        |output z : UInt<2>
-        |z <= x @[$info]
-        |""".stripMargin
-    )
+    def result(info: String): CircuitState = compileBody(s"""input x : UInt<2>
+                                                            |output z : UInt<2>
+                                                            |z <= x @[$info]
+                                                            |""".stripMargin)
     result("test") should containLine("  assign z = x; // @[test]")
     // newlines currently are supposed to be escaped for both firrtl and Verilog
     // (alternatively one could emit a multi-line comment)
@@ -772,7 +753,8 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
     val modName = ModuleName("Test", CircuitName("Test"))
     val annos = Seq(
       DocStringAnnotation(ComponentName("a", modName), "multi\nline"),
-      DocStringAnnotation(ComponentName("b", modName), "single line"))
+      DocStringAnnotation(ComponentName("b", modName), "single line")
+    )
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
     val output = finalState.getEmittedCircuit.value
     for (c <- check) {
@@ -816,7 +798,8 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
     val annos = Seq(
       DocStringAnnotation(ComponentName("d", modName), "multi\nline"),
       DocStringAnnotation(ComponentName("e", modName), "multi\nline"),
-      DocStringAnnotation(ComponentName("f", modName), "single line"))
+      DocStringAnnotation(ComponentName("f", modName), "single line")
+    )
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
     val output = finalState.getEmittedCircuit.value
     for (c <- check) {
@@ -843,12 +826,10 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
         |    node f = and(a, b)
         |    c <= add(d, add(e, f))
         |""".stripMargin
-    val check = Seq(
-      """/* multi
-        | * line
-        | */
-        |module Test(""".stripMargin
-    )
+    val check = Seq("""/* multi
+                      | * line
+                      | */
+                      |module Test(""".stripMargin)
     // We don't use executeTest because we care about the spacing in the result
     val modName = ModuleName("Test", CircuitName("Test"))
     val annos = Seq(DocStringAnnotation(modName, "multi\nline"))
@@ -940,8 +921,8 @@ class EmittedMacroSpec extends FirrtlPropSpec {
       ProcessLogger(line => {
         line match {
           case "printing from FIRRTL_BEFORE_INITIAL macro" => saw_before = true
-          case "printing from FIRRTL_AFTER_INITIAL macro" => saw_after = true
-          case _ => // Do Nothing
+          case "printing from FIRRTL_AFTER_INITIAL macro"  => saw_after = true
+          case _                                           => // Do Nothing
         }
       })
 

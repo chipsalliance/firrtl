@@ -2,7 +2,7 @@
 
 package firrtl.stage.phases
 
-import firrtl.{AnnotationSeq, EmittedModuleAnnotation, EmittedCircuitAnnotation}
+import firrtl.{AnnotationSeq, EmittedCircuitAnnotation, EmittedModuleAnnotation}
 import firrtl.options.{Phase, StageOptions, Viewer}
 import firrtl.stage.FirrtlOptions
 
@@ -45,7 +45,8 @@ class WriteEmitted extends Phase {
         None
       case a: EmittedCircuitAnnotation[_] =>
         val pw = new PrintWriter(
-          sopts.getBuildFileName(fopts.outputFileName.getOrElse(a.value.name), Some(a.value.outputSuffix)))
+          sopts.getBuildFileName(fopts.outputFileName.getOrElse(a.value.name), Some(a.value.outputSuffix))
+        )
         pw.write(a.value.value)
         pw.close()
         None

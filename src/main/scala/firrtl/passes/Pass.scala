@@ -8,7 +8,7 @@ import firrtl.{CircuitState, FirrtlUserException, Transform}
   * Has an [[UnknownForm]], because larger [[Transform]] should specify form
   */
 trait Pass extends Transform with DependencyAPIMigration {
-  def run(c: Circuit): Circuit
+  def run(c:         Circuit): Circuit
   def execute(state: CircuitState): CircuitState = state.copy(circuit = run(state.circuit))
 }
 
@@ -18,11 +18,12 @@ class PassExceptions(val exceptions: Seq[PassException]) extends FirrtlUserExcep
 class Errors {
   val errors = collection.mutable.ArrayBuffer[PassException]()
   def append(pe: PassException) = errors.append(pe)
-  def trigger() = errors.size match {
-    case 0 =>
-    case 1 => throw errors.head
-    case _ =>
-      append(new PassException(s"${errors.length} errors detected!"))
-      throw new PassExceptions(errors.toSeq)
-  }
+  def trigger() =
+    errors.size match {
+      case 0 =>
+      case 1 => throw errors.head
+      case _ =>
+        append(new PassException(s"${errors.length} errors detected!"))
+        throw new PassExceptions(errors.toSeq)
+    }
 }

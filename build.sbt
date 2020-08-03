@@ -16,7 +16,6 @@ def javacOptionsVersion(scalaVersion: String): Seq[String] = {
   }
 }
 
-
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   name := "firrtl",
@@ -30,7 +29,7 @@ lazy val commonSettings = Seq(
     "-language:reflectiveCalls",
     "-language:existentials",
     "-language:implicitConversions",
-    "-Yrangepos",          // required by SemanticDB compiler plugin
+    "-Yrangepos" // required by SemanticDB compiler plugin
   ),
   javacOptions ++= javacOptionsVersion(scalaVersion.value),
   libraryDependencies ++= Seq(
@@ -46,7 +45,7 @@ lazy val commonSettings = Seq(
   libraryDependencies ++= {
     CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, major)) if major <= 12 => Seq()
-      case _ => Seq("org.scala-lang.modules" %% "scala-parallel-collections" % "0.2.0")
+      case _                               => Seq("org.scala-lang.modules" %% "scala-parallel-collections" % "0.2.0")
     }
   },
   resolvers ++= Seq(
@@ -57,9 +56,7 @@ lazy val commonSettings = Seq(
 
 lazy val protobufSettings = Seq(
   sourceDirectory in ProtobufConfig := baseDirectory.value / "src" / "main" / "proto",
-  protobufRunProtoc in ProtobufConfig := (args =>
-    com.github.os72.protocjar.Protoc.runProtoc("-v351" +: args.toArray)
-  )
+  protobufRunProtoc in ProtobufConfig := (args => com.github.os72.protocjar.Protoc.runProtoc("-v351" +: args.toArray))
 )
 
 lazy val assemblySettings = Seq(
@@ -67,7 +64,6 @@ lazy val assemblySettings = Seq(
   test in assembly := {},
   assemblyOutputPath in assembly := file("./utils/bin/firrtl.jar")
 )
-
 
 lazy val testAssemblySettings = Seq(
   test in (Test, assembly) := {}, // Ditto above
@@ -118,13 +114,12 @@ lazy val publishSettings = Seq(
     val v = version.value
     val nexus = "https://oss.sonatype.org/"
     if (v.trim.endsWith("SNAPSHOT")) {
-      Some("snapshots" at nexus + "content/repositories/snapshots")
+      Some("snapshots".at(nexus + "content/repositories/snapshots"))
     } else {
-      Some("releases" at nexus + "service/local/staging/deploy/maven2")
+      Some("releases".at(nexus + "service/local/staging/deploy/maven2"))
     }
   }
 )
-
 
 def scalacDocOptionsVersion(scalaVersion: String): Seq[String] = {
   Seq() ++ {
@@ -144,13 +139,17 @@ lazy val docSettings = Seq(
   scalacOptions in Compile in doc ++= Seq(
     "-feature",
     "-diagrams",
-    "-diagrams-max-classes", "25",
-    "-doc-version", version.value,
-    "-doc-title", name.value,
-    "-doc-root-content", baseDirectory.value+"/root-doc.txt",
-    "-sourcepath", (baseDirectory in ThisBuild).value.toString,
-    "-doc-source-url",
-    {
+    "-diagrams-max-classes",
+    "25",
+    "-doc-version",
+    version.value,
+    "-doc-title",
+    name.value,
+    "-doc-root-content",
+    baseDirectory.value + "/root-doc.txt",
+    "-sourcepath",
+    (baseDirectory in ThisBuild).value.toString,
+    "-doc-source-url", {
       val branch =
         if (version.value.endsWith("-SNAPSHOT")) {
           "master"
@@ -194,10 +193,9 @@ lazy val jqf = (project in file("jqf"))
     libraryDependencies ++= Seq(
       "edu.berkeley.cs.jqf" % "jqf-fuzz" % JQF_VERSION,
       "edu.berkeley.cs.jqf" % "jqf-instrument" % JQF_VERSION,
-      "com.github.scopt" %% "scopt" % "3.7.1",
+      "com.github.scopt" %% "scopt" % "3.7.1"
     )
   )
-
 
 lazy val jqfFuzz = sbt.inputKey[Unit]("input task that runs the firrtl.jqf.JQFFuzz main method")
 lazy val jqfRepro = sbt.inputKey[Unit]("input task that runs the firrtl.jqf.JQFRepro main method")
@@ -205,7 +203,8 @@ lazy val jqfRepro = sbt.inputKey[Unit]("input task that runs the firrtl.jqf.JQFR
 lazy val testClassAndMethodParser = {
   import sbt.complete.DefaultParsers._
   val spaces = SpaceClass.+.string
-  val testClassName = token(Space) ~> token(charClass(c => isScalaIDChar(c) || (c == '.')).+.string, "<test class name>")
+  val testClassName =
+    token(Space) ~> token(charClass(c => isScalaIDChar(c) || (c == '.')).+.string, "<test class name>")
   val testMethod = spaces ~> token(charClass(isScalaIDChar).+.string, "<test method name>")
   val rest = spaces.? ~> token(any.*.string, "<other args>")
   (testClassName ~ testMethod ~ rest).map {
@@ -222,28 +221,32 @@ lazy val fuzzer = (project in file("fuzzer"))
       "edu.berkeley.cs.jqf" % "jqf-fuzz" % JQF_VERSION,
       "org.scalacheck" %% "scalacheck" % "1.14.3" % Test
     ),
-
     jqfFuzz := (Def.inputTaskDyn {
       val (testClassName, testMethod, otherArgs) = testClassAndMethodParser.parsed
       val outputDir = target.in(Compile).value / "JQF" / testClassName / testMethod
       val classpath = (Compile / fullClasspathAsJars).toTask.value.files.mkString(":")
-      (jqf/runMain).in(Compile).toTask(
-        s" firrtl.jqf.JQFFuzz " +
-        s"--testClassName $testClassName " +
-        s"--testMethod $testMethod " +
-        s"--classpath $classpath " +
-        s"--outputDirectory $outputDir " +
-        otherArgs)
+      (jqf / runMain)
+        .in(Compile)
+        .toTask(
+          s" firrtl.jqf.JQFFuzz " +
+            s"--testClassName $testClassName " +
+            s"--testMethod $testMethod " +
+            s"--classpath $classpath " +
+            s"--outputDirectory $outputDir " +
+            otherArgs
+        )
     }).evaluated,
-
     jqfRepro := (Def.inputTaskDyn {
       val (testClassName, testMethod, otherArgs) = testClassAndMethodParser.parsed
       val classpath = (Compile / fullClasspathAsJars).toTask.value.files.mkString(":")
-      (jqf/runMain).in(Compile).toTask(
-        s" firrtl.jqf.JQFRepro " +
-        s"--testClassName $testClassName " +
-        s"--testMethod $testMethod " +
-        s"--classpath $classpath " +
-        otherArgs)
-    }).evaluated,
+      (jqf / runMain)
+        .in(Compile)
+        .toTask(
+          s" firrtl.jqf.JQFRepro " +
+            s"--testClassName $testClassName " +
+            s"--testMethod $testMethod " +
+            s"--classpath $classpath " +
+            otherArgs
+        )
+    }).evaluated
   )

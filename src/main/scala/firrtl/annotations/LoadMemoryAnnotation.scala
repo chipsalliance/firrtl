@@ -18,11 +18,12 @@ object MemoryLoadFileType {
 
   case object Hex extends MemoryLoadFileType("h")
   case object Binary extends MemoryLoadFileType("b")
-  def deserialize(s: String): MemoryLoadFileType = s match {
-    case "h" => MemoryLoadFileType.Hex
-    case "b" => MemoryLoadFileType.Binary
-    case _ => throw new FirrtlUserException(s"Unrecognized MemoryLoadFileType: $s")
-  }
+  def deserialize(s: String): MemoryLoadFileType =
+    s match {
+      case "h" => MemoryLoadFileType.Hex
+      case "b" => MemoryLoadFileType.Binary
+      case _   => throw new FirrtlUserException(s"Unrecognized MemoryLoadFileType: $s")
+    }
 }
 
 /** Firrtl implementation for load memory
@@ -31,9 +32,9 @@ object MemoryLoadFileType {
   * @param hexOrBinary   use `\$readmemh` or `\$readmemb`
   */
 case class LoadMemoryAnnotation(
-  target: ComponentName,
-  fileName: String,
-  hexOrBinary: MemoryLoadFileType = MemoryLoadFileType.Hex,
+  target:                ComponentName,
+  fileName:              String,
+  hexOrBinary:           MemoryLoadFileType = MemoryLoadFileType.Hex,
   originalMemoryNameOpt: Option[String] = None
 ) extends SingleTargetAnnotation[Named] {
 
@@ -57,7 +58,7 @@ case class LoadMemoryAnnotation(
 
   def getPrefix: String =
     prefix + originalMemoryNameOpt.map(n => target.name.drop(n.length)).getOrElse("")
-  def getSuffix: String = suffix
+  def getSuffix:   String = suffix
   def getFileName: String = getPrefix + getSuffix
 
   def duplicate(newNamed: Named): LoadMemoryAnnotation = {

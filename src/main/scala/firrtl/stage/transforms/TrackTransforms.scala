@@ -8,21 +8,18 @@ import firrtl.options.{Dependency, DependencyManagerException}
 
 case class TransformHistoryAnnotation(history: Seq[Transform], state: Set[Transform]) extends NoTargetAnnotation {
 
-  def add(transform: Transform,
-          invalidates: (Transform) => Boolean = (a: Transform) => false): TransformHistoryAnnotation =
-    this.copy(
-      history = transform +: this.history,
-      state = (this.state + transform).filterNot(invalidates)
-    )
+  def add(
+    transform:   Transform,
+    invalidates: (Transform) => Boolean = (a: Transform) => false
+  ): TransformHistoryAnnotation =
+    this.copy(history = transform +: this.history, state = (this.state + transform).filterNot(invalidates))
 
 }
 
 object TransformHistoryAnnotation {
 
-  def apply(transform: Transform): TransformHistoryAnnotation = TransformHistoryAnnotation(
-    history = Seq(transform),
-    state = Set(transform)
-  )
+  def apply(transform: Transform): TransformHistoryAnnotation =
+    TransformHistoryAnnotation(history = Seq(transform), state = Set(transform))
 
 }
 
@@ -44,8 +41,7 @@ class TrackTransforms(val underlying: Transform) extends Transform with WrappedT
   }
 
   override def execute(c: CircuitState): CircuitState = {
-    val state = c.annotations
-      .collectFirst{ case TransformHistoryAnnotation(_, state) => state }
+    val state = c.annotations.collectFirst { case TransformHistoryAnnotation(_, state) => state }
       .getOrElse(Set.empty[Transform])
       .map(Dependency.fromTransform(_))
 
@@ -53,7 +49,8 @@ class TrackTransforms(val underlying: Transform) extends Transform with WrappedT
       throw new DependencyManagerException(
         s"""|Tried to execute Transform '$trueUnderlying' for which run-time prerequisites were not satisfied:
             |  state: ${state.mkString("\n    -", "\n    -", "")}
-            |  prerequisites: ${trueUnderlying.prerequisites.mkString("\n    -", "\n    -", "")}""".stripMargin)
+            |  prerequisites: ${trueUnderlying.prerequisites.mkString("\n    -", "\n    -", "")}""".stripMargin
+      )
     }
 
     val out = underlying.transform(c)

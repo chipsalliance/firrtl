@@ -12,8 +12,7 @@ import memlib._
 import firrtl.options.{RegisteredTransform, ShellOption}
 import firrtl.stage.{Forms, RunFirrtlTransformAnnotation}
 
-case class ClockListAnnotation(target: ModuleName, outputConfig: String) extends
-    SingleTargetAnnotation[ModuleName] {
+case class ClockListAnnotation(target: ModuleName, outputConfig: String) extends SingleTargetAnnotation[ModuleName] {
   def duplicate(n: ModuleName) = ClockListAnnotation(n, outputConfig)
 }
 
@@ -30,21 +29,13 @@ Usage:
 
     //Parse pass options
     val passOptions = PassConfigUtil.getPassOptions(t, usage)
-    val outputConfig = passOptions.getOrElse(
-      OutputConfigFileName,
-      error("No output config file provided for ClockList!" + usage)
-    )
-    val passCircuit = passOptions.getOrElse(
-      PassCircuitName,
-      error("No circuit name specified for ClockList!" + usage)
-    )
-    val passModule = passOptions.getOrElse(
-      PassModuleName,
-      error("No module name specified for ClockList!" + usage)
-    )
+    val outputConfig =
+      passOptions.getOrElse(OutputConfigFileName, error("No output config file provided for ClockList!" + usage))
+    val passCircuit = passOptions.getOrElse(PassCircuitName, error("No circuit name specified for ClockList!" + usage))
+    val passModule = passOptions.getOrElse(PassModuleName, error("No module name specified for ClockList!" + usage))
     passOptions.get(InputConfigFileName) match {
       case Some(x) => error("Unneeded input config file name!" + usage)
-      case None =>
+      case None    =>
     }
     val target = ModuleName(passModule, CircuitName(passCircuit))
     ClockListAnnotation(target, outputConfig)
@@ -53,18 +44,20 @@ Usage:
 
 class ClockListTransform extends Transform with DependencyAPIMigration with RegisteredTransform {
 
-   override def prerequisites = Forms.LowForm
-   override def optionalPrerequisites = Seq.empty
-   override def optionalPrerequisiteOf = Forms.LowEmitters
+  override def prerequisites = Forms.LowForm
+  override def optionalPrerequisites = Seq.empty
+  override def optionalPrerequisiteOf = Forms.LowEmitters
 
   val options = Seq(
     new ShellOption[String](
       longOption = "list-clocks",
-      toAnnotationSeq = (a: String) => Seq( passes.clocklist.ClockListAnnotation.parse(a),
-                                            RunFirrtlTransformAnnotation(new ClockListTransform) ),
+      toAnnotationSeq = (a: String) =>
+        Seq(passes.clocklist.ClockListAnnotation.parse(a), RunFirrtlTransformAnnotation(new ClockListTransform)),
       helpText = "List which signal drives each clock of every descendent of specified modules",
       shortOption = Some("clks"),
-      helpValueName = Some("-c:<circuit>:-m:<module>:-o:<filename>") ) )
+      helpValueName = Some("-c:<circuit>:-m:<module>:-o:<filename>")
+    )
+  )
 
   def passSeq(top: String, writer: Writer): Seq[Pass] =
     Seq(new ClockList(top, writer))

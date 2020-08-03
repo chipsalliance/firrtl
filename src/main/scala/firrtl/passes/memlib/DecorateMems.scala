@@ -13,15 +13,17 @@ class CreateMemoryAnnotations(reader: Option[YamlFileReader]) extends Transform 
   override def optionalPrerequisiteOf = Forms.MidEmitters
   override def invalidates(a: Transform) = false
 
-  def execute(state: CircuitState): CircuitState = reader match {
-    case None => state
-    case Some(r) =>
-      import CustomYAMLProtocol._
-      val configs = r.parse[Config]
-      val oldAnnos = state.annotations
-      val (as, pins) = configs.foldLeft((oldAnnos, Seq.empty[String])) { case ((annos, pins), config) =>
-        (annos, pins :+ config.pin.name)
-      }
-      state.copy(annotations = PinAnnotation(pins.toSeq) +: as)
-  }
+  def execute(state: CircuitState): CircuitState =
+    reader match {
+      case None => state
+      case Some(r) =>
+        import CustomYAMLProtocol._
+        val configs = r.parse[Config]
+        val oldAnnos = state.annotations
+        val (as, pins) = configs.foldLeft((oldAnnos, Seq.empty[String])) {
+          case ((annos, pins), config) =>
+            (annos, pins :+ config.pin.name)
+        }
+        state.copy(annotations = PinAnnotation(pins.toSeq) +: as)
+    }
 }

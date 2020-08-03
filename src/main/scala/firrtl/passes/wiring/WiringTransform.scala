@@ -14,14 +14,12 @@ import firrtl.stage.Forms
 case class WiringException(msg: String) extends PassException(msg)
 
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation */
-case class SourceAnnotation(target: ComponentName, pin: String) extends
-    SingleTargetAnnotation[ComponentName] {
+case class SourceAnnotation(target: ComponentName, pin: String) extends SingleTargetAnnotation[ComponentName] {
   def duplicate(n: ComponentName) = this.copy(target = n)
 }
 
 /** A module, e.g. ExtModule etc., that should add the input pin */
-case class SinkAnnotation(target: Named, pin: String) extends
-    SingleTargetAnnotation[Named] {
+case class SinkAnnotation(target: Named, pin: String) extends SingleTargetAnnotation[Named] {
   def duplicate(n: Named) = this.copy(target = n)
 }
 
@@ -48,10 +46,7 @@ class WiringTransform extends Transform with DependencyAPIMigration {
   override def invalidates(a: Transform): Boolean = invalidates(Dependency.fromTransform(a))
 
   /** Defines the sequence of Transform that should be applied */
-  private def transforms(w: Seq[WiringInfo]): Seq[Transform] = Seq(
-    new Wiring(w),
-    ToWorkingIR
-  )
+  private def transforms(w: Seq[WiringInfo]): Seq[Transform] = Seq(new Wiring(w), ToWorkingIR)
   def execute(state: CircuitState): CircuitState = {
     val annos = state.annotations.collect {
       case a @ (_: SinkAnnotation | _: SourceAnnotation) => a
@@ -76,8 +71,9 @@ class WiringTransform extends Transform with DependencyAPIMigration {
         (sources.size, sinks.size) match {
           case (0, p) => state
           case (s, p) if (p > 0) =>
-            val wis = sources.foldLeft(Seq[WiringInfo]()) { case (seq, (pin, source)) =>
-              seq :+ WiringInfo(source, sinks(pin), pin)
+            val wis = sources.foldLeft(Seq[WiringInfo]()) {
+              case (seq, (pin, source)) =>
+                seq :+ WiringInfo(source, sinks(pin), pin)
             }
             val annosx = state.annotations.filterNot(annos.toSet.contains)
             transforms(wis)

@@ -26,9 +26,7 @@ import org.scalatest.propspec.AnyPropSpec
 class CheckLowForm extends SeqTransform {
   def inputForm = LowForm
   def outputForm = LowForm
-  def transforms = Seq(
-    passes.CheckHighForm
-  )
+  def transforms = Seq(passes.CheckHighForm)
 }
 
 case class RenameTopAnnotation(newTopName: String) extends NoTargetAnnotation
@@ -46,11 +44,13 @@ object RenameTop extends Transform {
     val c = state.circuit
     val ns = Namespace(c)
 
-    val newTopName = state.annotations.collectFirst({
-      case RenameTopAnnotation(name) =>
-        require(ns.tryName(name))
-        name
-    }).getOrElse(c.main)
+    val newTopName = state.annotations
+      .collectFirst({
+        case RenameTopAnnotation(name) =>
+          require(ns.tryName(name))
+          name
+      })
+      .getOrElse(c.main)
 
     state.annotations.collect {
       case ModuleNamespaceAnnotation(mustNotCollideNS) => require(mustNotCollideNS.tryName(newTopName))
@@ -70,6 +70,7 @@ object RenameTop extends Transform {
 trait FirrtlRunners extends BackendCompilationUtilities {
 
   val cppHarnessResourceName: String = "/firrtl/testTop.cpp"
+
   /** Extra transforms to run by default */
   val extraCheckTransforms = Seq(new CheckLowForm)
 
@@ -80,10 +81,12 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     * @param customAnnotations Optional Firrtl annotations
     * @param timesteps the maximum number of timesteps to consider
     */
-  def firrtlEquivalenceTest(input: String,
-                            customTransforms: Seq[Transform] = Seq.empty,
-                            customAnnotations: AnnotationSeq = Seq.empty,
-                            timesteps: Int = 1): Unit = {
+  def firrtlEquivalenceTest(
+    input:             String,
+    customTransforms:  Seq[Transform] = Seq.empty,
+    customAnnotations: AnnotationSeq = Seq.empty,
+    timesteps:         Int = 1
+  ): Unit = {
     val circuit = Parser.parse(input.split("\n").toIterator)
     val prefix = circuit.main
     val testDir = createTestDirectory(prefix + "_equivalence_test")
@@ -93,12 +96,12 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     def getBaseAnnos(topName: String) = {
       val baseTransforms = RenameTop +: extraCheckTransforms
       TargetDirAnnotation(testDir.toString) +:
-      InfoModeAnnotation("ignore") +:
-      RenameTopAnnotation(topName) +:
-      stage.FirrtlCircuitAnnotation(circuit) +:
-      stage.CompilerAnnotation("mverilog") +:
-      stage.OutputFileAnnotation(topName) +:
-      toAnnos(baseTransforms)
+        InfoModeAnnotation("ignore") +:
+        RenameTopAnnotation(topName) +:
+        stage.FirrtlCircuitAnnotation(circuit) +:
+        stage.CompilerAnnotation("mverilog") +:
+        stage.OutputFileAnnotation(topName) +:
+        toAnnos(baseTransforms)
     }
 
     val customName = s"${prefix}_custom"
@@ -111,7 +114,8 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     val refAnnos = getBaseAnnos(refSuggestedName) ++: Seq(RunFirrtlTransformAnnotation(new RenameModules), nsAnno)
 
     val refResult = (new firrtl.stage.FirrtlStage).run(refAnnos)
-    val refName = refResult.collectFirst({ case stage.FirrtlCircuitAnnotation(c) => c.main }).getOrElse(refSuggestedName)
+    val refName =
+      refResult.collectFirst({ case stage.FirrtlCircuitAnnotation(c) => c.main }).getOrElse(refSuggestedName)
 
     assert(BackendCompilationUtilities.yosysExpectSuccess(customName, refName, testDir, timesteps))
   }
@@ -123,6 +127,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     val res = compiler.compileAndEmit(CircuitState(circuit, HighForm, annotations), extraCheckTransforms)
     res.getEmittedCircuit.value
   }
+
   /** Compile a Firrtl file
     *
     * @param prefix is the name of the Firrtl file without path or file extension
@@ -130,25 +135,27 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     * @param annotations Optional Firrtl annotations
     */
   def compileFirrtlTest(
-      prefix: String,
-      srcDir: String,
-      customTransforms: Seq[Transform] = Seq.empty,
-      annotations: AnnotationSeq = Seq.empty): File = {
+    prefix:           String,
+    srcDir:           String,
+    customTransforms: Seq[Transform] = Seq.empty,
+    annotations:      AnnotationSeq = Seq.empty
+  ): File = {
     val testDir = createTestDirectory(prefix)
     val inputFile = new File(testDir, s"${prefix}.fir")
     copyResourceToFile(s"${srcDir}/${prefix}.fir", inputFile)
 
     val annos =
       FirrtlFileAnnotation(inputFile.toString) +:
-      TargetDirAnnotation(testDir.toString) +:
-      InfoModeAnnotation("ignore") +:
-      annotations ++:
-      (customTransforms ++ extraCheckTransforms).map(RunFirrtlTransformAnnotation(_))
+        TargetDirAnnotation(testDir.toString) +:
+        InfoModeAnnotation("ignore") +:
+        annotations ++:
+        (customTransforms ++ extraCheckTransforms).map(RunFirrtlTransformAnnotation(_))
 
     (new firrtl.stage.FirrtlStage).run(annos)
 
     testDir
   }
+
   /** Execute a Firrtl Test
     *
     * @param prefix is the name of the Firrtl file without path or file extension
@@ -157,25 +164,26 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     * @param annotations Optional Firrtl annotations
     */
   def runFirrtlTest(
-      prefix: String,
-      srcDir: String,
-      verilogPrefixes: Seq[String] = Seq.empty,
-      customTransforms: Seq[Transform] = Seq.empty,
-      annotations: AnnotationSeq = Seq.empty) = {
+    prefix:           String,
+    srcDir:           String,
+    verilogPrefixes:  Seq[String] = Seq.empty,
+    customTransforms: Seq[Transform] = Seq.empty,
+    annotations:      AnnotationSeq = Seq.empty
+  ) = {
     val testDir = compileFirrtlTest(prefix, srcDir, customTransforms, annotations)
     val harness = new File(testDir, s"top.cpp")
     copyResourceToFile(cppHarnessResourceName, harness)
 
     // Note file copying side effect
-    val verilogFiles = verilogPrefixes map { vprefix =>
+    val verilogFiles = verilogPrefixes.map { vprefix =>
       val file = new File(testDir, s"$vprefix.v")
       copyResourceToFile(s"$srcDir/$vprefix.v", file)
       file
     }
 
     verilogToCpp(prefix, testDir, verilogFiles, harness) #&&
-    cppToExe(prefix, testDir) !
-    loggingProcessLogger
+      cppToExe(prefix, testDir) !
+      loggingProcessLogger
     assert(executeExpectingSuccess(prefix, testDir))
   }
 }
@@ -201,6 +209,7 @@ trait FirrtlMatchers extends Matchers {
     require(!s.contains("\n"))
     s.replaceAll("\\s+", " ").trim
   }
+
   /** Helper to make circuits that are the same appear the same */
   def canonicalize(circuit: Circuit): Circuit = {
     import firrtl.Mappers._
@@ -208,19 +217,21 @@ trait FirrtlMatchers extends Matchers {
     circuit.map(onModule)
   }
   def parse(str: String) = Parser.parse(str.split("\n").toIterator, UseInfo)
+
   /** Helper for executing tests
     * compiler will be run on input then emitted result will each be split into
     * lines and normalized.
     */
   def executeTest(
-      input: String,
-      expected: Seq[String],
-      compiler: Compiler,
-      annotations: Seq[Annotation] = Seq.empty) = {
+    input:       String,
+    expected:    Seq[String],
+    compiler:    Compiler,
+    annotations: Seq[Annotation] = Seq.empty
+  ) = {
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annotations))
-    val lines = finalState.getEmittedCircuit.value split "\n" map normalized
+    val lines = finalState.getEmittedCircuit.value.split("\n").map(normalized)
     for (e <- expected) {
-      lines should contain (e)
+      lines should contain(e)
     }
   }
 }
@@ -239,10 +250,12 @@ object FirrtlCheckers extends FirrtlMatchers {
           case Some(res) => res
           // Otherwise keep digging
           case None =>
-            require(node.isInstanceOf[Product] || !node.isInstanceOf[FirrtlNode],
-                    "Error! Unexpected FirrtlNode that does not implement Product!")
+            require(
+              node.isInstanceOf[Product] || !node.isInstanceOf[FirrtlNode],
+              "Error! Unexpected FirrtlNode that does not implement Product!"
+            )
             val iter = node match {
-              case p: Product => p.productIterator
+              case p: Product       => p.productIterator
               case i: Iterable[Any] => i.iterator
               case _ => Iterator.empty
             }
@@ -296,57 +309,63 @@ class TestFirrtlFlatSpec extends FirrtlFlatSpec {
   import FirrtlCheckers._
 
   val c = parse("""
-    |circuit Test:
-    |  module Test :
-    |    input in : UInt<8>
-    |    output out : UInt<8>
-    |    out <= in
-    |""".stripMargin)
+                  |circuit Test:
+                  |  module Test :
+                  |    input in : UInt<8>
+                  |    output out : UInt<8>
+                  |    out <= in
+                  |""".stripMargin)
   val state = CircuitState(c, ChirrtlForm)
   val compiled = (new LowFirrtlCompiler).compileAndEmit(state, List.empty)
 
   // While useful, ScalaTest helpers should be used over search
-  behavior of "Search"
+  behavior.of("Search")
 
   it should "be supported on Circuit" in {
-    assert(c search {
-      case Connect(_, Reference("out",_, _, _), Reference("in", _, _, _)) => true
+    assert(c.search {
+      case Connect(_, Reference("out", _, _, _), Reference("in", _, _, _)) => true
     })
   }
   it should "be supported on CircuitStates" in {
-    assert(state search {
-      case Connect(_, Reference("out", _, _, _), Reference("in",_, _, _)) => true
+    assert(state.search {
+      case Connect(_, Reference("out", _, _, _), Reference("in", _, _, _)) => true
     })
   }
   it should "be supported on the results of compilers" in {
-    assert(compiled search {
-      case Connect(_, WRef("out",_,_,_), WRef("in",_,_,_)) => true
+    assert(compiled.search {
+      case Connect(_, WRef("out", _, _, _), WRef("in", _, _, _)) => true
     })
   }
 
   // Use these!!!
-  behavior of "ScalaTest helpers"
+  behavior.of("ScalaTest helpers")
 
   they should "work for lines of emitted text" in {
-    compiled should containLine (s"input in : UInt<8>")
-    compiled should containLine (s"output out : UInt<8>")
-    compiled should containLine (s"out <= in")
+    compiled should containLine(s"input in : UInt<8>")
+    compiled should containLine(s"output out : UInt<8>")
+    compiled should containLine(s"out <= in")
   }
 
   they should "work for partial functions matching on subtrees" in {
     val UInt8 = UIntType(IntWidth(8)) // BigInt unapply is weird
     compiled should containTree { case Port(_, "in", Input, UInt8) => true }
     compiled should containTree { case Port(_, "out", Output, UInt8) => true }
-    compiled should containTree { case Connect(_, WRef("out",_,_,_), WRef("in",_,_,_)) => true }
+    compiled should containTree { case Connect(_, WRef("out", _, _, _), WRef("in", _, _, _)) => true }
   }
 }
 
 /** Super class for execution driven Firrtl tests */
-abstract class ExecutionTest(name: String, dir: String, vFiles: Seq[String] = Seq.empty, annotations: AnnotationSeq = Seq.empty) extends FirrtlPropSpec {
+abstract class ExecutionTest(
+  name:        String,
+  dir:         String,
+  vFiles:      Seq[String] = Seq.empty,
+  annotations: AnnotationSeq = Seq.empty
+) extends FirrtlPropSpec {
   property(s"$name should execute correctly") {
     runFirrtlTest(name, dir, vFiles, annotations = annotations)
   }
 }
+
 /** Super class for compilation driven Firrtl tests */
 abstract class CompilationTest(name: String, dir: String) extends FirrtlPropSpec {
   property(s"$name should compile correctly") {
@@ -444,7 +463,9 @@ abstract class EquivalenceTest(transforms: Seq[Transform], name: String, dir: St
     throw new FileNotFoundException(s"Resource '$fileName'")
   }
   val source = scala.io.Source.fromInputStream(in)
-  val input = try source.mkString finally source.close()
+  val input =
+    try source.mkString
+    finally source.close()
 
   s"$name with ${transforms.map(_.name).mkString(", ")}" should
     s"be equivalent to $name without ${transforms.map(_.name).mkString(", ")}" in {

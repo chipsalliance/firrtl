@@ -10,7 +10,6 @@ import firrtl.Utils._
 import firrtl.traversals.Foreachers._
 import firrtl.annotations.TargetToken._
 
-
 /** A class representing the instance hierarchy of a working IR Circuit
   *
   * @constructor constructs an instance graph from a Circuit
@@ -27,7 +26,7 @@ import firrtl.annotations.TargetToken._
   */
 class InstanceGraph(c: Circuit) {
 
-  val moduleMap = c.modules.map({m => (m.name,m) }).toMap
+  val moduleMap = c.modules.map({ m => (m.name, m) }).toMap
   private val instantiated = new mutable.LinkedHashSet[String]
   private val childInstances =
     new mutable.LinkedHashMap[String, mutable.LinkedHashSet[DefInstance]]
@@ -41,7 +40,7 @@ class InstanceGraph(c: Circuit) {
   private val instanceQueue = new mutable.Queue[DefInstance]
 
   for (subTop <- c.modules.view.map(_.name).filterNot(instantiated)) {
-    val topInstance = DefInstance(subTop,subTop)
+    val topInstance = DefInstance(subTop, subTop)
     instanceQueue.enqueue(topInstance)
     while (instanceQueue.nonEmpty) {
       val current = instanceQueue.dequeue
@@ -51,7 +50,7 @@ class InstanceGraph(c: Circuit) {
           instanceQueue.enqueue(child)
           instanceGraph.addVertex(child)
         }
-        instanceGraph.addEdge(current,child)
+        instanceGraph.addEdge(current, child)
       }
     }
   }
@@ -69,7 +68,7 @@ class InstanceGraph(c: Circuit) {
   /** A list of absolute paths (each represented by a Seq of instances)
     * of all module instances in the Circuit.
     */
-  lazy val fullHierarchy: mutable.LinkedHashMap[DefInstance,Seq[Seq[DefInstance]]] = graph.pathsInDAG(trueTopInstance)
+  lazy val fullHierarchy: mutable.LinkedHashMap[DefInstance, Seq[Seq[DefInstance]]] = graph.pathsInDAG(trueTopInstance)
 
   /** A count of the *static* number of instances of each module. For any module other than the top (main) module, this is
     * equivalent to the number of inst statements in the circuit instantiating each module, irrespective of the number
@@ -80,7 +79,7 @@ class InstanceGraph(c: Circuit) {
   lazy val staticInstanceCount: Map[OfModule, Int] = {
     val foo = mutable.LinkedHashMap.empty[OfModule, Int]
     childInstances.keys.foreach {
-      case main if main == c.main => foo += main.OfModule  -> 1
+      case main if main == c.main => foo += main.OfModule -> 1
       case other                  => foo += other.OfModule -> 0
     }
     childInstances.values.flatten.map(_.OfModule).foreach {
@@ -100,7 +99,7 @@ class InstanceGraph(c: Circuit) {
     */
   def findInstancesInHierarchy(module: String): Seq[Seq[DefInstance]] = {
     val instances = graph.getVertices.filter(_.module == module).toSeq
-    instances flatMap { i => fullHierarchy.getOrElse(i, Nil) }
+    instances.flatMap { i => fullHierarchy.getOrElse(i, Nil) }
   }
 
   /** An [[firrtl.graph.EulerTour EulerTour]] representation of the [[firrtl.graph.DiGraph DiGraph]] */
@@ -109,8 +108,7 @@ class InstanceGraph(c: Circuit) {
   /** Finds the lowest common ancestor instances for two module names in
     * a design
     */
-  def lowestCommonAncestor(moduleA: Seq[DefInstance],
-                           moduleB: Seq[DefInstance]): Seq[DefInstance] = {
+  def lowestCommonAncestor(moduleA: Seq[DefInstance], moduleB: Seq[DefInstance]): Seq[DefInstance] = {
     tour.rmq(moduleA, moduleB)
   }
 
@@ -122,10 +120,9 @@ class InstanceGraph(c: Circuit) {
     graph.transformNodes(_.module).linearize.map(moduleMap(_))
   }
 
-
   /** Given a circuit, returns a map from module name to children
-     * instance/module definitions
-     */
+    * instance/module definitions
+    */
   def getChildrenInstances: mutable.LinkedHashMap[String, mutable.LinkedHashSet[DefInstance]] = childInstances
 
   /** Given a circuit, returns a map from module name to children
@@ -157,7 +154,7 @@ class InstanceGraph(c: Circuit) {
     mutable.LinkedHashSet(trueTopInstance.OfModule) ++ graph.reachableFrom(trueTopInstance).map(_.OfModule)
 
   /** The set of all modules *not* reachable in the circuit */
-  lazy val unreachableModules: collection.Set[OfModule] = modules diff reachableModules
+  lazy val unreachableModules: collection.Set[OfModule] = modules.diff(reachableModules)
 
 }
 
@@ -169,11 +166,11 @@ object InstanceGraph {
     * @param s statement to descend
     * @return
     */
-  def collectInstances(insts: mutable.Set[DefInstance])
-                      (s: Statement): Unit = s match {
-    case i: DefInstance => insts += i
-    case i: DefInstance => throwInternalError("Expecting DefInstance, found a DefInstance!")
-    case i: WDefInstanceConnector => throwInternalError("Expecting DefInstance, found a DefInstanceConnector!")
-    case _ => s.foreach(collectInstances(insts))
-  }
+  def collectInstances(insts: mutable.Set[DefInstance])(s: Statement): Unit =
+    s match {
+      case i: DefInstance           => insts += i
+      case i: DefInstance           => throwInternalError("Expecting DefInstance, found a DefInstance!")
+      case i: WDefInstanceConnector => throwInternalError("Expecting DefInstance, found a DefInstanceConnector!")
+      case _ => s.foreach(collectInstances(insts))
+    }
 }

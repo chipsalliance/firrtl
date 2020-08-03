@@ -1,11 +1,11 @@
 package firrtl.passes
 
 import firrtl.PrimOps._
-import firrtl.Utils.{BoolType, error, zero}
+import firrtl.Utils.{error, zero, BoolType}
 import firrtl.ir._
 import firrtl.options.Dependency
 import firrtl.transforms.ConstantPropagation
-import firrtl.{Transform, bitWidth}
+import firrtl.{bitWidth, Transform}
 import firrtl.Mappers._
 
 // Replace shr by amount >= arg width with 0 for UInts and MSB for SInts
@@ -47,13 +47,14 @@ object Legalize extends Pass {
       case _ => expr
     }
   }
-  private def legalizePad(expr: DoPrim): Expression = expr.args.head match {
-    case UIntLiteral(value, IntWidth(width)) if width < expr.consts.head =>
-      UIntLiteral(value, IntWidth(expr.consts.head))
-    case SIntLiteral(value, IntWidth(width)) if width < expr.consts.head =>
-      SIntLiteral(value, IntWidth(expr.consts.head))
-    case _ => expr
-  }
+  private def legalizePad(expr: DoPrim): Expression =
+    expr.args.head match {
+      case UIntLiteral(value, IntWidth(width)) if width < expr.consts.head =>
+        UIntLiteral(value, IntWidth(expr.consts.head))
+      case SIntLiteral(value, IntWidth(width)) if width < expr.consts.head =>
+        SIntLiteral(value, IntWidth(expr.consts.head))
+      case _ => expr
+    }
   private def legalizeConnect(c: Connect): Statement = {
     val t = c.loc.tpe
     val w = bitWidth(t)
@@ -62,30 +63,32 @@ object Legalize extends Pass {
     } else {
       val bits = DoPrim(Bits, Seq(c.expr), Seq(w - 1, 0), UIntType(IntWidth(w)))
       val expr = t match {
-        case UIntType(_) => bits
-        case SIntType(_) => DoPrim(AsSInt, Seq(bits), Seq(), SIntType(IntWidth(w)))
+        case UIntType(_)               => bits
+        case SIntType(_)               => DoPrim(AsSInt, Seq(bits), Seq(), SIntType(IntWidth(w)))
         case FixedType(_, IntWidth(p)) => DoPrim(AsFixedPoint, Seq(bits), Seq(p), t)
       }
       Connect(c.info, c.loc, expr)
     }
   }
-  def run (c: Circuit): Circuit = {
-    def legalizeE(expr: Expression): Expression = expr map legalizeE match {
-      case prim: DoPrim => prim.op match {
-        case Shr => legalizeShiftRight(prim)
-        case Pad => legalizePad(prim)
-        case Bits | Head | Tail => legalizeBitExtract(prim)
-        case _ => prim
+  def run(c: Circuit): Circuit = {
+    def legalizeE(expr: Expression): Expression =
+      expr.map(legalizeE) match {
+        case prim: DoPrim =>
+          prim.op match {
+            case Shr                => legalizeShiftRight(prim)
+            case Pad                => legalizePad(prim)
+            case Bits | Head | Tail => legalizeBitExtract(prim)
+            case _                  => prim
+          }
+        case e => e // respect pre-order traversal
       }
-      case e => e // respect pre-order traversal
-    }
-    def legalizeS (s: Statement): Statement = {
+    def legalizeS(s: Statement): Statement = {
       val legalizedStmt = s match {
         case c: Connect => legalizeConnect(c)
         case _ => s
       }
-      legalizedStmt map legalizeS map legalizeE
+      legalizedStmt.map(legalizeS).map(legalizeE)
     }
-    c copy (modules = c.modules map (_ map legalizeS))
+    c.copy(modules = c.modules.map(_.map(legalizeS)))
   }
 }

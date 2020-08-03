@@ -37,10 +37,7 @@ class IRToWorkingIR extends CoreTransform {
 /** Resolves types, kinds, and flows, and checks the circuit legality.
   * Operates on working IR nodes and high Firrtl.
   */
-@deprecated(
-  "Use 'new TransformManager(Forms.Resolved, Forms.WorkingIR)'. This will be removed in 1.4.",
-  "FIRRTL 1.3"
-)
+@deprecated("Use 'new TransformManager(Forms.Resolved, Forms.WorkingIR)'. This will be removed in 1.4.", "FIRRTL 1.3")
 class ResolveAndCheck extends CoreTransform {
   def inputForm = HighForm
   def outputForm = HighForm
@@ -52,10 +49,7 @@ class ResolveAndCheck extends CoreTransform {
   * well-formed graph.
   * Operates on working IR nodes.
   */
-@deprecated(
-  "Use 'new TransformManager(Forms.MidForm, Forms.Deduped)'. This will be removed in 1.4.",
-  "FIRRTL 1.3"
-)
+@deprecated("Use 'new TransformManager(Forms.MidForm, Forms.Deduped)'. This will be removed in 1.4.", "FIRRTL 1.3")
 class HighFirrtlToMiddleFirrtl extends CoreTransform {
   def inputForm = HighForm
   def outputForm = MidForm
@@ -66,10 +60,7 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
   * accept a well-formed graph of only middle Firrtl features.
   * Operates on working IR nodes.
   */
-@deprecated(
-  "Use 'new TransformManager(Forms.LowForm, Forms.MidForm)'. This will be removed in 1.4.",
-  "FIRRTL 1.3"
-)
+@deprecated("Use 'new TransformManager(Forms.LowForm, Forms.MidForm)'. This will be removed in 1.4.", "FIRRTL 1.3")
 class MiddleFirrtlToLowFirrtl extends CoreTransform {
   def inputForm = MidForm
   def outputForm = LowForm
@@ -91,10 +82,10 @@ class LowFirrtlOptimization extends CoreTransform {
 }
 
 /** Runs runs only the optimization passes needed for Verilog emission */
-  @deprecated(
-    "Use 'new TransformManager(Forms.LowFormMinimumOptimized, Forms.LowForm)'. This will be removed in 1.4.",
-    "FIRRTL 1.3"
-  )
+@deprecated(
+  "Use 'new TransformManager(Forms.LowFormMinimumOptimized, Forms.LowForm)'. This will be removed in 1.4.",
+  "FIRRTL 1.3"
+)
 class MinimumLowFirrtlOptimization extends CoreTransform {
   def inputForm = LowForm
   def outputForm = LowForm
@@ -137,20 +128,14 @@ class MiddleFirrtlCompiler extends Compiler {
 }
 
 /** Emits lowered input circuit */
-@deprecated(
-  "Use stage.{FirrtlStage, FirrtlMain} stage.transforms.Compiler(Dependency[LowFirrtlEmitter])",
-  "FIRRTL 1.3"
-)
+@deprecated("Use stage.{FirrtlStage, FirrtlMain} stage.transforms.Compiler(Dependency[LowFirrtlEmitter])", "FIRRTL 1.3")
 class LowFirrtlCompiler extends Compiler {
   val emitter = new LowFirrtlEmitter
   def transforms: Seq[Transform] = Forms.LowForm.map(_.getObject)
 }
 
 /** Emits Verilog */
-@deprecated(
-  "Use stage.{FirrtlStage, FirrtlMain} stage.transforms.Compiler(Dependency[VerilogEmitter])",
-  "FIRRTL 1.3"
-)
+@deprecated("Use stage.{FirrtlStage, FirrtlMain} stage.transforms.Compiler(Dependency[VerilogEmitter])", "FIRRTL 1.3")
 class VerilogCompiler extends Compiler {
   val emitter = new VerilogEmitter
   def transforms: Seq[Transform] = Forms.LowFormOptimized.map(_.getObject)

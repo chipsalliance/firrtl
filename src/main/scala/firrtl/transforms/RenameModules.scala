@@ -25,10 +25,11 @@ class RenameModules extends Transform with DependencyAPIMigration {
     moduleNameMap.put(mod.name, newName)
   }
 
-  def onStmt(moduleNameMap: mutable.HashMap[String, String])(stmt: Statement): Statement = stmt match {
-    case inst: WDefInstance if moduleNameMap.contains(inst.module) => inst.copy(module = moduleNameMap(inst.module))
-    case other => other.mapStmt(onStmt(moduleNameMap))
-  }
+  def onStmt(moduleNameMap: mutable.HashMap[String, String])(stmt: Statement): Statement =
+    stmt match {
+      case inst: WDefInstance if moduleNameMap.contains(inst.module) => inst.copy(module = moduleNameMap(inst.module))
+      case other => other.mapStmt(onStmt(moduleNameMap))
+    }
 
   def execute(state: CircuitState): CircuitState = {
     val namespace = state.annotations.collectFirst {
@@ -44,7 +45,7 @@ class RenameModules extends Transform with DependencyAPIMigration {
       moduleOrder.foreach(collectNameMapping(namespace.get, nameMappings))
 
       val modulesx = state.circuit.modules.map {
-        case mod: Module => mod.mapStmt(onStmt(nameMappings)).mapString(nameMappings)
+        case mod: Module    => mod.mapStmt(onStmt(nameMappings)).mapString(nameMappings)
         case ext: ExtModule => ext
       }
 

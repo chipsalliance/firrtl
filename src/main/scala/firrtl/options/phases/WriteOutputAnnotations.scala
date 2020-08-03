@@ -15,10 +15,7 @@ import java.io.PrintWriter
 class WriteOutputAnnotations extends Phase {
 
   override def prerequisites =
-    Seq( Dependency[GetIncludes],
-         Dependency[ConvertLegacyAnnotations],
-         Dependency[AddDefaults],
-         Dependency[Checks] )
+    Seq(Dependency[GetIncludes], Dependency[ConvertLegacyAnnotations], Dependency[AddDefaults], Dependency[Checks])
 
   override def optionalPrerequisiteOf = Seq.empty
 
@@ -27,10 +24,10 @@ class WriteOutputAnnotations extends Phase {
   /** Write the input [[AnnotationSeq]] to a fie. */
   def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val sopts = Viewer[StageOptions].view(annotations)
-    val serializable = annotations.filter{
+    val serializable = annotations.filter {
       case _: Unserializable    => false
       case _: DeletedAnnotation => sopts.writeDeleted
-      case _                    => true
+      case _ => true
     }
 
     sopts.annotationFileOut match {

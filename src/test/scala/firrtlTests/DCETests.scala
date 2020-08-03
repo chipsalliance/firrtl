@@ -13,7 +13,8 @@ import java.io.File
 import java.nio.file.Paths
 
 case class AnnotationWithDontTouches(target: ReferenceTarget)
-    extends SingleTargetAnnotation[ReferenceTarget] with HasDontTouches {
+    extends SingleTargetAnnotation[ReferenceTarget]
+    with HasDontTouches {
   def targets = Seq(target)
   def duplicate(n: ReferenceTarget) = this.copy(n)
   def dontTouches: Seq[ReferenceTarget] = targets
@@ -22,18 +23,15 @@ case class AnnotationWithDontTouches(target: ReferenceTarget)
 class DCETests extends FirrtlFlatSpec {
   // Not using executeTest because it is for positive testing, we need to check that stuff got
   // deleted
-  private val customTransforms = Seq(
-    new LowFirrtlOptimization,
-    RemoveEmpty
-  )
+  private val customTransforms = Seq(new LowFirrtlOptimization, RemoveEmpty)
   private def exec(input: String, check: String, annos: Seq[Annotation] = List.empty): Unit = {
     val state = CircuitState(parse(input), ChirrtlForm, annos)
     val finalState = (new LowFirrtlCompiler).compileAndEmit(state, customTransforms)
     val res = finalState.getEmittedCircuit.value
     // Convert to sets for comparison
-    val resSet = Set(parse(res).serialize.split("\n"):_*)
-    val checkSet = Set(parse(check).serialize.split("\n"):_*)
-    resSet should be (checkSet)
+    val resSet = Set(parse(res).serialize.split("\n"): _*)
+    val checkSet = Set(parse(check).serialize.split("\n"): _*)
+    resSet should be(checkSet)
   }
 
   "Unread wire" should "be deleted" in {
@@ -418,7 +416,7 @@ class DCETests extends FirrtlFlatSpec {
     exec(input, check)
   }
   // This currently does NOT work
-  behavior of "Single dead instances"
+  behavior.of("Single dead instances")
   ignore should "should be deleted" in {
     val input =
       """circuit Top :
@@ -452,43 +450,39 @@ class DCETests extends FirrtlFlatSpec {
   }
 
   "Emitted Verilog" should "not contain dead \"register update\" code" in {
-    val input = parse(
-      """circuit test :
-        |  module test :
-        |    input clock : Clock
-        |    input a : UInt<1>
-        |    input x : UInt<8>
-        |    output z : UInt<8>
-        |    reg r : UInt, clock
-        |    when a :
-        |      r <= x
-        |    z <= r""".stripMargin
-    )
+    val input = parse("""circuit test :
+                        |  module test :
+                        |    input clock : Clock
+                        |    input a : UInt<1>
+                        |    input x : UInt<8>
+                        |    output z : UInt<8>
+                        |    reg r : UInt, clock
+                        |    when a :
+                        |      r <= x
+                        |    z <= r""".stripMargin)
 
     val state = CircuitState(input, ChirrtlForm)
     val result = (new VerilogCompiler).compileAndEmit(state, List.empty)
     val verilog = result.getEmittedCircuit.value
     // Check that mux is removed!
-    verilog shouldNot include regex ("""a \? x : r;""")
+    (verilog shouldNot include).regex("""a \? x : r;""")
     // Check for register update
-    verilog should include regex ("""(?m)if \(a\) begin\n\s*r <= x;\s*end""")
+    (verilog should include).regex("""(?m)if \(a\) begin\n\s*r <= x;\s*end""")
   }
 
   "Emitted Verilog" should "not contain dead print or stop statements" in {
-    val input = parse(
-      """circuit test :
-        |  module test :
-        |    input clock : Clock
-        |    when UInt<1>(0) :
-        |      printf(clock, UInt<1>(1), "o hai")
-        |      stop(clock, UInt<1>(1), 1)""".stripMargin
-    )
+    val input = parse("""circuit test :
+                        |  module test :
+                        |    input clock : Clock
+                        |    when UInt<1>(0) :
+                        |      printf(clock, UInt<1>(1), "o hai")
+                        |      stop(clock, UInt<1>(1), 1)""".stripMargin)
 
     val state = CircuitState(input, ChirrtlForm)
     val result = (new VerilogCompiler).compileAndEmit(state, List.empty)
     val verilog = result.getEmittedCircuit.value
-    verilog shouldNot include regex ("""fwrite""")
-    verilog shouldNot include regex ("""fatal""")
+    (verilog shouldNot include).regex("""fwrite""")
+    (verilog shouldNot include).regex("""fatal""")
   }
 }
 
@@ -502,7 +496,7 @@ class DCECommandLineSpec extends FirrtlFlatSpec {
   "Dead Code Elimination" should "run by default" in {
     firrtl.Driver.execute(args) match {
       case FirrtlExecutionSuccess(_, verilog) =>
-        verilog should not include regex ("wire +a")
+        (verilog should not).include(regex("wire +a"))
       case _ => fail("Unexpected compilation failure")
     }
   }
@@ -510,7 +504,7 @@ class DCECommandLineSpec extends FirrtlFlatSpec {
   it should "not run when given --no-dce option" in {
     firrtl.Driver.execute(args :+ "--no-dce") match {
       case FirrtlExecutionSuccess(_, verilog) =>
-        verilog should include regex ("wire +a")
+        (verilog should include).regex("wire +a")
       case _ => fail("Unexpected compilation failure")
     }
   }

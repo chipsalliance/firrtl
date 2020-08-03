@@ -9,9 +9,7 @@ import firrtl.options.Dependency
 object CheckChirrtl extends Pass with CheckHighFormLike {
 
   override val optionalPrerequisiteOf = firrtl.stage.Forms.ChirrtlForm ++
-    Seq( Dependency(CInferTypes),
-         Dependency(CInferMDir),
-         Dependency(RemoveCHIRRTL) )
+    Seq(Dependency(CInferTypes), Dependency(CInferMDir), Dependency(RemoveCHIRRTL))
 
   override def invalidates(a: Transform) = false
 

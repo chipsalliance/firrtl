@@ -29,7 +29,9 @@ object TargetDirAnnotation extends HasShellOptions {
       toAnnotationSeq = (a: String) => Seq(TargetDirAnnotation(a)),
       helpText = "Work directory (default: '.')",
       shortOption = Some("td"),
-      helpValueName = Some("<directory>") ) )
+      helpValueName = Some("<directory>")
+    )
+  )
 
 }
 
@@ -41,11 +43,12 @@ case class ProgramArgsAnnotation(arg: String) extends NoTargetAnnotation with St
 
 object ProgramArgsAnnotation {
 
-  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.arg[String]("<arg>...")
-    .unbounded()
-    .optional()
-    .action( (x, c) => ProgramArgsAnnotation(x) +: c )
-    .text("optional unbounded args")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit =
+    p.arg[String]("<arg>...")
+      .unbounded()
+      .optional()
+      .action((x, c) => ProgramArgsAnnotation(x) +: c)
+      .text("optional unbounded args")
 }
 
 /** Holds a filename containing one or more [[annotations.Annotation]] to be read
@@ -63,7 +66,9 @@ object InputAnnotationFileAnnotation extends HasShellOptions {
       toAnnotationSeq = (a: String) => Seq(InputAnnotationFileAnnotation(a)),
       helpText = "An input annotation file",
       shortOption = Some("faf"),
-      helpValueName = Some("<file>") ) )
+      helpValueName = Some("<file>")
+    )
+  )
 
 }
 
@@ -81,7 +86,9 @@ object OutputAnnotationFileAnnotation extends HasShellOptions {
       toAnnotationSeq = (a: String) => Seq(OutputAnnotationFileAnnotation(a)),
       helpText = "An output annotation file",
       shortOption = Some("foaf"),
-      helpValueName = Some("<file>") ) )
+      helpValueName = Some("<file>")
+    )
+  )
 
 }
 
@@ -96,6 +103,8 @@ case object WriteDeletedAnnotation extends NoTargetAnnotation with StageOption w
     new ShellOption[Unit](
       longOption = "write-deleted",
       toAnnotationSeq = (_: Unit) => Seq(WriteDeletedAnnotation),
-      helpText = "Include deleted annotations in the output annotation file" ) )
+      helpText = "Include deleted annotations in the output annotation file"
+    )
+  )
 
 }

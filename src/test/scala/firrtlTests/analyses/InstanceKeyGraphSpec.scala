@@ -7,7 +7,7 @@ import firrtl.analyses.InstanceKeyGraph.InstanceKey
 import firrtl.testutils.FirrtlFlatSpec
 
 class InstanceKeyGraphSpec extends FirrtlFlatSpec {
-  behavior of "InstanceKeyGraph"
+  behavior.of("InstanceKeyGraph")
 
   // Note that due to optimized implementations of Map1-4, at least 5 entries are needed to
   // experience non-determinism
@@ -31,7 +31,7 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
     val circuit = parse(input)
     val instGraph = new InstanceKeyGraph(circuit)
     val childMap = instGraph.getChildInstances
-    childMap.map(_._1) should equal (Seq("Top", "Child1", "Child1a", "Child1b", "Child2"))
+    childMap.map(_._1) should equal(Seq("Top", "Child1", "Child1a", "Child1b", "Child2"))
   }
 
   // Note that due to optimized implementations of Map1-4, at least 5 entries are needed to
@@ -53,7 +53,7 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
     val instGraph = new InstanceKeyGraph(circuit)
     val childMap = instGraph.getChildInstances.toMap
     val insts = childMap("Top").map(_.name)
-    insts should equal (Seq("a", "b", "c", "d", "e", "f"))
+    insts should equal(Seq("a", "b", "c", "d", "e", "f"))
   }
 
   it should "compute a correct and deterministic module order" in {
@@ -83,7 +83,7 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
     val instGraph = new InstanceKeyGraph(circuit)
     val order = instGraph.moduleOrder.map(_.name)
     // Where it has freedom, the instance declaration order will be reversed.
-    order should equal (Seq("Top", "Child3", "Child4", "Child2", "Child1", "Child1b", "Child1a"))
+    order should equal(Seq("Top", "Child3", "Child4", "Child2", "Child1", "Child1b", "Child1a"))
   }
 
   it should "find hierarchical instances correctly in disconnected hierarchies" in {

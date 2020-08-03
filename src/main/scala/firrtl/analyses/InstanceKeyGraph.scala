@@ -17,7 +17,7 @@ import scala.collection.mutable
 class InstanceKeyGraph(c: ir.Circuit) {
   import InstanceKeyGraph._
 
-  private val nameToModule: Map[String, ir.DefModule] = c.modules.map({m => (m.name,m) }).toMap
+  private val nameToModule: Map[String, ir.DefModule] = c.modules.map({ m => (m.name, m) }).toMap
   private val childInstances: Seq[(String, Seq[InstanceKey])] = c.modules.map { m =>
     m.name -> InstanceKeyGraph.collectInstances(m)
   }
@@ -52,12 +52,12 @@ class InstanceKeyGraph(c: ir.Circuit) {
     */
   def findInstancesInHierarchy(module: String): Seq[Seq[InstanceKey]] = {
     val instances = vertices.filter(_.module == module).toSeq
-    instances.flatMap{ i => fullHierarchy.getOrElse(i, Nil) }
+    instances.flatMap { i => fullHierarchy.getOrElse(i, Nil) }
   }
 }
 
-
 object InstanceKeyGraph {
+
   /** We want to only use this untyped version as key because hashing bundle types is expensive
     * @param name the name of the instance
     * @param module the name of the module that is instantiated
@@ -69,26 +69,30 @@ object InstanceKeyGraph {
   }
 
   /** Finds all instance definitions in a firrtl Module. */
-  def collectInstances(m: ir.DefModule): Seq[InstanceKey] = m match {
-    case _ : ir.ExtModule => Seq()
-    case ir.Module(_, _, _, body) => {
-      val instances = mutable.ArrayBuffer[InstanceKey]()
-      def onStmt(s: ir.Statement): Unit = s match {
-        case firrtl.WDefInstance(_, name, module, _) => instances += InstanceKey(name, module)
-        case ir.DefInstance(_, name, module, _)  => instances += InstanceKey(name, module)
-        case _: firrtl.WDefInstanceConnector =>
-          firrtl.Utils.throwInternalError("Expecting WDefInstance, found a WDefInstanceConnector!")
-        case other => other.foreachStmt(onStmt)
+  def collectInstances(m: ir.DefModule): Seq[InstanceKey] =
+    m match {
+      case _: ir.ExtModule => Seq()
+      case ir.Module(_, _, _, body) => {
+        val instances = mutable.ArrayBuffer[InstanceKey]()
+        def onStmt(s: ir.Statement): Unit =
+          s match {
+            case firrtl.WDefInstance(_, name, module, _) => instances += InstanceKey(name, module)
+            case ir.DefInstance(_, name, module, _)      => instances += InstanceKey(name, module)
+            case _: firrtl.WDefInstanceConnector =>
+              firrtl.Utils.throwInternalError("Expecting WDefInstance, found a WDefInstanceConnector!")
+            case other => other.foreachStmt(onStmt)
+          }
+        onStmt(body)
+        instances.toSeq
       }
-      onStmt(body)
-      instances.toSeq
     }
-  }
 
   private def topKey(module: String): InstanceKey = InstanceKey(module, module)
 
-  private def buildGraph(childInstances: Seq[(String, Seq[InstanceKey])], roots: Iterable[String]):
-    DiGraph[InstanceKey] = {
+  private def buildGraph(
+    childInstances: Seq[(String, Seq[InstanceKey])],
+    roots:          Iterable[String]
+  ): DiGraph[InstanceKey] = {
     val instanceGraph = new MutableDiGraph[InstanceKey]
     val childInstanceMap = childInstances.toMap
 
