@@ -84,6 +84,7 @@ object Forms {
   val VerilogMinimumOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
     Seq( Dependency[firrtl.transforms.BlackBoxSourceHelper],
          Dependency[firrtl.transforms.FixAddingNegativeLiterals],
+         Dependency[firrtl.transforms.FixNegatingNegativeLiterals],
          Dependency[firrtl.transforms.ReplaceTruncatingArithmetic],
          Dependency[firrtl.transforms.InlineBitExtractionsTransform],
          Dependency[firrtl.transforms.InlineCastsTransform],
