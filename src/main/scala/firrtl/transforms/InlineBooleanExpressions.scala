@@ -18,7 +18,10 @@ import scala.collection.mutable
   * The following conditions must be satisfied to inline
   * 1. has type [[Utils.BoolType]]
   * 2. is bound to a [[firrtl.ir.DefNode DefNode]] with name starting with '_'
-  * 3. is bound to a [[firrtl.ir.DefNode DefNode]] with the same source locator
+  * 3. is bound to a [[firrtl.ir.DefNode DefNode]] with a source locator that
+  *    points at the same file and line number. If it is a MultiInfo source
+  *    locator, the set of file and line number pairs must be the same. Source
+  *    locators may point to differnt column numbers.
   * 4. the resulting expression can be emitted to verilog without needing any
   *    parentheses
   */
@@ -40,7 +43,7 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
     case _ => false
   }
 
-  type Netlist = mutable.HashMap[(WrappedExpression, Info), Expression]
+  type Netlist = mutable.HashMap[WrappedExpression, (Expression, Info)]
 
   private def isArgN(outerExpr: DoPrim, subExpr: Expression, n: Int): Boolean = {
     outerExpr.args.lift(n) match {
@@ -112,6 +115,22 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
     }
   }
 
+  private def getInfoFileLines(info: Info): Set[(String, Int)] = {
+    val fileLineColRegex = """(.*) ([0-9]+):([0-9]+)""".r
+    info match {
+      case FileInfo(fileLineColRegex(file, line, col)) => Set(file -> line.toInt)
+      case FileInfo(noLineFile) => Set(noLineFile -> 0)
+      case MultiInfo(infos) => infos.foldLeft(Set.empty[(String, Int)]) {
+        case (set, info) => set ++ getInfoFileLines(info)
+      }
+      case NoInfo => Set.empty
+    }
+  }
+
+  private def sameFileAndLineInfo(info1: Info, info2: Info): Boolean = {
+    getInfoFileLines(info1) == getInfoFileLines(info2)
+  }
+
   private def onExpr(
     netlist: Netlist,
     dontTouches: Set[Ref],
@@ -119,9 +138,13 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
     outerExpr: Option[Expression])(expr: Expression): Expression = {
     expr match {
       case ref: WRef if !dontTouches.contains(ref.name.Ref) && ref.name.head == '_' =>
-        netlist.get(we(ref) -> info) match {
-          case Some(refExpr) if !outerExpr.isDefined => refExpr
-          case Some(refExpr) if canInline(outerExpr.get, ref, refExpr) => refExpr
+        netlist.get(we(ref)) match {
+          case Some((refExpr, refInfo)) if sameFileAndLineInfo(info, refInfo) =>
+            if (!outerExpr.isDefined || canInline(outerExpr.get, ref, refExpr)) {
+              refExpr
+            } else {
+              ref
+            }
           case other => ref
         }
       case other => other.mapExpr(onExpr(netlist, dontTouches, info, Some(other)))
@@ -134,7 +157,7 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
         val stmtx = hasInfo.mapExpr(onExpr(netlist, dontTouches, hasInfo.info, None))
         stmtx match {
           case node @ DefNode(info, name, value) =>
-            netlist(we(WRef(name)) -> info) = value
+            netlist(we(WRef(name))) = (value, info)
           case _ =>
         }
         stmtx

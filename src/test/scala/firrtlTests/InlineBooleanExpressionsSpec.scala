@@ -51,33 +51,39 @@ class InlineBooleanExpressionsSpec extends FirrtlFlatSpec {
     firrtlEquivalenceTest(input, Seq(new InlineBooleanExpressions))
   }
 
-  it should "only inline expressions with the same info" in {
+  it should "only inline expressions with the same file and line number" in {
     val input =
       """circuit Top :
         |  module Top :
-        |    output outA : UInt<1>
+        |    output outA1 : UInt<1>
+        |    output outA2 : UInt<1>
         |    output outB : UInt<1>
         |    node x1 = UInt<1>(0)
         |    node x2 = UInt<1>(1)
         |
-        |    node _t = head(x1, 1) @[A]
-        |    node _f = head(x2, 1) @[A]
-        |    node _y = mux(lt(x1, x2), _t, _f) @[A]
-        |    outA <= _y @[A]
+        |    node _t = head(x1, 1) @[A 1:1]
+        |    node _f = head(x2, 1) @[A 1:2]
+        |    node _y = mux(lt(x1, x2), _t, _f) @[A 1:3]
+        |    outA1 <= _y @[A 1:3]
+        |
+        |    outA2 <= _y @[A 2:3]
         |
         |    outB <= _y @[B]""".stripMargin
     val check =
       """circuit Top :
         |  module Top :
-        |    output outA : UInt<1>
+        |    output outA1 : UInt<1>
+        |    output outA2 : UInt<1>
         |    output outB : UInt<1>
         |    node x1 = UInt<1>(0)
         |    node x2 = UInt<1>(1)
         |
-        |    node _t = head(x1, 1) @[A]
-        |    node _f = head(x2, 1) @[A]
-        |    node _y = mux(lt(x1, x2), head(x1, 1), head(x2, 1)) @[A]
-        |    outA <= mux(lt(x1, x2), head(x1, 1), head(x2, 1)) @[A]
+        |    node _t = head(x1, 1) @[A 1:1]
+        |    node _f = head(x2, 1) @[A 1:2]
+        |    node _y = mux(lt(x1, x2), head(x1, 1), head(x2, 1)) @[A 1:3]
+        |    outA1 <= mux(lt(x1, x2), head(x1, 1), head(x2, 1)) @[A 1:3]
+        |
+        |    outA2 <= _y @[A 2:3]
         |
         |    outB <= _y @[B]""".stripMargin
     val result = exec(input)
