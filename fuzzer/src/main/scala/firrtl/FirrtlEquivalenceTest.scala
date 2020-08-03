@@ -178,7 +178,7 @@ class FirrtlEquivalenceTests {
     runTest(
       c = c,
       referenceCompiler = new TransformManager(VerilogMinimumOptimized),
-      customCompiler = new TransformManager(VerilogOptimized),
+      customCompiler = new TransformManager(VerilogOptimized)
     )
   }
 
@@ -187,7 +187,7 @@ class FirrtlEquivalenceTests {
     runTest(
       c = c,
       referenceCompiler = new TransformManager(VerilogMinimumOptimized),
-      customCompiler = new TransformManager(VerilogMinimumOptimized :+ Dependency[InlineBooleanExpressions]),
+      customCompiler = new TransformManager(VerilogMinimumOptimized :+ Dependency[InlineBooleanExpressions])
     )
   }
 }

@@ -17,8 +17,8 @@ import scala.collection.mutable
   *
   * The following conditions must be satisfied to inline
   * 1. has type [[Utils.BoolType]]
-  * 2. is bound to a [[DefNode]] with name starting with '_'
-  * 3. is bound to a [[DefNode]] with the same source locator
+  * 2. is bound to a [[firrtl.ir.DefNode DefNode]] with name starting with '_'
+  * 3. is bound to a [[firrtl.ir.DefNode DefNode]] with the same source locator
   * 4. the resulting expression can be emitted to verilog without needing any
   *    parentheses
   */
