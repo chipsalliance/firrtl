@@ -16,7 +16,7 @@ class FixNegatingNegativeLiterals extends Transform with DependencyAPIMigration 
 
   override def prerequisites = Seq(
     Dependency[firrtl.passes.InferWidths],
-    Dependency(firrtl.passes.InferTypes),
+    Dependency(firrtl.passes.InferTypes)
   )
 
   override def optionalPrerequisites = Seq.empty
