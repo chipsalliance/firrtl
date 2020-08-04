@@ -233,8 +233,6 @@ private object DestructTypes {
     case _: GroundType => // early exit for ground types
       Seq((ref, ref.name))
     case _ =>
-      // ensure that the field name is part of the namespace
-      namespace.add(ref.name)
       // field renames (uniquify) are computed bottom up
       val (rename, _) = uniquify(ref, namespace)
 
@@ -253,7 +251,6 @@ private object DestructTypes {
     */
   def destructInstance(m: ModuleTarget, instance: DefInstance, namespace: Namespace, renameMap: RenameMap):
   (DefInstance, Seq[(String, SubField)]) = {
-    namespace.add(instance.name)
     val (rename, _) = uniquify(Field(instance.name, Default, instance.tpe), namespace)
     val newName = rename.map(_.name).getOrElse(instance.name)
 
@@ -290,7 +287,6 @@ private object DestructTypes {
     // E.g. `mem.r.data.x` becomes `mem_x.r.data`.
     // This is why we need to create the new bundle structure before we can resolve any name clashes.
     val bundle = memBundle(mem)
-    namespace.add(mem.name)
     val (dataTypeRenames, _) = uniquify(bundle, namespace)
     val res = destruct(m, Field(mem.name, Default, mem.dataType), dataTypeRenames)
 
