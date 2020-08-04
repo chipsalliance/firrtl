@@ -7,7 +7,6 @@ import firrtl.passes._
 import firrtl.transforms._
 import firrtl._
 import firrtl.annotations._
-import firrtl.annotations.TargetToken._
 import firrtl.options.Dependency
 import firrtl.stage.TransformManager
 import firrtl.testutils._
@@ -309,7 +308,49 @@ class LowerTypesUniquifySpec extends FirrtlFlatSpec {
       "node data_0_a_ = data_0_a"
     )
 
-    // TODO: this seems to be a regression
+    executeTest(input, expected)
+  }
+
+  it should "rename ports before statements (instance)" in {
+    val input =
+      """circuit Test :
+        |  module Child:
+        |    skip
+        |  module Test :
+        |    input data : { a : UInt<4>, b : UInt<4>}[2]
+        |    inst data_0_a of Child
+      """.stripMargin
+    val expected = Seq(
+      "input data_0_a : UInt<4>",
+      "input data_0_b : UInt<4>",
+      "input data_1_a : UInt<4>",
+      "input data_1_b : UInt<4>",
+      "node data_0_a_ = data_0_a"
+    )
+
+    executeTest(input, expected)
+  }
+
+  it should "rename ports before statements (mem)" in {
+    val input =
+      """circuit Test :
+        |  module Test :
+        |    input data : { a : UInt<4>, b : UInt<4>}[2]
+        |    mem data_0_a :
+        |      data-type => UInt<1>
+        |      depth => 32
+        |      read-latency => 0
+        |      write-latency => 1
+        |      reader => read
+        |      writer => write
+      """.stripMargin
+    val expected = Seq(
+      "input data_0_a : UInt<4>",
+      "input data_0_b : UInt<4>",
+      "input data_1_a : UInt<4>",
+      "input data_1_b : UInt<4>",
+      "mem data_0_a_ :"
+    )
 
     executeTest(input, expected)
   }
