@@ -14,35 +14,11 @@ import firrtl.testutils._
 import firrtl.util.TestOptions
 
 class LowerTypesSpec extends FirrtlFlatSpec {
-  private def transforms = Seq(
-    ToWorkingIR,
-    CheckHighForm,
-    ResolveKinds,
-    InferTypes,
-    CheckTypes,
-    ResolveFlows,
-    CheckFlows,
-    new InferWidths,
-    CheckWidths,
-    PullMuxes,
-    ExpandConnects,
-    RemoveAccesses,
-    ExpandWhens,
-    CheckInitialization,
-    Legalize,
-    new ConstantPropagation,
-    ResolveKinds,
-    InferTypes,
-    ResolveFlows,
-    new InferWidths,
-    NewLowerTypes)
+  private val compiler = new TransformManager(Seq(Dependency(NewLowerTypes)))
 
   private def executeTest(input: String, expected: Seq[String]) = {
-    val circuit = Parser.parse(input.split("\n").toIterator)
-    val result = transforms.foldLeft(CircuitState(circuit, UnknownForm)) {
-      (c: CircuitState, p: Transform) => p.runTransform(c)
-    }
-    val c = result.circuit
+    val fir = Parser.parse(input.split("\n").toIterator)
+    val c = compiler.runTransform(CircuitState(fir, Seq())).circuit
     val lines = c.serialize.split("\n") map normalized
 
     expected foreach { e =>
