@@ -9,6 +9,7 @@ import firrtl.ir._
 import firrtl.options.Dependency
 import firrtl.stage.TransformManager.TransformDependency
 
+import scala.annotation.tailrec
 import scala.collection.mutable
 
 /** Flattens Bundles and Vecs.
@@ -89,7 +90,7 @@ object NewLowerTypes extends Transform with DependencyAPIMigration {
   (DefModule, Seq[(String, Seq[Reference])]) = {
     val namespace = mutable.HashSet[String]() ++ m.ports.map(_.name)
     val loweredPortsAndRefs = m.ports.flatMap { p =>
-      val fieldsAndRefs = DestructTypes.destruct(ref, Field(p.name, Utils.to_flip(p.direction), p.tpe), namespace, renameMap)
+      val fieldsAndRefs = DestructTypes.destruct(ref, Field(p.name, Utils.to_flip(p.direction), p.tpe), namespace, renameMap, Set())
       fieldsAndRefs.map { case (f, ref) =>
         (Port(p.info, f.name, Utils.to_dir(f.flip), f.tpe), ref -> Seq(Reference(f.name, f.tpe, PortKind)))
       }
@@ -180,23 +181,24 @@ private class LoweringSymbolTable extends SymbolTable {
 // Lowers types and keeps track of references to lowered types.
 private class LoweringTable(table: LoweringSymbolTable, renameMap: RenameMap, m: ModuleTarget,
                             portNameToExprs: Seq[(String, Seq[Reference])]) {
+  private val portNames: Set[String] = portNameToExprs.map(_._2.head.name).toSet
   private val namespace = mutable.HashSet[String]() ++ table.getSymbolNames
   // Serialized old access string to new ground type reference.
   private val nameToExprs = mutable.HashMap[String, Seq[RefLikeExpression]]() ++ portNameToExprs
 
   def lower(mem: DefMemory): Seq[DefMemory] = {
-    val (mems, refs) = DestructTypes.destructMemory(m, mem, namespace, renameMap)
+    val (mems, refs) = DestructTypes.destructMemory(m, mem, namespace, renameMap, portNames)
     nameToExprs ++= refs.groupBy(_._1).mapValues(_.map(_._2))
     mems
   }
   def lower(inst: DefInstance): DefInstance = {
-    val (newInst, refs) = DestructTypes.destructInstance(m, inst, namespace, renameMap)
+    val (newInst, refs) = DestructTypes.destructInstance(m, inst, namespace, renameMap, portNames)
     nameToExprs ++= refs.map { case (name, r) => name -> List(r) }
     newInst
   }
   /** used to lower nodes, registers and wires */
   def lower(name: String, tpe: Type, kind: Kind, flip: Orientation = Default): Seq[(String, Type, Orientation)] = {
-    val fieldsAndRefs = DestructTypes.destruct(m, Field(name, flip, tpe), namespace, renameMap)
+    val fieldsAndRefs = DestructTypes.destruct(m, Field(name, flip, tpe), namespace, renameMap, portNames)
     nameToExprs ++= fieldsAndRefs.map{ case (f, ref) => ref -> List(Reference(f.name, f.tpe, kind)) }
     fieldsAndRefs.map { case (f, _) => (f.name, f.tpe, f.flip) }
   }
@@ -228,19 +230,16 @@ private object DestructTypes {
     * - generates a list of all old reference name that now refer to the particular ground type field
     * - updates namespace with all possibly conflicting names
     */
-  def destruct(m: ModuleTarget, ref: Field, namespace: Namespace, renameMap: RenameMap):
-    Seq[(Field, String)] = ref.tpe match {
-    case _: GroundType => // early exit for ground types
-      Seq((ref, ref.name))
-    case _ =>
-      // field renames (uniquify) are computed bottom up
-      val (rename, _) = uniquify(ref, namespace)
+  def destruct(m: ModuleTarget, ref: Field, namespace: Namespace, renameMap: RenameMap, reserved: Set[String]):
+    Seq[(Field, String)] = {
+    // field renames (uniquify) are computed bottom up
+    val (rename, _) = uniquify(ref, namespace, reserved)
 
-      // the reference renames are computed top down since they do need the full path
-      val res = destruct(m, ref, rename)
-      recordRenames(res, renameMap, ModuleParentRef(m))
+    // the reference renames are computed top down since they do need the full path
+    val res = destruct(m, ref, rename)
+    recordRenames(res, renameMap, ModuleParentRef(m))
 
-      res.map{ case (c,r) => c -> extractGroundTypeRefString(r) }
+    res.map { case (c, r) => c -> extractGroundTypeRefString(r) }
   }
 
   /** instances are special because they remain a 1-deep bundle
@@ -249,9 +248,9 @@ private object DestructTypes {
     *         Note that the list of fields is only of the child fields, and needs a SubField node
     *         instead of a flat Reference when turning them into access expressions.
     */
-  def destructInstance(m: ModuleTarget, instance: DefInstance, namespace: Namespace, renameMap: RenameMap):
-  (DefInstance, Seq[(String, SubField)]) = {
-    val (rename, _) = uniquify(Field(instance.name, Default, instance.tpe), namespace)
+  def destructInstance(m: ModuleTarget, instance: DefInstance, namespace: Namespace, renameMap: RenameMap,
+                       reserved: Set[String]): (DefInstance, Seq[(String, SubField)]) = {
+    val (rename, _) = uniquify(Field(instance.name, Default, instance.tpe), namespace, reserved)
     val newName = rename.map(_.name).getOrElse(instance.name)
 
     // only destruct the sub-fields (aka ports)
@@ -281,13 +280,13 @@ private object DestructTypes {
     *       e.g. ("mem_a.r.clk", "mem.r.clk") and ("mem_b.r.clk", "mem.r.clk")
     *       Thus it is appropriate to groupBy old reference string instead of just inserting into a hash table.
     */
-  def destructMemory(m: ModuleTarget, mem: DefMemory, namespace: Namespace, renameMap: RenameMap):
-  (Seq[DefMemory], Seq[(String, SubField)]) = {
+  def destructMemory(m: ModuleTarget, mem: DefMemory, namespace: Namespace, renameMap: RenameMap,
+                     reserved: Set[String]): (Seq[DefMemory], Seq[(String, SubField)]) = {
     // Uniquify the lowered memory names: When memories get split up into ground types, the access order is changes.
     // E.g. `mem.r.data.x` becomes `mem_x.r.data`.
     // This is why we need to create the new bundle structure before we can resolve any name clashes.
     val bundle = memBundle(mem)
-    val (dataTypeRenames, _) = uniquify(bundle, namespace)
+    val (dataTypeRenames, _) = uniquify(bundle, namespace, reserved)
     val res = destruct(m, Field(mem.name, Default, mem.dataType), dataTypeRenames)
 
     // Renames are now of the form `mem.a.b` --> `mem_a_b`.
@@ -406,36 +405,55 @@ private object DestructTypes {
   /** Implements the core functionality of the old Uniquify pass: rename bundle fields and top-level references
     * where necessary in order to avoid name clashes when lowering aggregate type with the `_` delimiter.
     * We don't actually do the rename here but just calculate a rename tree. */
-  private def uniquify(ref: Field, namespace: Namespace): (Option[RenameNode], Seq[String]) = ref.tpe match {
-    case BundleType(fields) =>
-      // we rename bottom-up
-      val localNamespace = new Namespace() ++ fields.map(_.name)
-      val renamedFields = fields.map(f => uniquify(f, localNamespace))
+  private def uniquify(ref: Field, namespace: Namespace, reserved: Set[String]): (Option[RenameNode], Seq[String]) = {
+    // ensure that there are no name clashes with the list of reserved (port) names
+    val newRefName = findValidPrefix(ref.name, reserved.contains)
+    ref.tpe match {
+      case BundleType(fields) =>
+        // we rename bottom-up
+        val localNamespace = new Namespace() ++ fields.map(_.name)
+        val renamedFields = fields.map(f => uniquify(f, localNamespace, Set()))
 
-      // Need leading _ for findValidPrefix, it doesn't add _ for checks
-      val renamedFieldNames = renamedFields.flatMap(_._2)
-      val suffixNames: Seq[String] = renamedFieldNames.map(f => NewLowerTypes.delim + f)
-      val prefix = Uniquify.findValidPrefix(ref.name, suffixNames, namespace)
-      // We added f.name in previous map, delete if we change it
-      val renamed = prefix != ref.name
-      if (renamed) {
-        namespace -= ref.name
-        namespace += prefix
-      }
-      val suffixes = renamedFieldNames.map(f => prefix + NewLowerTypes.delim + f)
+        // Need leading _ for findValidPrefix, it doesn't add _ for checks
+        val renamedFieldNames = renamedFields.flatMap(_._2)
+        val suffixNames: Seq[String] = renamedFieldNames.map(f => NewLowerTypes.delim + f)
+        val prefix = findValidPrefix(newRefName, namespace.contains, suffixNames)
+        // We added f.name in previous map, delete if we change it
+        val renamed = prefix != ref.name
+        if (renamed) {
+          if(!reserved.contains(ref.name)) namespace -= ref.name
+          namespace += prefix
+        }
+        val suffixes = renamedFieldNames.map(f => prefix + NewLowerTypes.delim + f)
 
-      val anyChildRenamed = renamedFields.exists(_._1.isDefined)
-      val rename = if(renamed || anyChildRenamed){
-        val children = renamedFields.map(_._1).zip(fields).collect{ case (Some(r), f) => f.name -> r }.toMap
-        Some(RenameNode(prefix, children))
-      } else { None }
+        val anyChildRenamed = renamedFields.exists(_._1.isDefined)
+        val rename = if(renamed || anyChildRenamed){
+          val children = renamedFields.map(_._1).zip(fields).collect{ case (Some(r), f) => f.name -> r }.toMap
+          Some(RenameNode(prefix, children))
+        } else { None }
 
-      (rename, suffixes :+ prefix)
-    case v : VectorType=>
-      // if Vecs are to be lowered, we can just treat them like a bundle
-      uniquify(ref.copy(tpe = vecToBundle(v)), namespace)
-    case _ : GroundType => (None, List(ref.name))
-    case UnknownType => throw new RuntimeException(s"Cannot uniquify field of unknown type: $ref")
+        (rename, suffixes :+ prefix)
+      case v : VectorType=>
+        // if Vecs are to be lowered, we can just treat them like a bundle
+        uniquify(ref.copy(tpe = vecToBundle(v)), namespace, reserved)
+      case _ : GroundType =>
+        if(newRefName == ref.name) {
+          (None, List(ref.name))
+        } else {
+          (Some(RenameNode(newRefName, Map())), List(newRefName))
+        }
+      case UnknownType => throw new RuntimeException(s"Cannot uniquify field of unknown type: $ref")
+    }
+  }
+
+  /** Appends delim to prefix until no collisions of prefix + elts in names We don't add an _ in the collision check
+    * because elts could be Seq("") In this case, we're just really checking if prefix itself collides */
+  @tailrec
+  private def findValidPrefix(prefix: String, inNamespace: String => Boolean, elts: Seq[String] = List("")): String = {
+    elts.find(elt => inNamespace(prefix + elt)) match {
+      case Some(_) => findValidPrefix(prefix + "_", inNamespace, elts)
+      case None => prefix
+    }
   }
 
   private def getFields(tpe: Type): Seq[Field] = tpe match {

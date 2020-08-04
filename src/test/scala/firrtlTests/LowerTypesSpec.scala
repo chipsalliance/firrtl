@@ -325,7 +325,7 @@ class LowerTypesUniquifySpec extends FirrtlFlatSpec {
       "input data_0_b : UInt<4>",
       "input data_1_a : UInt<4>",
       "input data_1_b : UInt<4>",
-      "node data_0_a_ = data_0_a"
+      "inst data_0_a_ of Child"
     )
 
     executeTest(input, expected)

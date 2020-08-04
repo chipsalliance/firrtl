@@ -208,7 +208,7 @@ class LowerTypesOfInstancesSpec extends AnyFlatSpec {
   Lower = {
     val ref = firrtl.ir.DefInstance(firrtl.ir.NoInfo, n, module, parseType(tpe))
     val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
-    val (newInstance, res) = DestructTypes.destructInstance(m, ref, mutableSet, renames)
+    val (newInstance, res) = DestructTypes.destructInstance(m, ref, mutableSet, renames, Set())
     Lower(newInstance, resultToFieldSeq(res), renames)
   }
   private def get(l: Lower, m: IsMember): Set[IsMember] = l.renameMap.get(m).get.toSet
@@ -257,8 +257,8 @@ class LowerTypesOfInstancesSpec extends AnyFlatSpec {
 
       // lower ports
       val namespaceC = scala.collection.mutable.HashSet[String]() ++ Seq("b", "b_c")
-      DestructTypes.destruct(c, portB, namespaceC, portRenames)
-      DestructTypes.destruct(c, portB_C, namespaceC, portRenames)
+      DestructTypes.destruct(c, portB, namespaceC, portRenames, Set())
+      DestructTypes.destruct(c, portB_C, namespaceC, portRenames, Set())
       // only port b is renamed, port b_c stays the same
       assert(portRenames.get(c.ref("b")).get == Seq(c.ref("b__c")))
 
@@ -294,7 +294,7 @@ class LowerTypesOfMemorySpec extends AnyFlatSpec {
       readUnderWrite = firrtl.ir.ReadUnderWrite.Undefined, readers = r, writers = w, readwriters = rw)
     val renames = RenameMap()
     val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
-    val(mems, refs) = DestructTypes.destructMemory(m, mem, mutableSet, renames)
+    val(mems, refs) = DestructTypes.destructMemory(m, mem, mutableSet, renames, Set())
     Lower(mems, refs, renames)
   }
   private val UInt1 = firrtl.ir.UIntType(firrtl.ir.IntWidth(1))
@@ -528,7 +528,7 @@ private object LowerTypesSpecUtils {
     val ref = firrtl.ir.Field(n, firrtl.ir.Default, parseType(tpe))
     val renames = RenameMap()
     val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
-    val res = DestructTypes.destruct(m, ref, mutableSet, renames)
+    val res = DestructTypes.destruct(m, ref, mutableSet, renames, Set())
     DestructResult(resultToFieldSeq(res), renames)
   }
   def resultToFieldSeq(res: Seq[(firrtl.ir.Field, String)]): Seq[String] =
