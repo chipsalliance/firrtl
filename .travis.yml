@@ -57,11 +57,17 @@ jobs:
             - project/project/
             - project/target/
     - stage: test
-      name: "Unidoc builds (no warnings)"
+      name: "Unidoc builds (no warnings) (2.12)"
       workspaces:
         use: firrtl_build
       script:
         - sbt $SBT_ARGS +unidoc
+    - stage: test
+      name: "Unidoc builds (no warnings) (2.13)"
+      workspaces:
+        use: firrtl_build
+      script:
+        - sbt ++2.13.2 $SBT_ARGS +unidoc
     - stage: test
       name: "Tests: FIRRTL (2.13)"
       workspaces:
