@@ -265,7 +265,7 @@ class LowerTypesUniquifySpec extends FirrtlFlatSpec {
     val expected = Seq(
       "node a___0_b = x_0_b",
       "node a___1_c__1_e = x_1_c__1_e",
-      "node a___1_c_1_e = x_1_c_1_e",
+      "node a___1_c_1_e = x_1_c_1_e"
     )
 
     executeTest(input, expected)

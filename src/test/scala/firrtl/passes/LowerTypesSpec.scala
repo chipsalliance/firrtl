@@ -466,7 +466,7 @@ class LowerTypesOfMemorySpec extends AnyFlatSpec {
       "mem.rw.wmask.a" -> "mem__a.rw.wmask",
       "mem.rw.rdata.b.c" -> "mem__b_c.rw.rdata",
       "mem.rw.wdata.b.c" -> "mem__b_c.rw.wdata",
-      "mem.rw.wmask.b.c" -> "mem__b_c.rw.wmask",
+      "mem.rw.wmask.b.c" -> "mem__b_c.rw.wmask"
     ))
 
     assert(nameToType == Set(
@@ -481,7 +481,7 @@ class LowerTypesOfMemorySpec extends AnyFlatSpec {
       "mem.rw.wmask.a" -> "UInt<1>",
       "mem.rw.rdata.b.c" -> "UInt<4>",
       "mem.rw.wdata.b.c" -> "UInt<4>",
-      "mem.rw.wmask.b.c" -> "UInt<1>",
+      "mem.rw.wmask.b.c" -> "UInt<1>"
     ))
   }
 
