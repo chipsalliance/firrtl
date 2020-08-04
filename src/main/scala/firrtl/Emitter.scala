@@ -670,7 +670,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       assigns += Seq("`endif // RANDOMIZE_INVALID_ASSIGN")
     }
 
-    private def xpropPrefix(lhs: Expression, rhs: Expression, conds: Seq[Expression]): Seq[Seq[Any]] = {
+    private def xpropPrefix(lhs: Expression, rhs: Any, conds: Seq[Expression]): Seq[Seq[Any]] = {
       require(conds.nonEmpty, "Do not call with no conditions!")
       val anyX = conds.flatMap(c => List(" || ", paren(c), " === 1'bx"))
       Seq(Seq(NoTab(Seq("`ifdef FIRRTL_ENABLE_X_PROPAGATION"))),
@@ -754,7 +754,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
       val lines = noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]())
       if (weq(en, one)) lines += Seq(e, " <= ", value, ";")
       else {
-        lines ++= xpropPrefix(e, value, Seq(en))
+        val xvalue = s"${bitWidth(value.tpe)}'bx"
+        lines ++= xpropPrefix(e, xvalue, Seq(en))
         lines += Seq("if(", en, ") begin")
         lines += Seq(tab, e, " <= ", value, ";", info)
         lines += Seq("end")
