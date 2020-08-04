@@ -235,6 +235,11 @@ private object DestructTypes {
     // field renames (uniquify) are computed bottom up
     val (rename, _) = uniquify(ref, namespace, reserved)
 
+    // early exit for ground types that do not need renaming
+    if(ref.tpe.isInstanceOf[GroundType] && rename.isEmpty) {
+      return List((ref, ref.name))
+    }
+
     // the reference renames are computed top down since they do need the full path
     val res = destruct(m, ref, rename)
     recordRenames(res, renameMap, ModuleParentRef(m))
