@@ -12,6 +12,9 @@ import firrtl.stage.TransformManager
 import firrtl.testutils._
 import firrtl.util.TestOptions
 
+/** Integration style tests for [[NewLowerTypes]].
+  * You can find additional unit test style tests in [[passes.NewLowerTypesUnitTestSpec]]
+  */
 class LowerTypesSpec extends FirrtlFlatSpec {
   private val compiler = new TransformManager(Seq(Dependency(NewLowerTypes)))
 

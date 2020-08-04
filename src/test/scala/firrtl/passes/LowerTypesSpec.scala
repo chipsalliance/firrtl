@@ -16,6 +16,9 @@ class NewLowerTypesEndToEndSpec extends LowerTypesEndToEndSpec {
   override protected def pass: TransformDependency = Dependency(NewLowerTypes)
 }
 
+/** Unit test style tests for [[NewLowerTypes]].
+  * You can find additional integration style tests in [[firrtlTests.LowerTypesSpec]]
+  */
 class NewLowerTypesUnitTestSpec extends LowerTypesBaseSpec {
   import LowerTypesSpecUtils._
   override protected def lower(n: String, tpe: String, namespace: Set[String]): Seq[String] =
