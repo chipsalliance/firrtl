@@ -177,6 +177,8 @@ case class VRandom(width: BigInt) extends Expression {
   def foreachWidth(f: Width => Unit): Unit = Unit
 }
 
+private case class NoTab(contents: Any)
+
 class VerilogEmitter extends SeqTransform with Emitter {
   def inputForm = LowForm
   def outputForm = LowForm
@@ -226,6 +228,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
     case ClockType | AsyncResetType => ""
     case _ => throwInternalError(s"trying to write unsupported type in the Verilog Emitter: $tpe")
   }
+  // TODO find a better way to do this
+  private def paren(a: Any): Any = a match {
+    case (_: WRef | _: WSubField | _: WSubAccess | _: WSubIndex | _: Literal) => a
+    case ex: Expression => Seq("(", ex, ")")
+    case other => other
+  }
   def emit(x: Any)(implicit w: Writer): Unit = { emit(x, 0) }
   def emit(x: Any, top: Int)(implicit w: Writer): Unit = {
     def cast(e: Expression): Any = e.tpe match {
@@ -244,7 +252,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         if (e.tpe == AsyncResetType) {
           throw EmitterException("Cannot emit async reset muxes directly")
         }
-        emit(Seq(e.cond," ? ",cast(e.tval)," : ",cast(e.fval)),top + 1)
+        emit(Seq(e.cond," ? ",paren(cast(e.tval))," : ",paren(cast(e.fval))),top + 1)
       }
       case (e: ValidIf) => emit(Seq(cast(e.value)),top + 1)
       case (e: WRef) => w write e.serialize
@@ -662,6 +670,30 @@ class VerilogEmitter extends SeqTransform with Emitter {
       assigns += Seq("`endif // RANDOMIZE_INVALID_ASSIGN")
     }
 
+    private def xpropPrefix(lhs: Expression, rhs: Expression, conds: Seq[Expression]): Seq[Seq[Any]] = {
+      require(conds.nonEmpty, "Do not call with no conditions!")
+      val anyX = conds.flatMap(c => List(" || ", paren(c), " === 1'bx"))
+      Seq(Seq(NoTab(Seq("`ifdef FIRRTL_ENABLE_X_PROPAGATION"))),
+          Seq("if (", anyX.tail, ") begin"),
+          Seq(tab, lhs, " <= ", rhs, ";"),
+          Seq("end else"),
+          Seq(NoTab(Seq("`endif")))
+         )
+    }
+
+    private def xpropRegPrefix(r: Expression, e: Expression): Seq[Seq[Any]] = {
+      def getAllConds(e: Expression): List[Expression] = {
+        def rec(e: Expression): List[Expression] = e match {
+          case Mux(cond, tval, fval, _) => cond +: rec(tval) ++: rec(fval)
+          case _ => Nil
+        }
+        rec(e).groupBy(we(_)).map(_._2.head).toList
+              // ^ same as .distinctBy(we(_)) (if distinctBy existed)
+      }
+      val conds = getAllConds(e)
+      if (conds.isEmpty) Nil else xpropPrefix(r, e, conds)
+    }
+
     def regUpdate(r: Expression, clk: Expression, reset: Expression, init: Expression) = {
       def addUpdate(expr: Expression, tabs: String): Seq[Seq[Any]] = expr match {
         case m: Mux =>
@@ -700,13 +732,21 @@ class VerilogEmitter extends SeqTransform with Emitter {
           }
         case e => Seq(Seq(tabs, r, " <= ", e, ";"))
       }
-      if (weq(init, r)) { // Synchronous Reset
-        noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]()) ++= addUpdate(netlist(r), "")
-      } else { // Asynchronous Reset
-        assert(reset.tpe == AsyncResetType, "Error! Synchronous reset should have been removed!")
-        val tv = init
-        val fv = netlist(r)
-        asyncResetAlwaysBlocks += ((clk, reset, addUpdate(Mux(reset, tv, fv, mux_type_and_widths(tv, fv)), "")))
+      val syncReset = weq(init, r)
+      val e = netlist(r)
+      val update =
+        if (syncReset) {
+          xpropRegPrefix(r, e) ++ addUpdate(e, "")
+        } else {
+          assert(reset.tpe == AsyncResetType, "Error! Synchronous reset should have been removed!")
+          val fv = netlist(r)
+          val update = Mux(reset, init, e, mux_type_and_widths(init, e))
+          xpropRegPrefix(r, update) ++ addUpdate(update, "")
+        }
+      if (syncReset) {
+        noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]()) ++= update
+      } else {
+        asyncResetAlwaysBlocks += ((clk, reset, update))
       }
     }
 
@@ -714,6 +754,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       val lines = noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]())
       if (weq(en, one)) lines += Seq(e, " <= ", value, ";")
       else {
+        lines ++= xpropPrefix(e, value, Seq(en))
         lines += Seq("if(", en, ") begin")
         lines += Seq(tab, e, " <= ", value, ";", info)
         lines += Seq("end")
@@ -1067,13 +1108,19 @@ class VerilogEmitter extends SeqTransform with Emitter {
 
       for ((clk, content) <- noResetAlwaysBlocks if content.nonEmpty) {
         emit(Seq(tab, "always @(posedge ", clk, ") begin"))
-        for (line <- content) emit(Seq(tab, tab, line))
+        content.foreach {
+          case Seq(NoTab(line))  => emit(line)
+          case line              => emit(Seq(tab, tab, line))
+        }
         emit(Seq(tab, "end"))
       }
 
       for ((clk, reset, content) <- asyncResetAlwaysBlocks if content.nonEmpty) {
         emit(Seq(tab, "always @(posedge ", clk, " or posedge ", reset, ") begin"))
-        for (line <- content) emit(Seq(tab, tab, line))
+        content.foreach {
+          case Seq(NoTab(line))  => emit(line)
+          case line              => emit(Seq(tab, tab, line))
+        }
         emit(Seq(tab, "end"))
       }
       emit(Seq("endmodule"))
