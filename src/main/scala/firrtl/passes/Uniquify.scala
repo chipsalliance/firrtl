@@ -138,7 +138,7 @@ object Uniquify extends Transform with DependencyAPIMigration {
               namespace -= f.name
               namespace += prefix
             }
-            val newElts: Seq[String] = eltsx map (e => LowerTypes.loweredName(prefix +: Seq(e)))
+            val newElts: Seq[String] = eltsx map (e => NewLowerTypes.loweredName(prefix +: Seq(e)))
             namespace ++= newElts
             (Field(prefix, f.flip, tpe), prefix +: newElts)
           }
@@ -149,7 +149,7 @@ object Uniquify extends Transform with DependencyAPIMigration {
         val (tpe, elts) = recUniquifyNames(tx.tpe, namespace)
         val newElts = ((0 until tx.size) map (i => i.toString)) ++
           ((0 until tx.size) flatMap { i =>
-            elts map (e => LowerTypes.loweredName(Seq(i.toString, e)))
+            elts map (e => NewLowerTypes.loweredName(Seq(i.toString, e)))
           })
         (VectorType(tpe, tx.size), newElts)
       case tx => (tx, Nil)
@@ -356,7 +356,7 @@ object Uniquify extends Transform with DependencyAPIMigration {
           // Adds port names to namespace and namemap
           nameMap ++= portNameMap(m.name)
           namespace ++= create_exps("", portTypeMap(m.name)) map
-                        LowerTypes.loweredName map (_.tail)
+                        NewLowerTypes.loweredName map (_.tail)
           m.copy(body = uniquifyBody(m.body) )
       }
     }
