@@ -175,7 +175,7 @@ private class LoweringSymbolTable extends SymbolTable {
   def declare(name: String, tpe: Type, kind: Kind): Unit = symbols.append(name)
   def declareInstance(name: String, module: String): Unit = symbols.append(name)
   private val symbols = mutable.ArrayBuffer[String]()
-  def getSymbolNames: Seq[String] = symbols
+  def getSymbolNames: Iterable[String] = symbols
 }
 
 // Lowers types and keeps track of references to lowered types.
