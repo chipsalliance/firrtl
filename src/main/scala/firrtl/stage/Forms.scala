@@ -82,7 +82,8 @@ object Forms {
          Dependency[firrtl.transforms.DeadCodeElimination] )
 
   val VerilogMinimumOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
-    Seq( Dependency[firrtl.transforms.BlackBoxSourceHelper],
+    Seq( Dependency(firrtl.backends.verilog.PadWidthsVerilog),
+         Dependency[firrtl.transforms.BlackBoxSourceHelper],
          Dependency[firrtl.transforms.FixAddingNegativeLiterals],
          Dependency[firrtl.transforms.ReplaceTruncatingArithmetic],
          Dependency[firrtl.transforms.InlineBitExtractionsTransform],
