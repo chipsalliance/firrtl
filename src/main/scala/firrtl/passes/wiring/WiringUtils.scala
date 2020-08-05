@@ -114,7 +114,8 @@ object WiringUtils {
     * @return a map of sink instance names to source instance names
     * @throws WiringException if a sink is equidistant to two sources
     */
-  @deprecated("This method can lead to non-determinism in your compiler pass. Use sinksToSourcesSeq instead!", "Firrtl 1.4")
+  @deprecated("This method can lead to non-determinism in your compiler pass and exposes internal details." +
+    " Please file an issue with firrtl if you have a use case!", "Firrtl 1.4")
   def sinksToSources(sinks: Seq[Named], source: String, i: InstanceGraph): Map[Seq[WDefInstance], Seq[WDefInstance]] = {
     // The order of owners influences the order of the results, it thus needs to be deterministic with a  LinkedHashMap.
     val owners = new mutable.LinkedHashMap[Seq[WDefInstance], Vector[Seq[WDefInstance]]]
