@@ -138,17 +138,17 @@ object LowerTypes extends Transform with DependencyAPIMigration {
     // connections
     case Connect(info, loc, expr) =>
       if(!expr.tpe.isInstanceOf[GroundType]) {
-        throw new RuntimeException(s"NewLowerTypes expects Connects to have been expanded! ${expr.tpe.serialize}")
+        throw new RuntimeException(s"LowerTypes expects Connects to have been expanded! ${expr.tpe.serialize}")
       }
       val rhs = onExpression(expr)
       // We can get multiple refs on the lhs because of ground-type memory ports like "clk" which can get duplicated.
       val lhs = symbols.getReferences(loc.asInstanceOf[RefLikeExpression])
       Block(lhs.map(loc => Connect(info, loc, rhs)))
     case p : PartialConnect =>
-      throw new RuntimeException(s"NewLowerTypes expects PartialConnects to be resolved! $p")
+      throw new RuntimeException(s"LowerTypes expects PartialConnects to be resolved! $p")
     case IsInvalid(info, expr) =>
       if(!expr.tpe.isInstanceOf[GroundType]) {
-        throw new RuntimeException(s"NewLowerTypes expects IsInvalids to have been expanded! ${expr.tpe.serialize}")
+        throw new RuntimeException(s"LowerTypes expects IsInvalids to have been expanded! ${expr.tpe.serialize}")
       }
       // We can get multiple refs on the lhs because of ground-type memory ports like "clk" which can get duplicated.
       val lhs = symbols.getReferences(expr.asInstanceOf[RefLikeExpression])
@@ -215,7 +215,7 @@ private class LoweringTable(table: LoweringSymbolTable, renameMap: RenameMap, m:
     case SubField(expr, name, _, _) => serialize(expr.asInstanceOf[RefLikeExpression]) + "." + name
     case SubIndex(expr, index, _, _) => serialize(expr.asInstanceOf[RefLikeExpression]) + "[" + index.toString + "]"
     case a : SubAccess =>
-      throw new RuntimeException(s"NewLowerTypes expects all SubAccesses to have been expanded! ${a.serialize}")
+      throw new RuntimeException(s"LowerTypes expects all SubAccesses to have been expanded! ${a.serialize}")
   }
 }
 

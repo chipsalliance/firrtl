@@ -206,7 +206,7 @@ class LowerTypesUniquifySpec extends FirrtlFlatSpec {
     result.annotations.toSeq should equal(expectedAnnos)
   }
 
-  behavior of "NewLowerTypes"
+  behavior of "LowerTypes"
 
   it should "rename colliding ports" in {
     val input =
