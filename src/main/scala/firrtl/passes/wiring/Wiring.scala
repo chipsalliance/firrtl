@@ -12,6 +12,7 @@ import firrtl.annotations.AnnotationUtils._
 import firrtl.analyses.InstanceKeyGraph
 import WiringUtils._
 import firrtl.analyses.InstanceKeyGraph.InstanceKey
+import firrtl.graph.EulerTour
 
 /** A data store of one sink--source wiring relationship */
 case class WiringInfo(source: ComponentName, sinks: Seq[Named], pin: String)
@@ -96,8 +97,13 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
     def makeWireC(m: Modifications, portName: String, c: (String, String)): Modifications =
       m.copy(addPortOrWire = Some(m.addPortOrWire.getOrElse((portName, DecWire))), cons = (m.cons :+ c).distinct )
 
+    val tour = EulerTour(iGraph.graph, iGraph.top)
+    // Finds the lowest common ancestor instances for two module names in a design
+    def lowestCommonAncestor(moduleA: Seq[InstanceKey], moduleB: Seq[InstanceKey]): Seq[InstanceKey] =
+      tour.rmq(moduleA, moduleB)
+
     owners.foreach { case (sink, source) =>
-      val lca = iGraph.lowestCommonAncestor(sink, source)
+      val lca = lowestCommonAncestor(sink, source)
 
       // Compute metadata along Sink to LCA paths.
       sink.drop(lca.size - 1).sliding(2).toList.reverse.foreach {

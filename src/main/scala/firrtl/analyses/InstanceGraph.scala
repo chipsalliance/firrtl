@@ -116,7 +116,7 @@ class InstanceGraph(c: Circuit) {
   /** Finds the lowest common ancestor instances for two module names in
     * a design
     */
-  @deprecated("Use InstanceKeyGraph.lowestCommonAncestor instead.", "FIRRTL 1.4")
+  @deprecated("Use InstanceKeyGraph and EulerTour(iGraph.graph, iGraph.top).rmq(moduleA, moduleB).", "FIRRTL 1.4")
   def lowestCommonAncestor(moduleA: Seq[DefInstance],
                            moduleB: Seq[DefInstance]): Seq[DefInstance] = {
     tour.rmq(moduleA, moduleB)

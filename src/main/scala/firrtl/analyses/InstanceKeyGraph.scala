@@ -45,6 +45,9 @@ class InstanceKeyGraph private(c: ir.Circuit) {
   /** returns the underlying graph */
   def graph: DiGraph[InstanceKey] = internalGraph
 
+  /** returns the key to the top (main) module */
+  def top: InstanceKey = circuitTopInstance
+
   /** maps module names to the DefModule node */
   def moduleMap: Map[String, ir.DefModule] = nameToModule
 
@@ -102,13 +105,6 @@ class InstanceKeyGraph private(c: ir.Circuit) {
 
   /** All modules *not* reachable from the top module of the circuit */
   def unreachableModules: Seq[OfModule] = cachedUnreachableModules
-
-  /** An [[firrtl.graph.EulerTour EulerTour]] representation of the [[firrtl.graph.DiGraph DiGraph]] */
-  private lazy val tour = EulerTour(internalGraph, circuitTopInstance)
-
-  /** Finds the lowest common ancestor instances for two module names in a design */
-  def lowestCommonAncestor(moduleA: Seq[InstanceKey], moduleB: Seq[InstanceKey]): Seq[InstanceKey] =
-    tour.rmq(moduleA, moduleB)
 
   /** A list of absolute paths (each represented by a Seq of instances) of all module instances in the Circuit. */
   def fullHierarchy: mutable.LinkedHashMap[InstanceKey, Seq[Seq[InstanceKey]]] = cachedFullHierarchy
