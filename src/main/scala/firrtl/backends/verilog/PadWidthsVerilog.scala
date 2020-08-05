@@ -12,7 +12,7 @@ import firrtl.stage.TransformManager.TransformDependency
 
 
 /** Adds padding for mul, div, rem, dshl which breaks firrtl width invariance, but is nmeeded to match Verilog semantics */
-object PadWidthsVerilog extends firrtl.passes.Pass {
+private[firrtl] object PadWidthsVerilog extends firrtl.passes.Pass {
 
   override def prerequisites: Seq[TransformDependency] = Forms.MidForm ++
     Seq( Dependency(firrtl.passes.LowerTypes),
