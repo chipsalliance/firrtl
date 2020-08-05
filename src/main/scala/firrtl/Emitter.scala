@@ -224,15 +224,15 @@ class VerilogEmitter extends SeqTransform with Emitter {
     case ClockType | AsyncResetType => ""
     case _ => throwInternalError(s"trying to write unsupported type in the Verilog Emitter: $tpe")
   }
-  def emit(x: Any)(implicit w: Writer): Unit = { emit(x, 0) }
-  def emit(x: Any, top: Int)(implicit w: Writer): Unit = {
-    def cast(e: Expression): Any = e.tpe match {
-      case (t: UIntType) => e
-      case (t: SIntType) => Seq("$signed(",e,")")
-      case ClockType => e
-      case AnalogType(_) => e
-      case _ => throwInternalError(s"unrecognized cast: $e")
-    }
+  def emit(x: Any)(implicit w: Writer): Unit = { emitNoParens(x, 0) }
+  private def emitCast(e: Expression): Any = e.tpe match {
+    case (t: UIntType) => e
+    case (t: SIntType) => Seq("$signed(",e,")")
+    case ClockType => e
+    case AnalogType(_) => e
+    case _ => throwInternalError(s"unrecognized cast: $e")
+  }
+  private def emitNoParens(x: Any, top: Int)(implicit w: Writer): Unit = {
     x match {
       case (e: DoPrim) => emit(op_stream(e), top + 1)
       case (e: Mux) => {
@@ -242,9 +242,27 @@ class VerilogEmitter extends SeqTransform with Emitter {
         if (e.tpe == AsyncResetType) {
           throw EmitterException("Cannot emit async reset muxes directly")
         }
-        emit(Seq(e.cond," ? ",cast(e.tval)," : ",cast(e.fval)),top + 1)
+        emit(Seq(e.cond," ? ",emitCast(e.tval)," : ",emitCast(e.fval)),top + 1)
       }
-      case (e: ValidIf) => emit(Seq(cast(e.value)),top + 1)
+      case (s: Seq[Any]) =>
+        s foreach (emitNoParens(_, top + 1))
+        if (top == 0) w write "\n"
+      case other => emit(other, top)
+    }
+  }
+  def emit(x: Any, top: Int)(implicit w: Writer): Unit = {
+    x match {
+      case (e: DoPrim) => emit(Seq("(", op_stream(e), ")"), top + 1)
+      case (e: Mux) => {
+        if (e.tpe == ClockType) {
+          throw EmitterException("Cannot emit clock muxes directly")
+        }
+        if (e.tpe == AsyncResetType) {
+          throw EmitterException("Cannot emit async reset muxes directly")
+        }
+        emit(Seq("(", e.cond," ? ",emitCast(e.tval)," : ",emitCast(e.fval), ")"), top + 1)
+      }
+      case (e: ValidIf) => emit(Seq(emitCast(e.value)),top + 1)
       case (e: WRef) => w write e.serialize
       case (e: WSubField) => w write LowerTypes.loweredName(e)
       case (e: WSubAccess) => w write s"${LowerTypes.loweredName(e.expr)}[${LowerTypes.loweredName(e.index)}]"
