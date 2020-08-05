@@ -115,20 +115,19 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
     }
   }
 
-  private def getInfoFileLines(info: Info): Set[(String, Int)] = {
-    val fileLineColRegex = """(.*) ([0-9]+):([0-9]+)""".r
-    info match {
-      case FileInfo(fileLineColRegex(file, line, col)) => Set(file -> line.toInt)
-      case FileInfo(noLineFile) => Set(noLineFile -> 0)
-      case MultiInfo(infos) => infos.foldLeft(Set.empty[(String, Int)]) {
-        case (set, info) => set ++ getInfoFileLines(info)
-      }
-      case NoInfo => Set.empty
-    }
-  }
-
+  private val fileLineRegex = """(.*) ([0-9]+):[0-9]+""".r
   private def sameFileAndLineInfo(info1: Info, info2: Info): Boolean = {
-    getInfoFileLines(info1) == getInfoFileLines(info2)
+    //getInfoFileLines(info1) == getInfoFileLines(info2)
+    (info1, info2) match {
+      case (FileInfo(fileLineRegex(file1, line1)), FileInfo(fileLineRegex(file2, line2))) =>
+        (file1 == file2) && (line1 == line2)
+      case (MultiInfo(infos1), MultiInfo(infos2)) if infos1.size == infos2.size =>
+        infos1.zip(infos2).forall { case (i1, i2) =>
+          sameFileAndLineInfo(i1, i2)
+        }
+      case (NoInfo, NoInfo) => true
+      case _ => false
+    }
   }
 
   private def onExpr(
