@@ -28,6 +28,32 @@ class PadWidthsSpec extends AnyFlatSpec with FirrtlMatchers {
     executeTest(input, check)
   }
 
+  it should "pad widths of connects" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    output a : UInt<32>
+        |    input b : UInt<20>
+        |    a <= b
+        |    """.stripMargin
+    val check = Seq("a <= pad(b, 32)")
+    executeTest(input, check)
+  }
+
+  it should "pad widths of register init expressions" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input clock: Clock
+        |    input reset: AsyncReset
+        |
+        |    reg r: UInt<8>, clock with:
+        |      reset => (reset, UInt<1>("h1"))
+        |    """.stripMargin
+    val check = Seq("reset => (reset, pad(UInt<1>(\"h1\"), 8))")
+    executeTest(input, check)
+  }
+
   private def testOp(op: String, width: Int, resultWidth: Int): Unit = {
     assert(width > 0)
     val input =
