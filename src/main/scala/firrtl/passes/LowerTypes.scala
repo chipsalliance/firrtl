@@ -62,7 +62,7 @@ object LowerTypes extends Transform with DependencyAPIMigration {
 
     // chain module renames in topological order
     val moduleRenames = resultAndRenames.map{ case(m,r, _) => m.name -> r }.toMap
-    val moduleOrderBottomUp = new InstanceKeyGraph(result).moduleOrder.reverseIterator
+    val moduleOrderBottomUp = InstanceKeyGraph(result).moduleOrder.reverseIterator
     val renames = moduleOrderBottomUp.map(m => moduleRenames(m.name)).reduce((a,b) => a.andThen(b))
 
     state.copy(circuit = result, renames = Some(renames), annotations = newAnnos)
