@@ -52,6 +52,13 @@ object ConstantPropagation {
     }
   }
 
+  def constPropPad(e: DoPrim): Expression = e.args.head match {
+      case UIntLiteral(v, IntWidth(w)) => UIntLiteral(v, IntWidth(e.consts.head max w))
+      case SIntLiteral(v, IntWidth(w)) => SIntLiteral(v, IntWidth(e.consts.head max w))
+      case _ if bitWidth(e.args.head.tpe) >= e.consts.head => e.args.head
+      case _ => e
+  }
+
   def foldShiftRight(e: DoPrim) = e.consts.head.toInt match {
     case 0 => e.args.head
     case x => e.args.head match {
@@ -442,12 +449,7 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
         case AsyncResetType => arg
         case _              => e
       }
-    case Pad => e.args.head match {
-      case UIntLiteral(v, IntWidth(w)) => UIntLiteral(v, IntWidth(e.consts.head max w))
-      case SIntLiteral(v, IntWidth(w)) => SIntLiteral(v, IntWidth(e.consts.head max w))
-      case _ if bitWidth(e.args.head.tpe) >= e.consts.head => e.args.head
-      case _ => e
-    }
+    case Pad => constPropPad(e)
     case (Bits | Head | Tail) => constPropBitExtract(e)
     case _ => e
   }

@@ -19,17 +19,12 @@ object PadWidthsVerilog extends firrtl.passes.Pass {
          Dependency(firrtl.transforms.RemoveReset),
          Dependency[firrtl.transforms.RemoveWires] )
 
-  override def optionalPrerequisites = Seq(Dependency[firrtl.transforms.ConstantPropagation])
-
   override def optionalPrerequisiteOf =
     Seq( Dependency(firrtl.passes.memlib.VerilogMemDelays),
       Dependency[SystemVerilogEmitter],
       Dependency[VerilogEmitter] )
 
-  override def invalidates(a: Transform): Boolean = a match {
-    case _: firrtl.transforms.ConstantPropagation | firrtl.passes.Legalize => true
-    case _ => false
-  }
+  override def invalidates(a: Transform): Boolean = false
 
   import firrtl.passes.PadWidths.forceWidth
   private def getWidth(e: Expression): Int = bitWidth(e.tpe).toInt

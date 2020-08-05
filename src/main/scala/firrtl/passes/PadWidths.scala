@@ -7,30 +7,18 @@ import firrtl.ir._
 import firrtl.PrimOps._
 import firrtl.Mappers._
 import firrtl.options.Dependency
+import firrtl.stage.TransformManager.TransformDependency
+import firrtl.transforms.ConstantPropagation
 
 import scala.collection.mutable
 
 // Makes all implicit width extensions and truncations explicit
 object PadWidths extends Pass {
 
-  override def prerequisites =
-    ((new mutable.LinkedHashSet())
-       ++ firrtl.stage.Forms.LowForm
-       - Dependency(firrtl.passes.Legalize)
-       + Dependency(firrtl.passes.RemoveValidIf)).toSeq
+  override def prerequisites: Seq[TransformDependency] =
+    firrtl.stage.Forms.LowForm :+ Dependency(firrtl.passes.RemoveValidIf)
 
-  override def optionalPrerequisites = Seq(Dependency[firrtl.transforms.ConstantPropagation])
-
-  override def optionalPrerequisiteOf =
-    Seq( Dependency(firrtl.passes.memlib.VerilogMemDelays),
-         Dependency[SystemVerilogEmitter],
-         Dependency[VerilogEmitter] )
-
-  override def invalidates(a: Transform): Boolean = a match {
-    case _: firrtl.transforms.ConstantPropagation | Legalize => true
-    case _ => false
-  }
-
+  override def invalidates(a: Transform): Boolean = false
 
   /** Adds padding or a bit extract to ensure that the expression is of the with specified.
     * @note only works on UInt and SInt type expressions, other expressions will yield a match error */
@@ -44,9 +32,10 @@ object PadWidths extends Pass {
         case _: SIntType => SIntType(IntWidth(width))
         case other => throw new RuntimeException(s"forceWidth does not support expressions of type $other")
       }
-      DoPrim(Pad, Seq(e), Seq(width), newType)
+      ConstantPropagation.constPropPad(DoPrim(Pad, Seq(e), Seq(width), newType))
     } else {
-      val e2 = DoPrim(Bits, Seq(e), Seq(width - 1, 0), UIntType(IntWidth(width)))
+      val extract = DoPrim(Bits, Seq(e), Seq(width - 1, 0), UIntType(IntWidth(width)))
+      val e2 = ConstantPropagation.constPropBitExtract(extract)
       // Bit Select always returns UInt, cast if selecting from SInt
       e.tpe match {
         case UIntType(_) => e2
