@@ -14,7 +14,7 @@ import scala.collection.mutable
   * pairs of InstanceName and Module name as vertex keys instead of using WDefInstance
   * which will hash the instance type causing some performance issues.
   */
-class InstanceKeyGraph(c: ir.Circuit) {
+class InstanceKeyGraph private(c: ir.Circuit) {
   import InstanceKeyGraph._
 
   private val nameToModule: Map[String, ir.DefModule] = c.modules.map({m => (m.name,m) }).toMap
@@ -116,6 +116,8 @@ class InstanceKeyGraph(c: ir.Circuit) {
 
 
 object InstanceKeyGraph {
+  def apply(c: ir.Circuit): InstanceKeyGraph = new InstanceKeyGraph(c)
+
   /** We want to only use this untyped version as key because hashing bundle types is expensive
     * @param name the name of the instance
     * @param module the name of the module that is instantiated

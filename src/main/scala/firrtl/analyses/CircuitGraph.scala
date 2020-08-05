@@ -49,7 +49,7 @@ class CircuitGraph private[analyses] (connectionGraph: ConnectionGraph) {
   private val irLookup = connectionGraph.irLookup
 
   // Module/Instance Hierarchy information
-  private lazy val instanceGraph = new InstanceKeyGraph(circuit)
+  private lazy val instanceGraph = InstanceKeyGraph(circuit)
 
   // Per module, which modules does it instantiate
   private lazy val moduleChildren = instanceGraph.getChildInstances.toMap

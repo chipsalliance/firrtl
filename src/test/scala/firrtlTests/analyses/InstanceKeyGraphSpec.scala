@@ -33,7 +33,7 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
         |    skip
         |""".stripMargin
 
-    val graph = new InstanceKeyGraph(parse(input)).graph.transformNodes(_.module)
+    val graph = InstanceKeyGraph(parse(input)).graph.transformNodes(_.module)
     getEdgeSet(graph) shouldBe Map(
       "Top" -> Set("Child1", "Child2"),
       "Child1" -> Set("Child1a", "Child1b"),
@@ -64,7 +64,7 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
         |    skip
         |""".stripMargin
 
-    val graph = new InstanceKeyGraph(parse(input)).graph.transformNodes(_.module)
+    val graph = InstanceKeyGraph(parse(input)).graph.transformNodes(_.module)
     getEdgeSet(graph) shouldBe Map(
       "Top" -> Set("Child1"),
       "Top2" -> Set("Child2", "Child3"),
@@ -87,7 +87,7 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
         |    inst f of Foo
         |    inst b of Bar
         |""".stripMargin
-    val graph = new InstanceKeyGraph(parse(input)).graph
+    val graph = InstanceKeyGraph(parse(input)).graph
 
     // Create graphs with edges from child to parent module
     // g1 has collisions on parents to children, ie. it combines:
@@ -124,7 +124,7 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
                   |    skip
                   |""".stripMargin
     val circuit = parse(input)
-    val instGraph = new InstanceKeyGraph(circuit)
+    val instGraph = InstanceKeyGraph(circuit)
     val childMap = instGraph.getChildInstances
     childMap.map(_._1) should equal (Seq("Top", "Child1", "Child1a", "Child1b", "Child2"))
   }
@@ -145,7 +145,7 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
                   |    skip
                   |""".stripMargin
     val circuit = parse(input)
-    val instGraph = new InstanceKeyGraph(circuit)
+    val instGraph = InstanceKeyGraph(circuit)
     val childMap = instGraph.getChildInstances.toMap
     val insts = childMap("Top").map(_.name)
     insts should equal (Seq("a", "b", "c", "d", "e", "f"))
@@ -177,7 +177,7 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
                   |    skip
                   |""".stripMargin
     val circuit = parse(input)
-    val instGraph = new InstanceKeyGraph(circuit)
+    val instGraph = InstanceKeyGraph(circuit)
     val order = instGraph.moduleOrder.map(_.name)
     // Where it has freedom, the instance declaration order will be reversed.
     order should equal (Seq("Top", "Child3", "Child4", "Child2", "Child1", "Child1b", "Child1a"))
@@ -210,7 +210,7 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
         |""".stripMargin
 
     val circuit = parse(input)
-    val iGraph = new InstanceKeyGraph(circuit)
+    val iGraph = InstanceKeyGraph(circuit)
     iGraph.findInstancesInHierarchy("Top") shouldBe Seq(Seq(InstanceKey("Top", "Top")))
     iGraph.findInstancesInHierarchy("Child1") shouldBe
       Seq(Seq(InstanceKey("Top", "Top"), InstanceKey("c", "Child1")))
@@ -229,7 +229,7 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
          |  module Foo:
          |    skip
          |""".stripMargin
-    val iGraph = new InstanceKeyGraph(parse(input))
+    val iGraph = InstanceKeyGraph(parse(input))
     val expectedCounts = Map(OfModule("Foo") -> 1)
     iGraph.staticInstanceCount should be (expectedCounts)
   }
@@ -248,7 +248,7 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
          |    inst bar1 of Bar
          |    inst bar2 of Bar
          |""".stripMargin
-    val iGraph = new InstanceKeyGraph(parse(input))
+    val iGraph = InstanceKeyGraph(parse(input))
     val expectedCounts = Map(OfModule("Foo") -> 1,
       OfModule("Bar") -> 2,
       OfModule("Baz") -> 3)
@@ -263,7 +263,7 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
          |  module Foo:
          |    skip
          |""".stripMargin
-    val iGraph = new InstanceKeyGraph(parse(input))
+    val iGraph = InstanceKeyGraph(parse(input))
     val expectedCounts = Map(OfModule("Foo") -> 1,
       OfModule("Bar") -> 0)
     iGraph.staticInstanceCount should be (expectedCounts)
@@ -292,7 +292,7 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
                   |    skip
                   |""".stripMargin
     val circuit = parse(input)
-    val instGraph = new InstanceKeyGraph(circuit)
+    val instGraph = InstanceKeyGraph(circuit)
     val childMap = instGraph.getChildInstanceMap
 
     val modules = childMap.keys.toSeq.map(_.value)
@@ -327,7 +327,7 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
         |    skip
         |""".stripMargin
 
-    val instGraph = new InstanceKeyGraph(parse(input))
+    val instGraph = InstanceKeyGraph(parse(input))
     val hier = instGraph.fullHierarchy
     hier.keys.toSeq.map(_.name) should equal (Seq("Top", "a", "b", "c", "d", "e"))
   }
@@ -344,7 +344,7 @@ class InstanceKeyGraphSpec extends FirrtlFlatSpec {
          |  module Top:
          |    inst reachable of Reachable
          |""".stripMargin
-    val iGraph = new InstanceKeyGraph(parse(input))
+    val iGraph = InstanceKeyGraph(parse(input))
     iGraph.reachableModules should contain theSameElementsAs Seq(OfModule("Top"), OfModule("Reachable"))
     iGraph.unreachableModules should contain theSameElementsAs Seq(OfModule("Unreachable"))
   }

@@ -239,7 +239,7 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration {
     val targets = targetsToEliminate.collect { case x: IsMember => x }
 
     // Check validity of paths in targets
-    val iGraph = new InstanceKeyGraph(state.circuit)
+    val iGraph = InstanceKeyGraph(state.circuit)
     val instanceOfModules = iGraph.getChildInstances.map { case(k,v) => k -> v.map(_.toTokens) }.toMap
     val targetsWithInvalidPaths = mutable.ArrayBuffer[IsMember]()
     targets.foreach { t =>
@@ -311,7 +311,7 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration {
         nextRenameMap
       }
 
-    val iGraphx = new InstanceKeyGraph(newCircuit)
+    val iGraphx = InstanceKeyGraph(newCircuit)
     val newlyUnreachableModules = iGraphx.unreachableModules.toSet diff iGraph.unreachableModules.toSet
 
     val newCircuitGC = {

@@ -739,7 +739,7 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
 
 
   private def run(c: Circuit, dontTouchMap: Map[OfModule, Set[String]]): Circuit = {
-    val iGraph = new InstanceKeyGraph(c)
+    val iGraph = InstanceKeyGraph(c)
     val moduleDeps = iGraph.getChildInstanceMap
     val instCount = iGraph.staticInstanceCount
 

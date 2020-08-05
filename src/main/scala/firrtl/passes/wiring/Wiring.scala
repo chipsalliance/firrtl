@@ -49,7 +49,7 @@ class Wiring(wiSeq: Seq[WiringInfo]) extends Pass {
            else ns.newName(tokenize(c) filterNot ("[]." contains _) mkString "_")
          })}}
 
-    val iGraph = new InstanceKeyGraph(c)
+    val iGraph = InstanceKeyGraph(c)
     names.zip(portNames).map{ case(WiringNames(comp, so, si, _), pn) =>
       computeModifications(c, iGraph, comp, so, si, pn) }
   }
