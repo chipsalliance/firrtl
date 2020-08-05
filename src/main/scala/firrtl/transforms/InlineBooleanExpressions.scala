@@ -117,7 +117,6 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
 
   private val fileLineRegex = """(.*) ([0-9]+):[0-9]+""".r
   private def sameFileAndLineInfo(info1: Info, info2: Info): Boolean = {
-    //getInfoFileLines(info1) == getInfoFileLines(info2)
     (info1, info2) match {
       case (FileInfo(fileLineRegex(file1, line1)), FileInfo(fileLineRegex(file2, line2))) =>
         (file1 == file2) && (line1 == line2)
