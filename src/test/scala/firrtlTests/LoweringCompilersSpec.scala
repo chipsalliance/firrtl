@@ -189,7 +189,7 @@ class LoweringCompilersSpec extends AnyFlatSpec with Matchers {
     val patches = Seq(
       // LowerTypes was replaced by a NewLowerTypes
       Del(1), Del(2), Del(3), Del(5),
-      Add(1, Seq(Dependency(firrtl.passes.NewLowerTypes))),
+      Add(1, Seq(Dependency(firrtl.passes.LowerTypes))),
       // RemoveWires now visibly invalidates ResolveKinds
       Add(11, Seq(Dependency(firrtl.passes.ResolveKinds)))
     )

@@ -69,7 +69,7 @@ class DeadCodeElimination extends Transform
     def apply(moduleName: String, name: String): LogicNode = apply(moduleName, WRef(name))
     def apply(component: ComponentName): LogicNode = {
       // Currently only leaf nodes are supported TODO implement
-      val loweredName = NewLowerTypes.loweredName(component.name.split('.'))
+      val loweredName = LowerTypes.loweredName(component.name.split('.'))
       apply(component.module.name, WRef(loweredName))
     }
     /** External Modules are representated as a single node driven by all inputs and driving all

@@ -12,11 +12,11 @@ import firrtl.stage.TransformManager
 import firrtl.testutils._
 import firrtl.util.TestOptions
 
-/** Integration style tests for [[NewLowerTypes]].
-  * You can find additional unit test style tests in [[passes.NewLowerTypesUnitTestSpec]]
+/** Integration style tests for [[LowerTypes]].
+  * You can find additional unit test style tests in [[passes.LowerTypesUnitTestSpec]]
   */
 class LowerTypesSpec extends FirrtlFlatSpec {
-  private val compiler = new TransformManager(Seq(Dependency(NewLowerTypes)))
+  private val compiler = new TransformManager(Seq(Dependency(LowerTypes)))
 
   private def executeTest(input: String, expected: Seq[String]) = {
     val fir = Parser.parse(input.split("\n").toIterator)
@@ -190,7 +190,7 @@ class LowerTypesSpec extends FirrtlFlatSpec {
 
 /** Uniquify used to be its own pass. We ported the tests to run with the combined LowerTypes pass. */
 class LowerTypesUniquifySpec extends FirrtlFlatSpec {
-  private val compiler = new TransformManager(Seq(Dependency(firrtl.passes.NewLowerTypes)))
+  private val compiler = new TransformManager(Seq(Dependency(firrtl.passes.LowerTypes)))
 
   private def executeTest(input: String, expected: Seq[String]): Unit = executeTest(input, expected, Seq.empty, Seq.empty)
   private def executeTest(input: String, expected: Seq[String],

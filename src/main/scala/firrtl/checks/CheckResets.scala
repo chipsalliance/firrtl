@@ -31,7 +31,7 @@ object CheckResets {
 class CheckResets extends Transform with DependencyAPIMigration {
 
   override def prerequisites =
-    Seq( Dependency(passes.NewLowerTypes),
+    Seq( Dependency(passes.LowerTypes),
          Dependency(passes.Legalize),
          Dependency(firrtl.transforms.RemoveReset) ) ++ firrtl.stage.Forms.MidForm
 

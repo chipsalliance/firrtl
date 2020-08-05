@@ -267,8 +267,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
       }
       case (e: ValidIf) => emit(Seq(cast(e.value)),top + 1)
       case (e: WRef) => w write e.serialize
-      case (e: WSubField) => w write NewLowerTypes.loweredName(e)
-      case (e: WSubAccess) => w write s"${NewLowerTypes.loweredName(e.expr)}[${NewLowerTypes.loweredName(e.index)}]"
+      case (e: WSubField) => w write LowerTypes.loweredName(e)
+      case (e: WSubAccess) => w write s"${LowerTypes.loweredName(e.expr)}[${LowerTypes.loweredName(e.index)}]"
       case (e: WSubIndex) => w write e.serialize
       case (e: Literal) => v_print(e)
       case (e: VRandom) => w write s"{${e.nWords}{`RANDOM}}"
@@ -819,7 +819,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
           if(values.length != s.depth) throw EmitterException(
             s"Memory ${s.name} of depth ${s.depth} cannot be initialized with an array of length ${values.length}!"
           )
-          val memName = NewLowerTypes.loweredName(wref(s.name, s.dataType))
+          val memName = LowerTypes.loweredName(wref(s.name, s.dataType))
           values.zipWithIndex.foreach { case (value, addr) =>
             checkValueRange(value, s"${s.name}[$addr]")
             val access = s"$memName[${bigIntToVLit(addr)}]"
@@ -1019,8 +1019,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
             val addr = memPortField(sx, r, "addr")
             // Ports should share an always@posedge, so can't have intermediary wire
 
-            declare("wire", NewLowerTypes.loweredName(data), data.tpe, sx.info)
-            declare("wire", NewLowerTypes.loweredName(addr), addr.tpe, sx.info)
+            declare("wire", LowerTypes.loweredName(data), data.tpe, sx.info)
+            declare("wire", LowerTypes.loweredName(addr), addr.tpe, sx.info)
             // declare("wire", LowerTypes.loweredName(en), en.tpe)
 
             //; Read port
@@ -1046,10 +1046,10 @@ class VerilogEmitter extends SeqTransform with Emitter {
             // TODO should we use the info here for anything?
             val InfoExpr(_, clk) = netlist(memPortField(sx, w, "clk"))
 
-            declare("wire", NewLowerTypes.loweredName(data), data.tpe, sx.info)
-            declare("wire", NewLowerTypes.loweredName(addr), addr.tpe, sx.info)
-            declare("wire", NewLowerTypes.loweredName(mask), mask.tpe, sx.info)
-            declare("wire", NewLowerTypes.loweredName(en), en.tpe, sx.info)
+            declare("wire", LowerTypes.loweredName(data), data.tpe, sx.info)
+            declare("wire", LowerTypes.loweredName(addr), addr.tpe, sx.info)
+            declare("wire", LowerTypes.loweredName(mask), mask.tpe, sx.info)
+            declare("wire", LowerTypes.loweredName(en), en.tpe, sx.info)
 
             // Write port
             assign(data, netlist(data))

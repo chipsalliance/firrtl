@@ -4,7 +4,7 @@ package TopWiring
 
 import firrtl._
 import firrtl.ir._
-import firrtl.passes.{InferTypes, NewLowerTypes, ResolveKinds, ResolveFlows, ExpandConnects}
+import firrtl.passes.{InferTypes, LowerTypes, ResolveKinds, ResolveFlows, ExpandConnects}
 import firrtl.annotations._
 import firrtl.Mappers._
 import firrtl.analyses.InstanceKeyGraph
@@ -35,7 +35,7 @@ class TopWiringTransform extends Transform with DependencyAPIMigration {
 
   override def prerequisites = Forms.MidForm
   override def optionalPrerequisites = Seq.empty
-  override def optionalPrerequisiteOf = Dependency(NewLowerTypes) +: Forms.MidEmitters
+  override def optionalPrerequisiteOf = Dependency(LowerTypes) +: Forms.MidEmitters
 
   override def invalidates(a: Transform): Boolean = a match {
     case InferTypes | ResolveKinds | ResolveFlows | ExpandConnects => true
