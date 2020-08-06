@@ -50,7 +50,8 @@ class PadWidthsSpec extends AnyFlatSpec with FirrtlMatchers {
         |    reg r: UInt<8>, clock with:
         |      reset => (reset, UInt<1>("h1"))
         |    """.stripMargin
-    val check = Seq("reset => (reset, pad(UInt<1>(\"h1\"), 8))")
+    // PadWidths will call into constant prop directly, thus the literal is widened instead of adding a pad
+    val check = Seq("reset => (reset, UInt<8>(\"h1\"))")
     executeTest(input, check)
   }
 
