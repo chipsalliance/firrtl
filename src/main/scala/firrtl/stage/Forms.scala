@@ -72,17 +72,17 @@ object Forms {
     Seq( Dependency(passes.RemoveValidIf),
          Dependency(passes.PadWidths),
          Dependency(passes.memlib.VerilogMemDelays),
-         Dependency(passes.SplitExpressions),
-         Dependency[firrtl.transforms.LegalizeAndReductionsTransform] )
+         Dependency(passes.SplitExpressions) )
 
   val LowFormOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
     Seq( Dependency[firrtl.transforms.ConstantPropagation],
-         Dependency[firrtl.transforms.CombineCats],
          Dependency(passes.CommonSubexpressionElimination),
          Dependency[firrtl.transforms.DeadCodeElimination] )
 
   val VerilogMinimumOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
     Seq( Dependency(firrtl.backends.verilog.PadWidthsVerilog),
+         Dependency[firrtl.transforms.LegalizeAndReductionsTransform],
+         Dependency[firrtl.transforms.CombineCats],
          Dependency[firrtl.transforms.BlackBoxSourceHelper],
          Dependency[firrtl.transforms.FixAddingNegativeLiterals],
          Dependency[firrtl.transforms.ReplaceTruncatingArithmetic],

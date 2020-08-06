@@ -7,7 +7,8 @@ import firrtl.{SystemVerilogEmitter, Transform, VerilogEmitter}
 import firrtl.ir._
 import firrtl.options.Dependency
 import firrtl.Mappers._
-import firrtl.Utils.{kind, flow, get_info}
+import firrtl.Utils.{flow, get_info, kind}
+import firrtl.transforms.CombineCats
 
 // Datastructures
 import scala.collection.mutable
@@ -25,7 +26,7 @@ object SplitExpressions extends Pass {
          Dependency[VerilogEmitter] )
 
   override def invalidates(a: Transform) = a match {
-    case ResolveKinds => true
+    case ResolveKinds | _: CombineCats => true
     case _            => false
   }
 
