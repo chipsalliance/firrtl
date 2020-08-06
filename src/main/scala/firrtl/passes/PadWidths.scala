@@ -18,7 +18,10 @@ object PadWidths extends Pass {
   override def prerequisites: Seq[TransformDependency] =
     firrtl.stage.Forms.LowForm :+ Dependency(firrtl.passes.RemoveValidIf)
 
-  override def invalidates(a: Transform): Boolean = false
+  override def invalidates(a: Transform): Boolean = a match {
+    case SplitExpressions => true // we generate pad and bits operations inline which need to be split up
+    case _ => false
+  }
 
   /** Adds padding or a bit extract to ensure that the expression is of the with specified.
     * @note only works on UInt and SInt type expressions, other expressions will yield a match error */

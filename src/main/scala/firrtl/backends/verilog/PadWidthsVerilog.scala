@@ -7,6 +7,7 @@ import firrtl.PrimOps._
 import firrtl.Mappers._
 import firrtl.{Dshlw, SystemVerilogEmitter, Transform, VerilogEmitter, bitWidth}
 import firrtl.options.Dependency
+import firrtl.passes.SplitExpressions
 import firrtl.stage.Forms
 import firrtl.stage.TransformManager.TransformDependency
 
@@ -24,7 +25,10 @@ private[firrtl] object PadWidthsVerilog extends firrtl.passes.Pass {
       Dependency[SystemVerilogEmitter],
       Dependency[VerilogEmitter] )
 
-  override def invalidates(a: Transform): Boolean = false
+  override def invalidates(a: Transform): Boolean = a match {
+    case SplitExpressions => true // we generate pad and bits operations inline which need to be split up
+    case _ => false
+  }
 
   import firrtl.passes.PadWidths.forceWidth
   private def getWidth(e: Expression): Int = bitWidth(e.tpe).toInt
