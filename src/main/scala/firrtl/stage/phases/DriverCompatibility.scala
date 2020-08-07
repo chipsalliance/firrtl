@@ -4,7 +4,7 @@ package firrtl.stage.phases
 
 import firrtl.stage._
 
-import firrtl.{AnnotationSeq, EmitAllModulesAnnotation, EmitCircuitAnnotation, FirrtlExecutionResult, Parser}
+import firrtl.{AnnotationSeq, EmitAllModulesAnnotation, EmitCircuitAnnotation,  Parser}
 import firrtl.annotations.NoTargetAnnotation
 import firrtl.FileUtils
 import firrtl.proto.FromProto
@@ -36,13 +36,6 @@ object DriverCompatibility {
     s"""|Option '$a' was removed as part of the FIRRTL Stage refactor. Use an explicit input/output options instead.
         |This error will be removed in 1.3.""".stripMargin
 
-  /** Convert an [[firrtl.AnnotationSeq AnnotationSeq]] to a ''deprecated'' [[firrtl.FirrtlExecutionResult
-    * FirrtlExecutionResult]].
-    * @param annotations a sequence of [[firrtl.annotations.Annotation Annotation]]
-    */
-  @deprecated("FirrtlExecutionResult is deprecated as part of the Stage/Phase refactor. Migrate to FirrtlStage.", "1.2")
-  def firrtlResultView(annotations: AnnotationSeq): FirrtlExecutionResult =
-    Viewer[FirrtlExecutionResult].view(annotations)
 
   /** Holds the name of the top (main) module in an input circuit
     * @param value top module name
@@ -187,65 +180,4 @@ object DriverCompatibility {
       }
     }
   }
-
-  /** Adds an [[firrtl.EmitAnnotation EmitAnnotation]] for each [[CompilerAnnotation]].
-    *
-    * If an [[EmitOneFilePerModuleAnnotation]] exists, then this will add an [[EmitAllModulesAnnotation]]. Otherwise,
-    * this adds an [[EmitCircuitAnnotation]]. This replicates old behavior where specifying a compiler automatically
-    * meant that an emitter would also run.
-    */
-  @deprecated("""AddImplicitEmitter should only be used to build Driver compatibility wrappers. Switch to Stage.""",
-              "1.2")
-  class AddImplicitEmitter extends Phase {
-
-    override def prerequisites = Seq.empty
-
-    override def optionalPrerequisiteOf = Seq(Dependency[FirrtlPhase], Dependency[FirrtlStage])
-
-    override def invalidates(a: Phase) = false
-
-    /** Add one [[EmitAnnotation]] foreach [[CompilerAnnotation]]. */
-    def transform(annotations: AnnotationSeq): AnnotationSeq = {
-      val splitModules = annotations.collectFirst{ case a: EmitOneFilePerModuleAnnotation.type => a }.isDefined
-
-      annotations.flatMap {
-        case a @ CompilerAnnotation(c) =>
-          val b = RunFirrtlTransformAnnotation(a.compiler.emitter)
-          if (splitModules) { Seq(a, b, EmitAllModulesAnnotation(c.emitter.getClass)) }
-          else              { Seq(a, b, EmitCircuitAnnotation   (c.emitter.getClass)) }
-        case a => Seq(a)
-      }
-    }
-
-  }
-
-  /** Adds an [[OutputFileAnnotation]] derived from a [[TopNameAnnotation]] if no [[OutputFileAnnotation]] already
-    * exists. If no [[TopNameAnnotation]] exists, then no [[OutputFileAnnotation]] is added.
-    */
-  @deprecated("""AddImplicitOutputFile should only be used to build Driver compatibility wrappers. Switch to Stage.""",
-              "1.2")
-  class AddImplicitOutputFile extends Phase {
-
-    override def prerequisites = Seq(Dependency[AddImplicitFirrtlFile])
-
-    override def optionalPrerequisiteOf = Seq(Dependency[FirrtlPhase], Dependency[FirrtlStage])
-
-    override def invalidates(a: Phase) = false
-
-    /** Add an [[OutputFileAnnotation]] derived from a [[TopNameAnnotation]] if needed. */
-    def transform(annotations: AnnotationSeq): AnnotationSeq = {
-      val hasOutputFile = annotations
-        .collectFirst{ case a @(_: EmitOneFilePerModuleAnnotation.type | _: OutputFileAnnotation) => a }
-        .isDefined
-      val top = topName(annotations)
-
-      if (!hasOutputFile && top.isDefined) {
-        OutputFileAnnotation(top.get) +: annotations
-      } else {
-        annotations
-      }
-    }
-
-  }
-
 }

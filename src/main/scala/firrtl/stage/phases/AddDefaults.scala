@@ -5,7 +5,7 @@ package firrtl.stage.phases
 import firrtl.AnnotationSeq
 import firrtl.options.{Phase, TargetDirAnnotation}
 import firrtl.transforms.BlackBoxTargetDirAnno
-import firrtl.stage.{CompilerAnnotation, InfoModeAnnotation, FirrtlOptions}
+import firrtl.stage.{FirrtlOptions, InfoModeAnnotation, RunFirrtlTransformAnnotation}
 
 /** [[firrtl.options.Phase Phase]] that adds default [[FirrtlOption]] [[firrtl.annotations.Annotation Annotation]]s.
   * This is a part of the preprocessing done by [[FirrtlStage]].
@@ -23,7 +23,7 @@ class AddDefaults extends Phase {
     var bb, c, im = true
     annotations.foreach {
       case _: BlackBoxTargetDirAnno => bb = false
-      case _: CompilerAnnotation => c  = false
+      case _: RunFirrtlTransformAnnotation => c  = false
       case _: InfoModeAnnotation => im = false
       case a =>
     }
@@ -34,7 +34,7 @@ class AddDefaults extends Phase {
       .getOrElse(TargetDirAnnotation()).directory
 
     (if (bb) Seq(BlackBoxTargetDirAnno(targetDir)) else Seq() ) ++
-      (if (c) Seq(CompilerAnnotation(default.compiler)) else Seq() ) ++
+      (if (c) Seq(RunFirrtlTransformAnnotation(new firrtl.VerilogEmitter)) else Seq() ) ++
       (if (im) Seq(InfoModeAnnotation()) else Seq() ) ++
       annotations
   }

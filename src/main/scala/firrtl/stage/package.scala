@@ -30,35 +30,8 @@ package object stage {
         x match {
           case OutputFileAnnotation(f)           => c.copy(outputFileName = Some(f))
           case InfoModeAnnotation(i)             => c.copy(infoModeName = i)
-          case CompilerAnnotation(cx)            => c.copy(compiler = cx)
           case FirrtlCircuitAnnotation(cir)      => c.copy(firrtlCircuit = Some(cir))
         }
       }
   }
-
-  private [firrtl] implicit object FirrtlExecutionResultView extends OptionsView[FirrtlExecutionResult] {
-
-    private lazy val dummyWriteEmitted = new WriteEmitted
-
-    def view(options: AnnotationSeq): FirrtlExecutionResult = {
-      val fopts = Viewer[FirrtlOptions].view(options)
-      val emittedRes = options
-        .collect{ case DeletedAnnotation(dummyWriteEmitted.name, a: EmittedAnnotation[_]) => a.value.value }
-        .mkString("\n")
-
-      options.collectFirst{ case a: FirrtlCircuitAnnotation => a.circuit } match {
-        case None => FirrtlExecutionFailure("No circuit found in AnnotationSeq!")
-        case Some(a) => FirrtlExecutionSuccess(
-          emitType = fopts.compiler.getClass.getName,
-          emitted = emittedRes,
-          circuitState = CircuitState(
-            circuit = a,
-            form = fopts.compiler.outputForm,
-            annotations = options,
-            renames = None
-          ))
-      }
-    }
-  }
-
 }

@@ -96,7 +96,7 @@ trait FirrtlRunners extends BackendCompilationUtilities {
       InfoModeAnnotation("ignore") +:
       RenameTopAnnotation(topName) +:
       stage.FirrtlCircuitAnnotation(circuit) +:
-      stage.CompilerAnnotation("mverilog") +:
+      stage.RunFirrtlTransformAnnotation(new MinimumVerilogEmitter) +:
       stage.OutputFileAnnotation(topName) +:
       toAnnos(baseTransforms)
     }

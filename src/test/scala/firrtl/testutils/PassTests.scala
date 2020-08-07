@@ -60,16 +60,6 @@ abstract class SimpleTransformSpec extends AnyFlatSpec with FirrtlMatchers with 
    }
 }
 
-@deprecated(
-  "Use a TransformManager including 'ReRunResolveAndCheck' as a target. This will be removed in 1.4.",
-  "FIRRTL 1.3"
-)
-class CustomResolveAndCheck(form: CircuitForm) extends SeqTransform {
-  def inputForm = form
-  def outputForm = form
-  def transforms: Seq[Transform] = Seq[Transform](new ResolveAndCheck)
-}
-
 /** Transform that re-runs resolve and check transforms as late as possible, but before any emitters. */
 object ReRunResolveAndCheck extends Transform with DependencyAPIMigration with IdentityLike[CircuitState] {
 

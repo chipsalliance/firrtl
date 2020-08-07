@@ -135,39 +135,6 @@ object FirrtlSourceAnnotation extends HasShellOptions {
 
 }
 
-/** helpValueName a [[Compiler]] that should be run
-  *  - set stringly with `-X/--compiler`
-  *  - If unset, a [[CompilerAnnotation]] with the default [[VerilogCompiler]]
-  * @param compiler compiler name
-  */
-case class CompilerAnnotation(compiler: Compiler = new VerilogCompiler()) extends NoTargetAnnotation with FirrtlOption
-
-object CompilerAnnotation extends HasShellOptions {
-
-  private [firrtl] def apply(compilerName: String): CompilerAnnotation = {
-    val c = compilerName match {
-      case "none"      => new NoneCompiler()
-      case "high"      => new HighFirrtlCompiler()
-      case "low"       => new LowFirrtlCompiler()
-      case "middle"    => new MiddleFirrtlCompiler()
-      case "verilog"   => new VerilogCompiler()
-      case "mverilog"  => new MinimumVerilogCompiler()
-      case "sverilog"  => new SystemVerilogCompiler()
-      case _           => throw new OptionsException(s"Unknown compiler name '$compilerName'! (Did you misspell it?)")
-    }
-    CompilerAnnotation(c)
-  }
-
-  val options = Seq(
-    new ShellOption[String](
-      longOption      = "compiler",
-      toAnnotationSeq = a => Seq(CompilerAnnotation(a)),
-      helpText        = "The FIRRTL compiler to use (default: verilog)",
-      shortOption     = Some("X"),
-      helpValueName   = Some("<none|high|middle|low|verilog|mverilog|sverilog>") ) )
-
-}
-
 /** Holds the unambiguous class name of a [[Transform]] to run
   *  - will be append to [[FirrtlExecutionOptions.customTransforms]]
   *  - set with `-fct/--custom-transforms`
@@ -203,8 +170,25 @@ object RunFirrtlTransformAnnotation extends HasShellOptions {
       },
       helpText = "Convert all FIRRTL names to a specific case",
       helpValueName = Some("<lower|upper>")
-    )
+    ),
+    new ShellOption[String](
+      longOption      = "compiler",
+      toAnnotationSeq = a => selectCompiler(a),
+      helpText        = "The FIRRTL compiler to use (default: verilog)",
+      shortOption     = Some("X"),
+      helpValueName   = Some("<none|high|middle|low|verilog|mverilog|sverilog>"))
   )
+
+  private def selectCompiler(name: String): Seq[Annotation] = name match {
+    case "none"      => Seq()
+    case "high"      => Seq(RunFirrtlTransformAnnotation(new firrtl.HighFirrtlEmitter))
+    case "low"       => Seq(RunFirrtlTransformAnnotation(new firrtl.LowFirrtlEmitter))
+    case "middle"    => Seq(RunFirrtlTransformAnnotation(new firrtl.MiddleFirrtlEmitter))
+    case "verilog"   => Seq(RunFirrtlTransformAnnotation(new firrtl.VerilogEmitter))
+    case "mverilog"  => Seq(RunFirrtlTransformAnnotation(new firrtl.MinimumVerilogEmitter))
+    case "sverilog"  => Seq(RunFirrtlTransformAnnotation(new firrtl.SystemVerilogEmitter))
+    case _           => throw new OptionsException(s"Unknown compiler name '$name'! (Did you misspell it?)")
+  }
 
 }
 

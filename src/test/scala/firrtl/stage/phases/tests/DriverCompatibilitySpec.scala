@@ -8,7 +8,7 @@ import java.io.File
 import firrtl._
 import firrtl.stage.phases.DriverCompatibility._
 import firrtl.options.{InputAnnotationFileAnnotation, Phase, TargetDirAnnotation}
-import firrtl.stage.{CompilerAnnotation, FirrtlCircuitAnnotation, FirrtlFileAnnotation, FirrtlSourceAnnotation, OutputFileAnnotation, RunFirrtlTransformAnnotation}
+import firrtl.stage.{FirrtlCircuitAnnotation, FirrtlFileAnnotation, FirrtlSourceAnnotation, OutputFileAnnotation, RunFirrtlTransformAnnotation}
 import firrtl.stage.phases.DriverCompatibility
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -136,82 +136,4 @@ class DriverCompatibilitySpec extends AnyFlatSpec with Matchers with PrivateMeth
 
     phase.transform(annotations).toSeq should be (annotations)
   }
-
-  behavior of classOf[AddImplicitEmitter].toString
-
-  val (nc, hfc, mfc, lfc, vc, svc) = ( new NoneCompiler,
-                                       new HighFirrtlCompiler,
-                                       new MiddleFirrtlCompiler,
-                                       new LowFirrtlCompiler,
-                                       new VerilogCompiler,
-                                       new SystemVerilogCompiler )
-
-  it should "convert CompilerAnnotations into EmitCircuitAnnotations without EmitOneFilePerModuleAnnotation" in
-  new PhaseFixture(new AddImplicitEmitter) {
-    val annotations = Seq(
-      CompilerAnnotation(nc),
-      CompilerAnnotation(hfc),
-      CompilerAnnotation(mfc),
-      CompilerAnnotation(lfc),
-      CompilerAnnotation(vc),
-      CompilerAnnotation(svc)
-    )
-    val expected = annotations
-      .flatMap( a => Seq(a,
-                         RunFirrtlTransformAnnotation(a.compiler.emitter),
-                         EmitCircuitAnnotation(a.compiler.emitter.getClass)) )
-
-    phase.transform(annotations).toSeq should be (expected)
-  }
-
-  it should "convert CompilerAnnotations into EmitAllodulesAnnotation with EmitOneFilePerModuleAnnotation" in
-  new PhaseFixture(new AddImplicitEmitter) {
-    val annotations = Seq(
-      EmitOneFilePerModuleAnnotation,
-      CompilerAnnotation(nc),
-      CompilerAnnotation(hfc),
-      CompilerAnnotation(mfc),
-      CompilerAnnotation(lfc),
-      CompilerAnnotation(vc),
-      CompilerAnnotation(svc)
-    )
-    val expected = annotations
-      .flatMap{
-        case a: CompilerAnnotation => Seq(a,
-                                          RunFirrtlTransformAnnotation(a.compiler.emitter),
-                                          EmitAllModulesAnnotation(a.compiler.emitter.getClass))
-        case a => Seq(a)
-      }
-
-    phase.transform(annotations).toSeq should be (expected)
-  }
-
-  behavior of classOf[AddImplicitOutputFile].toString
-
-  it should "add an OutputFileAnnotation derived from a TopNameAnnotation if no OutputFileAnnotation exists" in
-  new PhaseFixture(new AddImplicitOutputFile) {
-    val annotations = Seq( TopNameAnnotation("foo") )
-    val expected = Seq(
-      OutputFileAnnotation("foo"),
-      TopNameAnnotation("foo")
-    )
-    phase.transform(annotations).toSeq should be (expected)
-  }
-
-  it should "do nothing if an OutputFileannotation already exists" in
-  new PhaseFixture(new AddImplicitOutputFile) {
-    val annotations = Seq(
-      TopNameAnnotation("foo"),
-      OutputFileAnnotation("bar") )
-    val expected = annotations
-    phase.transform(annotations).toSeq should be (expected)
-  }
-
-  it should "do nothing if no TopNameAnnotation exists" in
-  new PhaseFixture(new AddImplicitOutputFile) {
-    val annotations = Seq.empty
-    val expected = annotations
-    phase.transform(annotations).toSeq should be (expected)
-  }
-
 }

@@ -31,7 +31,7 @@ class Checks extends Phase {
     * @throws firrtl.options.OptionsException if any checks fail
     */
   def transform(annos: AnnotationSeq): AnnotationSeq = {
-    val inF, inS, eam, ec, outF, comp, im, inC = collection.mutable.ListBuffer[Annotation]()
+    val inF, inS, eam, ec, outF, emitter, im, inC = collection.mutable.ListBuffer[Annotation]()
     annos.foreach(
       _ match {
         case a: FirrtlFileAnnotation     => a +=: inF
@@ -39,7 +39,7 @@ class Checks extends Phase {
         case a: EmitAllModulesAnnotation => a +=: eam
         case a: EmitCircuitAnnotation    => a +=: ec
         case a: OutputFileAnnotation     => a +=: outF
-        case a: CompilerAnnotation       => a +=: comp
+        case a @ RunFirrtlTransformAnnotation(_: firrtl.Emitter) => a +=: emitter
         case a: InfoModeAnnotation       => a +=: im
         case a: FirrtlCircuitAnnotation  => a +=: inC
         case _                           =>           })
@@ -75,13 +75,11 @@ class Checks extends Phase {
         s"""|No more than one output file can be specified, but found '${x.mkString(", ")}' specified via:
             |    - option or annotation: -o, --output-file, OutputFileAnnotation""".stripMargin) }
 
-    /* One mandatory compiler must be specified */
-    if (comp.size != 1) {
-      val x = comp.map{ case CompilerAnnotation(x) => x }
-      val (msg, suggest) = if (comp.size == 0) { ("none found",                       "forget one of")   }
-      else                                     { (s"""found '${x.mkString(", ")}'""", "use multiple of") }
+    /* One emitter backend should be specified */
+    // this error should never occur since we add a default emitter if none is specified
+    if (emitter.size < 1) {
       throw new OptionsException(
-        s"""|Exactly one compiler must be specified, but $msg. Did you $suggest the following?
+        s"""|Exactly one compiler must be specified. Did you forget to specify the following?
             |    - an option or annotation: -X, --compiler, CompilerAnnotation""".stripMargin )}
 
     /* One mandatory info mode must be specified */

@@ -4,7 +4,7 @@ package logger
 
 import java.io.{ByteArrayOutputStream, File, FileOutputStream, PrintStream}
 
-import firrtl.{ExecutionOptionsManager, AnnotationSeq}
+import firrtl.{AnnotationSeq}
 import firrtl.options.Viewer.view
 import logger.phases.{AddDefaults, Checks}
 
@@ -110,38 +110,6 @@ object Logger {
       */
     def clear(): Unit = {
       byteArrayOutputStream.reset()
-    }
-  }
-
-  /**
-    * This creates a block of code that will have access to the
-    * thread specific logger.  The state will be set according to the
-    * logging options set in the common options of the manager
-    * @param manager  source of logger settings
-    * @param codeBlock      code to be run with these logger settings
-    * @tparam A       The return type of codeBlock
-    * @return         Whatever block returns
-    */
-  @deprecated("Use makeScope(opts: FirrtlOptions)", "1.2")
-  def makeScope[A](manager: ExecutionOptionsManager)(codeBlock: => A): A =
-    makeScope(manager.commonOptions.toAnnotations)(codeBlock)
-
-  /**
-    * See makeScope using manager.  This creates a manager from a command line arguments style
-    * list of strings
-    * @param args List of strings
-    * @param codeBlock  the block to call
-    * @tparam A   return type of codeBlock
-    * @return
-    */
-  @deprecated("Use makescope(opts: FirrtlOptions)", "1.2")
-  def makeScope[A](args: Array[String] = Array.empty)(codeBlock: => A): A = {
-    val executionOptionsManager = new ExecutionOptionsManager("logger")
-    if(executionOptionsManager.parse(args)) {
-      makeScope(executionOptionsManager)(codeBlock)
-    }
-    else {
-      throw new Exception(s"logger invoke failed to parse args ${args.mkString(", ")}")
     }
   }
 
@@ -345,15 +313,6 @@ object Logger {
     clearCache()
     state.classLevels ++= namesToLevel
   }
-
-  /**
-    * This is used to set the options that have been set in a optionsManager or are coming
-    * from the command line via an options manager
-    * @param optionsManager manager
-    */
-  @deprecated("Use setOptions(annotations: AnnotationSeq)", "1.2")
-  def setOptions(optionsManager: ExecutionOptionsManager): Unit =
-    setOptions(optionsManager.commonOptions.toAnnotations)
 
   /** Set logger options based on the content of an [[firrtl.AnnotationSeq AnnotationSeq]]
     * @param inputAnnotations annotation sequence containing logger options
