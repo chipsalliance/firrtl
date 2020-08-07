@@ -49,6 +49,14 @@ private[firrtl] class LocalSymbolTable  extends SymbolTable {
 
 private[firrtl] object LocalSymbolTable { case class Symbol(tpe: Type, kind: Kind) }
 
+/** only remembers the names of symbols */
+private[firrtl] class NamespaceTable  extends SymbolTable {
+  private var names = List[String]()
+  override def declare(name: String, tpe: Type, kind: Kind): Unit = names = name :: names
+  override def declareInstance(name: String, module: String): Unit = names = name :: names
+  def getNames: Seq[String] = names
+}
+
 /** Provides convenience methods to populate SymbolTables. */
 object SymbolTable {
   def scanModule[T <: SymbolTable](m: DefModule, t: T): T = {

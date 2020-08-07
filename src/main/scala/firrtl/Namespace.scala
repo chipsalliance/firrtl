@@ -50,21 +50,9 @@ class Namespace private {
 object Namespace {
   // Initializes a namespace from a Module
   def apply(m: DefModule): Namespace = {
+    val names = SymbolTable.scanModule(m, new NamespaceTable).getNames
     val namespace = new Namespace
-
-    def buildNamespaceStmt(s: Statement): Seq[String] = s match {
-      case s: IsDeclaration => Seq(s.name)
-      case s: Conditionally => buildNamespaceStmt(s.conseq) ++ buildNamespaceStmt(s.alt)
-      case s: Block => s.stmts flatMap buildNamespaceStmt
-      case _ => Nil
-    }
-    namespace.namespace ++= m.ports map (_.name)
-    m match {
-      case in: Module =>
-        namespace.namespace ++= buildNamespaceStmt(in.body)
-      case _ => // Do nothing
-    }
-
+    namespace.namespace ++= names
     namespace
   }
 
