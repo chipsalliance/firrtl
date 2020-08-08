@@ -17,16 +17,54 @@ sealed trait StageOption { this: Annotation => }
   */
 trait Unserializable { this: Annotation => }
 
+/** Mix-in that lets an [[firrtl.annotations.Annotation Annotation]] serialize itself to a file separate from the output
+  * annotation file.
+  *
+  * This can be used as a mechanism to serialize an [[firrtl.options.Unserializable Unserializable]] annotation or to
+  * write ancillary collateral used by downstream tooling, e.g., a TCL script or an FPGA constraints file. Any
+  * annotations using this mix-in will be serialized by the [[firrtl.options.phases.WriteOutputAnnotations
+  * WriteOutputAnnotations]] phase. This is one of the last phases common to all [[firrtl.options.Stage Stages]] and
+  * should not have to be called/included manually.
+  *
+  * Note: from the perspective of transforms generating annotations that mix-in this trait, the serialized files are not
+  * expected to be available to downstream transforms. Communication of information between transforms must occur
+  * through the annotations that will eventually be serialized to files.
+  */
 trait HowToSerialize { this: Annotation =>
 
+  /** Output filename where serialized content will be written */
   protected def baseFileName: String
 
+  /** Optional suffix of the output file */
   protected def suffix: Option[String]
 
+  /** A method that can convert this annotation to bytes that will be written to a file.
+    *
+    * If you only need to serialize a string, you can use the `getBytes` method:
+    * {{{
+    *  def toBytes: Option[Iterable[Byte]] = Some(myString.getBytes)
+    * }}}
+    */
   def howToSerialize: Option[Iterable[Byte]]
 
+  /** Optionally, a sequence of annotations that will replace this annotation in the output annotation file.
+    *
+    * A non-None implementation of this method is a mechanism for telling a downstream [[firrtl.options.Stage Stage]]
+    * how to deserialize the information that was serialized to a separate file. For example, if a FIRRTL circuit is
+    * serialized to a separate file, this method could include an input file annotation that a later stage can use to
+    * read the serialized FIRRTL circuit back in.
+    */
   def howToResume(file: File): Option[AnnotationSeq]
 
+  /** Method that returns the filename where this annotation will be serialized.
+    *
+    * Users are not normally expected to override this method. Instead, changes to the default behavior can be handled
+    * by overriding the baseFileName and suffix methods. However, if the filename cannot be statically known and is a
+    * function of the content being serialized, then users may need to override this, e.g., if the filename should
+    * include the top module of a FIRRTL circuit.
+    *
+    * @param annotations the annotations at the time of serialization
+    */
   def filename(annotations: AnnotationSeq): File = {
     val name = view[StageOptions](annotations).getBuildFileName(baseFileName, suffix)
     new File(name)
