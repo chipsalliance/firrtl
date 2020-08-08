@@ -4,7 +4,8 @@ package firrtlTests
 
 import firrtl._
 import firrtl.ir._
-import firrtl.passes.{CheckHighForm, CheckTypes, CheckInitialization}
+import firrtl.options.Dependency
+import firrtl.passes.{CheckHighForm, CheckInitialization, CheckTypes}
 import firrtl.transforms.{CheckCombLoops, InferResets}
 import firrtl.testutils._
 import firrtl.testutils.FirrtlCheckers._
@@ -12,9 +13,7 @@ import firrtl.testutils.FirrtlCheckers._
 // TODO
 // - Test nodes in the connection
 // - Test with whens (is this allowed?)
-class InferResetsSpec extends FirrtlFlatSpec {
-  def compile(input: String, compiler: Compiler = new MiddleFirrtlCompiler): CircuitState =
-    compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
+class InferResetsSpec extends LeanTransformSpec(Seq(Dependency[InferResets])) {
 
   behavior of "ResetType"
 
@@ -97,7 +96,7 @@ class InferResetsSpec extends FirrtlFlatSpec {
   }
 
   it should "work in nested and flipped aggregates with regular and partial connect" in {
-    val result = compile(s"""
+    val result = compileToLowFirrtl(s"""
       |circuit top :
       |  module top :
       |    output fizz : { flip foo : { a : AsyncReset, flip b: Reset }[2], bar : { a : Reset, flip b: AsyncReset }[2] }
@@ -105,7 +104,6 @@ class InferResetsSpec extends FirrtlFlatSpec {
       |    fizz.bar <= fizz.foo
       |    buzz.bar <- buzz.foo
       |""".stripMargin,
-      new LowFirrtlCompiler
     )
     result should containTree { case Port(_, "fizz_foo_0_a", Input, AsyncResetType) => true }
     result should containTree { case Port(_, "fizz_foo_0_b", Output, AsyncResetType) => true }
@@ -494,7 +492,7 @@ class InferResetsSpec extends FirrtlFlatSpec {
 
   it should "not crash on combinational loops" in {
     a [CheckCombLoops.CombLoopException] shouldBe thrownBy {
-      val result = compile(s"""
+      val result = compileToLowFirrtl(s"""
         |circuit top :
         |  module top :
         |    input in : AsyncReset
@@ -505,9 +503,12 @@ class InferResetsSpec extends FirrtlFlatSpec {
         |    w0 <= w1
         |    w1 <= w0
         |    out <= in
-        |""".stripMargin,
-        compiler = new LowFirrtlCompiler
+        |""".stripMargin
       )
     }
   }
+
+  private val lowFirrtlCompiler = new firrtl.stage.transforms.Compiler(Seq(Dependency[firrtl.LowFirrtlEmitter]))
+  private def compileToLowFirrtl(src: String) =
+    lowFirrtlCompiler.transform(CircuitState(firrtl.Parser.parse(src), Seq()))
 }

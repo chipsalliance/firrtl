@@ -8,9 +8,12 @@ import firrtl.annotations.AnnotationYamlProtocol._
 import firrtl.annotations._
 import firrtl._
 import firrtl.FileUtils
+import firrtl.options.Dependency
 import firrtl.transforms.OptimizableExtModuleAnnotation
 import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.PinAnnotation
+import firrtl.stage.TransformManager.TransformDependency
+import firrtl.stage.transforms
 import firrtl.util.BackendCompilationUtilities
 import firrtl.testutils._
 import net.jcazevedo.moultingyaml._
@@ -20,17 +23,14 @@ import org.scalatest.matchers.should.Matchers
  * An example methodology for testing Firrtl annotations.
  */
 trait AnnotationSpec extends LowTransformSpec {
-  // Dummy transform
-  def transform = new ResolveAndCheck
-
   // Check if Annotation Exception is thrown
   override def failingexecute(input: String, annotations: Seq[Annotation]): Exception = {
     intercept[AnnotationException] {
-      compile(CircuitState(parse(input), ChirrtlForm, annotations), Seq.empty)
+      compile(CircuitState(parse(input), annotations))
     }
   }
   def execute(input: String, check: Annotation, annotations: Seq[Annotation]): Unit = {
-    val cr = compile(CircuitState(parse(input), ChirrtlForm, annotations), Seq.empty)
+    val cr = compile(CircuitState(parse(input), annotations))
     cr.annotations.toSeq should contain (check)
   }
 }
@@ -64,17 +64,21 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     execute(input, ta, Seq(ta))
   }
 
+  private def makeVerilogCompiler(transforms: Seq[TransformDependency] = Seq()) =
+    new firrtl.stage.transforms.Compiler(Seq(Dependency[firrtl.VerilogEmitter]) ++ transforms)
+
   "Deleting annotations" should "create a DeletedAnnotation" in {
-    val compiler = new VerilogCompiler
+    val transform = Dependency[DeletingTransform]
+    val compiler = makeVerilogCompiler(Seq(transform))
     val input =
      """circuit Top :
         |  module Top :
         |    input in: UInt<3>
         |""".stripMargin
-    val transform = new DeletingTransform
-    val tname = transform.name
+
+    val tname = transform.getName
     val inlineAnn = InlineAnnotation(CircuitName("Top"))
-    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, Seq(inlineAnn)), Seq(transform))
+    val result = compiler.transform(CircuitState(parse(input), Seq(inlineAnn)))
     result.annotations.last should matchPattern {
       case DeletedAnnotation(`tname`, `inlineAnn`) =>
     }
@@ -86,7 +90,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
   }
 
   "Renaming" should "propagate in Lowering of memories" in {
-    val compiler = new VerilogCompiler
+    val compiler = makeVerilogCompiler()
     // Uncomment to help debugging failing tests
     // Logger.setClassLogLevels(Map(compiler.getClass.getName -> LogLevel.Debug))
     val input =
@@ -106,7 +110,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
         |""".stripMargin
     val annos = Seq(anno("m.r.data.b", "sub"), anno("m.r.data", "all"), anno("m", "mem"),
                     dontTouch("Top.m"))
-    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
+    val result = compiler.transform(CircuitState(parse(input), annos))
     val resultAnno = result.annotations.toSeq
     resultAnno should contain (anno("m_a", "mem"))
     resultAnno should contain (anno("m_b_0", "mem"))
@@ -120,7 +124,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     resultAnno should not contain (anno("r"))
   }
   "Renaming" should "propagate in RemoveChirrtl and Lowering of memories" in {
-    val compiler = new VerilogCompiler
+    val compiler = makeVerilogCompiler()
     val input =
      """circuit Top :
         |  module Top :
@@ -130,7 +134,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
         |    read mport r = m[in], clk
         |""".stripMargin
     val annos = Seq(anno("r.b", "sub"), anno("r", "all"), anno("m", "mem"), dontTouch("Top.m"))
-    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
+    val result = compiler.transform(CircuitState(parse(input), annos))
     val resultAnno = result.annotations.toSeq
     resultAnno should contain (anno("m_a", "mem"))
     resultAnno should contain (anno("m_b_0", "mem"))
@@ -145,7 +149,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
   }
 
   "Renaming" should "propagate in ZeroWidth" in {
-    val compiler = new VerilogCompiler
+    val compiler = makeVerilogCompiler()
     val input =
      """circuit Top :
         |  module Top :
@@ -160,7 +164,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
         |""".stripMargin
     val annos = Seq(anno("zero"), anno("x.a"), anno("x.b"), anno("y[0]"), anno("y[1]"),
                     anno("y[2]"), dontTouch("Top.x"))
-    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
+    val result = compiler.transform(CircuitState(parse(input), annos))
     val resultAnno = result.annotations.toSeq
     resultAnno should contain (anno("x_a"))
     resultAnno should not contain (anno("zero"))
@@ -176,7 +180,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
   }
 
   "Renaming subcomponents" should "propagate in Lowering" in {
-    val compiler = new VerilogCompiler
+    val compiler = makeVerilogCompiler()
     val input =
      """circuit Top :
         |  module Top :
@@ -200,7 +204,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
       anno("write.a"), anno("write.b[0]"), anno("write.b[1]"),
       dontTouch("Top.r"), dontTouch("Top.w"), dontTouch("Top.mem")
     )
-    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
+    val result = compiler.transform(CircuitState(parse(input), annos))
     val resultAnno = result.annotations.toSeq
     resultAnno should not contain (anno("in.a"))
     resultAnno should not contain (anno("in.b[0]"))
@@ -235,7 +239,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
   }
 
   "Renaming components" should "expand in Lowering" in {
-    val compiler = new VerilogCompiler
+    val compiler = makeVerilogCompiler()
     val input =
      """circuit Top :
         |  module Top :
@@ -250,7 +254,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
         |""".stripMargin
     val annos = Seq(anno("in"), anno("out"), anno("w"), anno("r"), dontTouch("Top.r"),
                     dontTouch("Top.w"))
-    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
+    val result = compiler.transform(CircuitState(parse(input), annos))
     val resultAnno = result.annotations.toSeq
     resultAnno should contain (anno("in_a"))
     resultAnno should contain (anno("in_b_0"))
@@ -267,7 +271,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
   }
 
   "Renaming subcomponents that aren't leaves" should "expand in Lowering" in {
-    val compiler = new VerilogCompiler
+    val compiler = makeVerilogCompiler()
     val input =
      """circuit Top :
         |  module Top :
@@ -283,7 +287,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
         |""".stripMargin
     val annos = Seq(anno("in.b"), anno("out.b"), anno("w.b"), anno("r.b"),
                     dontTouch("Top.r"), dontTouch("Top.w"))
-    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
+    val result = compiler.transform(CircuitState(parse(input), annos))
     val resultAnno = result.annotations.toSeq
     resultAnno should contain (anno("in_b_0"))
     resultAnno should contain (anno("in_b_1"))
@@ -296,7 +300,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
   }
 
   "Renaming" should "track constprop + dce" in {
-    val compiler = new VerilogCompiler
+    val compiler = makeVerilogCompiler()
     val input =
      """circuit Top :
         |  module Top :
@@ -312,7 +316,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
       anno("out.a"), anno("out.b[0]"), anno("out.b[1]"),
       anno("n.a"), anno("n.b[0]"), anno("n.b[1]")
     )
-    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
+    val result = compiler.transform(CircuitState(parse(input), annos))
     val resultAnno = result.annotations.toSeq
     resultAnno should not contain (anno("in.a"))
     resultAnno should not contain (anno("in.b[0]"))
@@ -335,7 +339,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
   }
 
   "Renaming" should "track deleted modules AND instances in dce" in {
-    val compiler = new VerilogCompiler
+    val compiler = makeVerilogCompiler()
     val input =
      """circuit Top :
         |  module Dead :
@@ -362,7 +366,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
       anno("foo", mod = "Dead"), anno("bar", mod = "Dead"),
       anno("foo", mod = "DeadExt"), anno("bar", mod = "DeadExt")
     )
-    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
+    val result = compiler.transform(CircuitState(parse(input), annos))
     /* Uncomment to help debug
     println(result.circuit.serialize)
     result.annotations.foreach{ a =>
@@ -389,7 +393,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
   }
 
   "Renaming" should "track deduplication" in {
-    val compiler = new VerilogCompiler
+    val compiler = makeVerilogCompiler()
     val input =
      """circuit Top :
         |  module Child :
@@ -412,7 +416,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     val annos = Seq(
       anno("x", mod = "Child"), anno("y", mod = "Child_1"), manno("Child"), manno("Child_1")
     )
-    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
+    val result = compiler.transform(CircuitState(parse(input), annos))
     val resultAnno = result.annotations.toSeq
     resultAnno should contain (anno("x", mod = "Child"))
     resultAnno should contain (anno("y", mod = "Child"))
@@ -428,7 +432,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
   }
 
   "Annotations on empty aggregates" should "be deleted" in {
-    val compiler = new VerilogCompiler
+    val compiler = makeVerilogCompiler()
     val input =
      """circuit Top :
         |  module Top :
@@ -444,7 +448,7 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
       anno("x"), anno("y.bar"), anno("y.fizz"), anno("y.buzz"), anno("a"), anno("b"), anno("c"),
       anno("c[0].d"), anno("c[1].d")
     )
-    val result = compiler.compile(CircuitState(parse(input), ChirrtlForm, annos), Nil)
+    val result = compiler.transform(CircuitState(parse(input), annos))
     val resultAnno = result.annotations.toSeq
     resultAnno should contain (anno("x_foo"))
     resultAnno should not contain (anno("a"))
@@ -569,6 +573,7 @@ class JsonAnnotationTests extends AnnotationTests with BackendCompilationUtiliti
       w.close()
     }
 
+    // TODO: how do we replace this?????
     new ExecutionOptionsManager("annos") with HasFirrtlOptions {
       commonOptions = CommonOptions(targetDirName = testDir.getPath)
       firrtlOptions = FirrtlExecutionOptions(

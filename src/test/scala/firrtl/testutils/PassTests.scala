@@ -9,19 +9,50 @@ import firrtl.passes.{PassExceptions, RemoveEmpty}
 import firrtl.stage.Forms
 import firrtl._
 import firrtl.annotations._
+import firrtl.stage.TransformManager.TransformDependency
 import logger._
 import org.scalatest.flatspec.AnyFlatSpec
 
+
+
+class VerilogTransformSpec extends LeanTransformSpec(Seq(Dependency[firrtl.VerilogEmitter]))
+class LowFirrtlTransformSpec extends LeanTransformSpec(Seq(Dependency[firrtl.LowFirrtlEmitter]))
+
+class LeanTransformSpec(protected val transforms: Seq[TransformDependency]) extends AnyFlatSpec with FirrtlMatchers with LazyLogging {
+   private val compiler = new firrtl.stage.transforms.Compiler(transforms)
+
+   protected def compile(src: String): CircuitState = compile(src, Seq())
+   protected def compile(src: String, annos: AnnotationSeq): CircuitState = compile(firrtl.Parser.parse(src), annos)
+   protected def compile(c: ir.Circuit): CircuitState = compile(c, Seq())
+   protected def compile(c: ir.Circuit, annos: AnnotationSeq): CircuitState =
+      compiler.transform(CircuitState(c, annos))
+   protected def execute(input: String, check: String): CircuitState = execute(input, check ,Seq())
+   protected def execute(input: String, check: String, annotations: Seq[Annotation]): CircuitState = {
+      val finalState = compiler.transform(CircuitState(parse(input), annotations))
+      val actual = RemoveEmpty.run(parse(finalState.getEmittedCircuit.value)).serialize
+      val expected = parse(check).serialize
+      logger.debug(actual)
+      logger.debug(expected)
+      (actual) should be (expected)
+      finalState
+   }
+}
+
+
 // An example methodology for testing Firrtl Passes
 // Spec class should extend this class
-abstract class SimpleTransformSpec extends AnyFlatSpec with FirrtlMatchers with Compiler with LazyLogging {
+@deprecated("Use LeanTransformSpec instead!", "FIRRTL 1.4")
+abstract class SimpleTransformSpec extends AnyFlatSpec with FirrtlMatchers with LazyLogging {
+   protected def emitter: Dependency[Emitter]
+   private lazy val compiler = new firrtl.stage.transforms.Compiler(Seq(emitter))
+
    // Utility function
    def squash(c: Circuit): Circuit = RemoveEmpty.run(c)
 
    // Executes the test. Call in tests.
    // annotations cannot have default value because scalatest trait Suite has a default value
    def execute(input: String, check: String, annotations: Seq[Annotation]): CircuitState = {
-      val finalState = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annotations))
+      val finalState = compiler.transform(CircuitState(parse(input), annotations))
       val actual = RemoveEmpty.run(parse(finalState.getEmittedCircuit.value)).serialize
       val expected = parse(check).serialize
       logger.debug(actual)
@@ -32,7 +63,7 @@ abstract class SimpleTransformSpec extends AnyFlatSpec with FirrtlMatchers with 
 
    def executeWithAnnos(input: String, check: String, annotations: Seq[Annotation],
      checkAnnotations: Seq[Annotation]): CircuitState = {
-      val finalState = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annotations))
+      val finalState = compiler.transform(CircuitState(parse(input), annotations))
       val actual = RemoveEmpty.run(parse(finalState.getEmittedCircuit.value)).serialize
       val expected = parse(check).serialize
       logger.debug(actual)
@@ -55,9 +86,11 @@ abstract class SimpleTransformSpec extends AnyFlatSpec with FirrtlMatchers with 
    // No default to be consistent with execute
    def failingexecute(input: String, annotations: Seq[Annotation]): Exception = {
       intercept[PassExceptions] {
-         compile(CircuitState(parse(input), ChirrtlForm, annotations), Seq.empty)
+         compiler.transform(CircuitState(parse(input), annotations))
       }
    }
+
+   protected def compile(state: CircuitState): CircuitState = compiler.transform(state)
 }
 
 /** Transform that re-runs resolve and check transforms as late as possible, but before any emitters. */
@@ -76,19 +109,13 @@ object ReRunResolveAndCheck extends Transform with DependencyAPIMigration with I
 }
 
 trait LowTransformSpec extends SimpleTransformSpec {
-   def emitter = new LowFirrtlEmitter
-   def transform: Transform
-   def transforms: Seq[Transform] = transform +: ReRunResolveAndCheck +: Forms.LowForm.map(_.getObject)
+   protected override def emitter = Dependency[LowFirrtlEmitter]
 }
 
 trait MiddleTransformSpec extends SimpleTransformSpec {
-   def emitter = new MiddleFirrtlEmitter
-   def transform: Transform
-   def transforms: Seq[Transform] = transform +: ReRunResolveAndCheck +: Forms.MidForm.map(_.getObject)
+   protected override def emitter = Dependency[MiddleFirrtlEmitter]
 }
 
 trait HighTransformSpec extends SimpleTransformSpec {
-   def emitter = new HighFirrtlEmitter
-   def transform: Transform
-   def transforms = transform +: ReRunResolveAndCheck +: Forms.HighForm.map(_.getObject)
+   protected override def emitter = Dependency[HighFirrtlEmitter]
 }

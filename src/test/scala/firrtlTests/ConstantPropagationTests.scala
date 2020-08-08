@@ -7,6 +7,9 @@ import firrtl.passes._
 import firrtl.transforms._
 import firrtl.testutils._
 import firrtl.annotations.Annotation
+import firrtl.options.Dependency
+import firrtl.stage.Forms
+import org.scalatest.flatspec.AnyFlatSpec
 
 class ConstantPropagationSpec extends FirrtlFlatSpec {
   val transforms: Seq[Transform] = Seq(
@@ -803,8 +806,7 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
 }
 
 // More sophisticated tests of the full compiler
-class ConstantPropagationIntegrationSpec extends LowTransformSpec {
-  def transform = new LowFirrtlOptimization
+class ConstantPropagationIntegrationSpec extends LeanTransformSpec(Forms.LowFormOptimized) {
 
   "ConstProp" should "NOT optimize across dontTouch on nodes" in {
       val input =
@@ -1537,7 +1539,7 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
 
 class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
   private val srcDir = "/constant_propagation_tests"
-  private val transforms = Seq(new ConstantPropagation)
+  private val transforms = Seq(Dependency[ConstantPropagation])
 
   "anything added to zero" should "be equal to itself" in {
     val input =

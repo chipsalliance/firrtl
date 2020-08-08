@@ -9,18 +9,11 @@ import annotations._
 import java.io.File
 import java.nio.file.Paths
 
-class CheckCombLoopsSpec extends SimpleTransformSpec {
+import firrtl.options.Dependency
+import firrtl.stage.FirrtlStage
+import org.scalatest.flatspec.AnyFlatSpec
 
-  def emitter = new LowFirrtlEmitter
-
-  def transforms = Seq(
-    new ChirrtlToHighFirrtl,
-    new IRToWorkingIR,
-    new ResolveAndCheck,
-    new HighFirrtlToMiddleFirrtl,
-    new MiddleFirrtlToLowFirrtl
-  )
-
+class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops]) ){
   "Loop-free circuit" should "not throw an exception" in {
     val input = """circuit hasnoloops :
                    |  module thru :
@@ -42,8 +35,7 @@ class CheckCombLoopsSpec extends SimpleTransformSpec {
                    |    b <= inner.out2
                    |""".stripMargin
 
-    val writer = new java.io.StringWriter
-    compile(CircuitState(parse(input), ChirrtlForm), writer)
+    compile(parse(input))
   }
 
   "Simple combinational loop" should "throw an exception" in {
@@ -62,9 +54,8 @@ class CheckCombLoopsSpec extends SimpleTransformSpec {
                    |    d <= z
                    |""".stripMargin
 
-    val writer = new java.io.StringWriter
     intercept[CheckCombLoops.CombLoopException] {
-      compile(CircuitState(parse(input), ChirrtlForm), writer)
+      compile(parse(input))
     }
   }
 
@@ -77,9 +68,8 @@ class CheckCombLoopsSpec extends SimpleTransformSpec {
                    |    y <= w
                    |""".stripMargin
 
-    val writer = new java.io.StringWriter
     intercept[CheckCombLoops.CombLoopException] {
-      compile(CircuitState(parse(input), ChirrtlForm), writer)
+      compile(parse(input))
     }
   }
 
@@ -98,9 +88,8 @@ class CheckCombLoopsSpec extends SimpleTransformSpec {
                    |    d <= z
                    |""".stripMargin
 
-    val writer = new java.io.StringWriter
     intercept[CheckCombLoops.CombLoopException] {
-      compile(CircuitState(parse(input), ChirrtlForm), writer)
+      compile(parse(input))
     }
   }
 
@@ -130,9 +119,8 @@ class CheckCombLoopsSpec extends SimpleTransformSpec {
                    |    d <= z
                    |""".stripMargin
 
-    val writer = new java.io.StringWriter
     intercept[CheckCombLoops.CombLoopException] {
-      compile(CircuitState(parse(input), ChirrtlForm), writer)
+      compile(parse(input))
     }
   }
 
@@ -158,9 +146,8 @@ class CheckCombLoopsSpec extends SimpleTransformSpec {
                    |    d <= z
                    |""".stripMargin
 
-    val writer = new java.io.StringWriter
     intercept[CheckCombLoops.CombLoopException] {
-      compile(CircuitState(parse(input), ChirrtlForm), writer)
+      compile(parse(input))
     }
   }
 
@@ -187,9 +174,8 @@ class CheckCombLoopsSpec extends SimpleTransformSpec {
 
     val mt = ModuleTarget("hasloops", "blackbox")
     val annos = AnnotationSeq(Seq(ExtModulePathAnnotation(mt.ref("in"), mt.ref("out"))))
-    val writer = new java.io.StringWriter
     intercept[CheckCombLoops.CombLoopException] {
-      compile(CircuitState(parse(input), ChirrtlForm, annos), writer)
+      compile(parse(input), annos)
     }
   }
 
@@ -216,8 +202,7 @@ class CheckCombLoopsSpec extends SimpleTransformSpec {
     val annos = AnnotationSeq(Seq(
       ExtModulePathAnnotation(mt.ref("in1"), mt.ref("out1")),
       ExtModulePathAnnotation(mt.ref("in2"), mt.ref("out2"))))
-    val writer = new java.io.StringWriter
-    compile(CircuitState(parse(input), ChirrtlForm, annos), writer)
+    compile(parse(input), annos)
   }
 
   "Combinational loop through an output RHS reference" should "throw an exception" in {
@@ -244,9 +229,8 @@ class CheckCombLoopsSpec extends SimpleTransformSpec {
                    |    d <= z
                    |""".stripMargin
 
-    val writer = new java.io.StringWriter
     intercept[CheckCombLoops.CombLoopException] {
-      compile(CircuitState(parse(input), ChirrtlForm), writer)
+      compile(parse(input))
     }
   }
 
@@ -268,9 +252,8 @@ class CheckCombLoopsSpec extends SimpleTransformSpec {
                    |    o <= e
                    |""".stripMargin
 
-    val writer = new java.io.StringWriter
     intercept[CheckCombLoops.CombLoopException] {
-      compile(CircuitState(parse(input), ChirrtlForm), writer)
+      compile(parse(input))
     }
   }
 
@@ -295,8 +278,7 @@ class CheckCombLoopsSpec extends SimpleTransformSpec {
                   |    b <= inner.out2
                   |""".stripMargin
 
-    val writer = new java.io.StringWriter
-    val cs = compile(CircuitState(parse(input), ChirrtlForm), writer)
+    val cs = compile(parse(input))
     val mt = ModuleTarget("hasnoloops", "hasnoloops")
     val anno = CombinationalPath(mt.ref("b"), Seq(mt.ref("a")))
     cs.annotations.contains(anno) should be (true)
@@ -312,11 +294,11 @@ class CheckCombLoopsCommandLineSpec extends FirrtlFlatSpec {
 
   "Combinational loops detection" should "run by default" in {
     a [CheckCombLoops.CombLoopException] should be thrownBy {
-      firrtl.Driver.execute(args)
+      (new FirrtlStage).execute(args)
     }
   }
 
   it should "not run when given --no-check-comb-loops option" in {
-    firrtl.Driver.execute(args :+ "--no-check-comb-loops")
+    (new FirrtlStage).execute(args :+ "--no-check-comb-loops")
   }
 }

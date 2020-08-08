@@ -7,11 +7,9 @@ import firrtl.annotations._
 import firrtl.testutils._
 import firrtl.testutils.FirrtlCheckers._
 
-class PresetSpec extends FirrtlFlatSpec {
+class PresetSpec extends VerilogTransformSpec {
   type Mod = Seq[String]
   type ModuleSeq = Seq[Mod]
-  def compile(input: String, annos: AnnotationSeq): CircuitState =
-    (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), List.empty)
   def compileBody(modules: ModuleSeq) = {
     val annos = Seq(new PresetAnnotation(CircuitTarget("Test").module("Test").ref("reset")), firrtl.transforms.NoDCEAnnotation)
     var str = """
@@ -24,7 +22,7 @@ class PresetSpec extends FirrtlFlatSpec {
       str += """
         |""".stripMargin
     })
-    compile(str,annos)
+    compile(str, annos)
   }
 
   "Preset" should """behave properly given a `Preset` annotated `AsyncReset` INPUT reset:

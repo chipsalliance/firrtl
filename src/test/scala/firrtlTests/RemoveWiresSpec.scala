@@ -9,9 +9,7 @@ import firrtl.testutils._
 
 import collection.mutable
 
-class RemoveWiresSpec extends FirrtlFlatSpec {
-  def compile(input: String): CircuitState =
-    (new LowFirrtlCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
+class RemoveWiresSpec extends LowFirrtlTransformSpec {
   def compileBody(body: String) = {
     val str = """
       |circuit Test :

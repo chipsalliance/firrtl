@@ -5,10 +5,13 @@ package firrtlTests
 import firrtl._
 import firrtl.testutils._
 import FirrtlCheckers._
+import firrtl.options.Dependency
 
 class AsyncResetSpec extends FirrtlFlatSpec {
-  def compile(input: String): CircuitState =
-    (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
+  private val compiler = new firrtl.stage.transforms.Compiler(Seq(Dependency[firrtl.VerilogEmitter]))
+  def compile(input: String, annos: AnnotationSeq = Seq()): CircuitState =
+    compiler.transform(CircuitState(parse(input), annos))
+
   def compileBody(body: String) = {
     val str = """
       |circuit Test :
@@ -437,7 +440,7 @@ class AsyncResetSpec extends FirrtlFlatSpec {
       |    reg r : UInt<8>, clock with : (reset => (reset, UInt(123)))
       |""".stripMargin
     val annos = Seq(dontTouch("m.r")) // dontTouch prevents ConstantPropagation from fixing this problem
-    val result = (new VerilogCompiler).compileAndEmit(CircuitState(parse(withDontTouch), ChirrtlForm, annos))
+    val result = compile(withDontTouch, annos)
     result should containLines (
        "always @(posedge clock or posedge reset) begin",
        "if (reset) begin",

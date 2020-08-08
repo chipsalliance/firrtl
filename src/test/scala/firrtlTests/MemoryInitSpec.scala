@@ -5,10 +5,10 @@ package firrtlTests
 import firrtl._
 import firrtl.annotations._
 import firrtl.testutils.FirrtlCheckers.containLine
-import firrtl.testutils.FirrtlFlatSpec
+import firrtl.testutils.{FirrtlFlatSpec, VerilogTransformSpec}
 import firrtlTests.execution._
 
-class MemInitSpec extends FirrtlFlatSpec {
+class MemInitSpec extends VerilogTransformSpec {
   def input(tpe: String): String =
     s"""
       |circuit MemTest:
@@ -44,9 +44,7 @@ class MemInitSpec extends FirrtlFlatSpec {
       |""".stripMargin
 
   val mRef = CircuitTarget("MemTest").module("MemTest").ref("m")
-  def compile(annos: AnnotationSeq, tpe: String = "UInt<32>"): CircuitState = {
-    (new VerilogCompiler).compileAndEmit(CircuitState(parse(input(tpe)), ChirrtlForm, annos))
-  }
+  def compile(annos: AnnotationSeq, tpe: String = "UInt<32>"): CircuitState = compile(parse(input(tpe)), annos)
 
   "NoAnnotation" should "create a randomized initialization" in {
     val annos = Seq()

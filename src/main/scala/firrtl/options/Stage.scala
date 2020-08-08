@@ -49,12 +49,14 @@ abstract class Stage extends Phase {
 
   /** Run this stage on on a mix of arguments and annotations
     * @param args command line arguments
-    * @param initialAnnotations annotation
+    * @param annotations annotation
     * @return output annotations
     * @throws OptionsException if command line or annotation validation fails
     */
   final def execute(args: Array[String], annotations: AnnotationSeq): AnnotationSeq =
     transform(shell.parse(args, annotations))
+
+  final def execute(args: Array[String]): AnnotationSeq = execute(args, Seq())
 
 }
 

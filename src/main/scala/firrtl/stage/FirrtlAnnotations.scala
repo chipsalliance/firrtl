@@ -6,10 +6,10 @@ import firrtl._
 import firrtl.ir.Circuit
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
 import firrtl.options.{HasShellOptions, OptionsException, ShellOption, Unserializable}
-
-
 import java.io.FileNotFoundException
 import java.nio.file.NoSuchFileException
+
+import firrtl.stage.TransformManager.TransformDependency
 
 /** Indicates that this is an [[firrtl.annotations.Annotation Annotation]] directly used in the construction of a
   * [[FirrtlOptions]] view.
@@ -143,6 +143,8 @@ object FirrtlSourceAnnotation extends HasShellOptions {
 case class RunFirrtlTransformAnnotation(transform: Transform) extends NoTargetAnnotation
 
 object RunFirrtlTransformAnnotation extends HasShellOptions {
+  def apply(d: TransformDependency): RunFirrtlTransformAnnotation =
+    RunFirrtlTransformAnnotation(d.getObject())
 
   val options = Seq(
     new ShellOption[Seq[String]](

@@ -2,21 +2,11 @@
 
 package firrtlTests
 
+import firrtl.CircuitState
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-
 import firrtl.ir.Circuit
-import firrtl.{
-  ChirrtlForm,
-  CircuitState,
-  Compiler,
-  HighFirrtlCompiler,
-  MiddleFirrtlCompiler,
-  MinimumVerilogCompiler,
-  LowFirrtlCompiler,
-  Parser,
-  VerilogCompiler
-}
+import firrtl.options.Dependency
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -28,12 +18,12 @@ import org.scalatest.matchers.should.Matchers
  * should be compared against the check string.
  */
 abstract class CompilerSpec extends AnyFlatSpec {
-   def parse (s: String): Circuit = Parser.parse(s.split("\n").toIterator)
-   def compiler: Compiler
+   def parse (s: String): Circuit = firrtl.Parser.parse(s.split("\n").toIterator)
+   def compiler: firrtl.Transform
    def input: String
    def check: String
    def getOutput: String = {
-     val res = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm))
+     val res = compiler.transform(CircuitState(parse(input), Seq()))
      res.getEmittedCircuit.value
    }
 }
@@ -47,7 +37,7 @@ abstract class CompilerSpec extends AnyFlatSpec {
  * input.
  */
 class HighFirrtlCompilerSpec extends CompilerSpec with Matchers {
-   val compiler = new HighFirrtlCompiler()
+   val compiler = new firrtl.stage.transforms.Compiler(Seq(Dependency[firrtl.HighFirrtlEmitter]))
    val input =
 """circuit Top :
   module Top :
@@ -69,7 +59,7 @@ class HighFirrtlCompilerSpec extends CompilerSpec with Matchers {
   * string compared to the correct lowered circuit.
   */
 class MiddleFirrtlCompilerSpec extends CompilerSpec with Matchers {
-   val compiler = new MiddleFirrtlCompiler()
+  val compiler = new firrtl.stage.transforms.Compiler(Seq(Dependency[firrtl.MiddleFirrtlEmitter]))
    val input =
       """
 circuit Top :
@@ -105,7 +95,7 @@ circuit Top :
  * string compared to the correct lowered circuit.
  */
 class LowFirrtlCompilerSpec extends CompilerSpec with Matchers {
-   val compiler = new LowFirrtlCompiler()
+  val compiler = new firrtl.stage.transforms.Compiler(Seq(Dependency[firrtl.LowFirrtlEmitter]))
    val input =
 """
 circuit Top :
@@ -150,7 +140,7 @@ class VerilogCompilerSpec extends CompilerSpec with Matchers {
                  |  assign b_1 = a_1;
                  |endmodule
                  |""".stripMargin
-   def compiler = new VerilogCompiler()
+  val compiler = new firrtl.stage.transforms.Compiler(Seq(Dependency[firrtl.VerilogEmitter]))
    "A circuit's verilog output" should "match the given string and not have RANDOMIZE if no invalids" in {
       getOutput should be (check)
    }
@@ -184,7 +174,7 @@ class MinimumVerilogCompilerSpec extends CompilerSpec with Matchers {
                  |  assign o = {{2{i[2]}},i};
                  |endmodule
                  |""".stripMargin
-  def compiler = new MinimumVerilogCompiler()
+  val compiler = new firrtl.stage.transforms.Compiler(Seq(Dependency[firrtl.MinimumVerilogEmitter]))
 
   "A circuit's minimum Verilog output" should "pad signed RHSes but not reflect any const-prop or DCE" in {
     getOutput should be (check)

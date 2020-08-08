@@ -7,10 +7,9 @@ import firrtl.ir._
 import firrtl.testutils._
 import FirrtlCheckers._
 import firrtl.Parser.AppendInfo
+import firrtl.options.Dependency
 
-class InfoSpec extends FirrtlFlatSpec with FirrtlMatchers {
-  def compile(input: String): CircuitState =
-    (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
+class InfoSpec extends LeanTransformSpec(Seq(Dependency[firrtl.VerilogEmitter])) {
   def compileBody(body: String) = {
     val str = """
       |circuit Test :

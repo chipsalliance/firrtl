@@ -2,11 +2,11 @@
 
 package firrtlTests
 
-import firrtl._
-import firrtl.testutils.FirrtlFlatSpec
+
+import firrtl.testutils.VerilogTransformSpec
 
 // Tests long-standing bug from #1179, VerilogMemDelays producing combinational loops in corner case
-abstract class MemEnFeedbackSpec extends FirrtlFlatSpec {
+abstract class MemEnFeedbackSpec extends VerilogTransformSpec {
   val ruw: String
   def input: String =
     s"""circuit loop :
@@ -24,7 +24,7 @@ abstract class MemEnFeedbackSpec extends FirrtlFlatSpec {
        |    m.r.addr <= raddr
        |    m.r.en <= m.r.data
        |""".stripMargin
-  def compileInput(): Unit = (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
+  def compileInput(): Unit = compile(input)
 }
 
 class WriteFirstMemEnFeedbackSpec extends MemEnFeedbackSpec {

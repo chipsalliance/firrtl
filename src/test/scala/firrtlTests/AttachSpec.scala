@@ -4,6 +4,7 @@ package firrtlTests
 
 import firrtl._
 import firrtl.ir.Circuit
+import firrtl.options.Dependency
 import firrtl.passes._
 import firrtl.testutils._
 
@@ -12,7 +13,6 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
   behavior of "Analog"
 
   it should "attach a module input source directly" in {
-    val compiler = new VerilogCompiler
     val input =
      """circuit Attaching :
         |  module Attaching :
@@ -44,11 +44,10 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
        |);
        |endmodule
        |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler, Seq(dontDedup("A"), dontDedup("B")))
+    executeTest(input, check, Verilog, Seq(dontDedup("A"), dontDedup("B")))
   }
 
   it should "attach two instances" in {
-    val compiler = new VerilogCompiler
     val input =
      """circuit Attaching :
         |  module Attaching :
@@ -78,11 +77,10 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
        |);
        |endmodule
        |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler, Seq(dontTouch("A.an"), dontDedup("A")))
+    executeTest(input, check, Verilog, Seq(dontTouch("A.an"), dontDedup("A")))
   }
 
   it should "attach a wire source" in {
-    val compiler = new VerilogCompiler
     val input =
       """circuit Attaching :
          |  module Attaching :
@@ -100,11 +98,10 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
         |  );
         |endmodule
         |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler, Seq(dontTouch("Attaching.x")))
+    executeTest(input, check, Verilog, Seq(dontTouch("Attaching.x")))
   }
 
   it should "attach port to submodule port through a wire" in {
-    val compiler = new VerilogCompiler
     val input =
       """circuit Attaching :
          |  module Attaching :
@@ -124,12 +121,11 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
         |  );
         |endmodule
         |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler, Seq(dontTouch("Attaching.x")))
+    executeTest(input, check, Verilog, Seq(dontTouch("Attaching.x")))
   }
 
 
   it should "attach multiple sources" in {
-    val compiler = new VerilogCompiler
     val input =
       """circuit Attaching :
          |  module Attaching :
@@ -152,11 +148,10 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
         |  `endif
         |endmodule
         |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, Verilog)
   }
 
   it should "work in partial connect" in {
-    val compiler = new VerilogCompiler
     val input =
       """circuit Attaching :
          |  module Attaching :
@@ -175,11 +170,10 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
         |  alias bar_a = foo_a;
         |endmodule
         |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, Verilog)
   }
 
   it should "preserve attach order" in {
-    val compiler = new VerilogCompiler
     val input =
       """circuit Attaching :
          |  module Attaching :
@@ -200,7 +194,7 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
         |    alias a = b = c = d;
         |endmodule
         |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, Verilog)
 
     val input2 =
       """circuit Attaching :
@@ -222,11 +216,10 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
         |    alias a = b = c = d;
         |endmodule
         |""".stripMargin.split("\n") map normalized
-    executeTest(input2, check2, compiler)
+    executeTest(input2, check2, Verilog)
   }
 
   it should "infer widths" in {
-    val compiler = new VerilogCompiler
     val input =
      """circuit Attaching :
         |  module Attaching :
@@ -247,11 +240,10 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
        |  inout  [2:0] an1
        |);
        |endmodule""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, Verilog)
   }
 
   it should "not error if not isinvalid" in {
-    val compiler = new VerilogCompiler
     val input =
      """circuit Attaching :
         |  module Attaching :
@@ -262,10 +254,9 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
        |  inout  [2:0] an
        |);
        |endmodule""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, Verilog)
   }
   it should "not error if isinvalid" in {
-    val compiler = new VerilogCompiler
     val input =
      """circuit Attaching :
         |  module Attaching :
@@ -277,8 +268,10 @@ class InoutVerilogSpec extends FirrtlFlatSpec {
        |  inout  [2:0] an
        |);
        |endmodule""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, Verilog)
   }
+
+  private val Verilog = Dependency[firrtl.VerilogEmitter]
 }
 
 class AttachAnalogSpec extends FirrtlFlatSpec {

@@ -4,6 +4,7 @@ package firrtlTests
 
 import firrtl._
 import firrtl.ir._
+import firrtl.stage.FirrtlStage
 import firrtl.testutils._
 import firrtl.testutils.FirrtlCheckers._
 import org.scalacheck.Gen
@@ -218,7 +219,7 @@ class ParserSpec extends FirrtlFlatSpec {
       firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input))
     }
     a [SyntaxErrorsException] shouldBe thrownBy {
-      Driver.execute(manager)
+      (new FirrtlStage).execute(manager)
     }
   }
 

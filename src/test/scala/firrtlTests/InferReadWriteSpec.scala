@@ -4,52 +4,44 @@ package firrtlTests
 
 import firrtl._
 import firrtl.ir._
+import firrtl.options.Dependency
 import firrtl.passes._
 import firrtl.stage.Forms
 import firrtl.testutils._
 import firrtl.testutils.FirrtlCheckers._
 
-class InferReadWriteSpec extends SimpleTransformSpec {
-  class InferReadWriteCheckException extends PassException(
-    "Readwrite ports are not found!")
+private object InferReadWriteCheck extends Pass {
+  override def prerequisites = Forms.MidForm
+  override def optionalPrerequisites = Seq.empty
+  override def optionalPrerequisiteOf = Forms.MidEmitters
+  override def invalidates(a: Transform) = false
 
-  object InferReadWriteCheck extends Pass {
-    override def prerequisites = Forms.MidForm
-    override def optionalPrerequisites = Seq.empty
-    override def optionalPrerequisiteOf = Forms.MidEmitters
-    override def invalidates(a: Transform) = false
-
-    def findReadWrite(s: Statement): Boolean = s match {
-      case s: DefMemory if s.readLatency > 0 && s.readwriters.size == 1 =>
-        s.name == "mem" && s.readwriters.head == "rw"
-      case s: Block =>
-        s.stmts exists findReadWrite
-      case _ => false
-    }
-
-    def run (c: Circuit) = {
-      val errors = new Errors
-      val foundReadWrite = c.modules exists {
-        case m: Module => findReadWrite(m.body)
-        case m: ExtModule => false
-      }
-      if (!foundReadWrite) {
-        errors append new InferReadWriteCheckException
-        errors.trigger
-      }
-      c
-    }
+  def findReadWrite(s: Statement): Boolean = s match {
+    case s: DefMemory if s.readLatency > 0 && s.readwriters.size == 1 =>
+      s.name == "mem" && s.readwriters.head == "rw"
+    case s: Block =>
+      s.stmts exists findReadWrite
+    case _ => false
   }
 
-  def emitter = new MiddleFirrtlEmitter
-  def transforms = Seq(
-    new ChirrtlToHighFirrtl,
-    new IRToWorkingIR,
-    new ResolveAndCheck,
-    new HighFirrtlToMiddleFirrtl,
-    new memlib.InferReadWrite,
-    InferReadWriteCheck
-  )
+  def run (c: Circuit) = {
+    val errors = new Errors
+    val foundReadWrite = c.modules exists {
+      case m: Module => findReadWrite(m.body)
+      case m: ExtModule => false
+    }
+    if (!foundReadWrite) {
+      errors append new InferReadWriteCheckException
+      errors.trigger
+    }
+    c
+  }
+}
+
+private class InferReadWriteCheckException extends PassException("Readwrite ports are not found!")
+
+class InferReadWriteSpec extends LeanTransformSpec(Seq(Dependency(InferReadWriteCheck))) {
+
 
   "Infer ReadWrite Ports" should "infer readwrite ports for the same clock" in {
     val input = """
@@ -76,7 +68,7 @@ circuit sram6t :
 """.stripMargin
 
     val annos = Seq(memlib.InferReadWriteAnnotation)
-    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+    val res = compile(parse(input), annos)
     // Check correctness of firrtl
     parse(res.getEmittedCircuit.value)
   }
@@ -107,7 +99,7 @@ circuit sram6t :
 """.stripMargin
 
     val annos = Seq(memlib.InferReadWriteAnnotation)
-    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+    val res = compile(parse(input), annos)
     // Check correctness of firrtl
     parse(res.getEmittedCircuit.value)
   }
@@ -139,7 +131,7 @@ circuit sram6t :
 
     val annos = Seq(memlib.InferReadWriteAnnotation)
     intercept[Exception] {
-      compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+      compile(parse(input), annos)
     } match {
       case CustomTransformException(_: InferReadWriteCheckException) => // success
       case _ => fail()
@@ -174,7 +166,7 @@ circuit sram6t :
 """.stripMargin
 
     val annos = Seq(memlib.InferReadWriteAnnotation)
-    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+    val res = compile(parse(input), annos)
     // Check correctness of firrtl
     res should containLine (s"mem.rw.wmode <= wen")
   }
