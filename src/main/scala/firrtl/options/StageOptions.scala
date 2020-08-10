@@ -59,7 +59,7 @@ class StageOptions private [firrtl] (
       } else {
         new File(targetDir + "/" + f)
       }
-    }.getCanonicalFile
+    }
 
     val parent = file.getParentFile
 
