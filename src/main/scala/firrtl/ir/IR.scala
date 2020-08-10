@@ -434,7 +434,7 @@ case class DefMemAccess(
   name: String,
   addr: Expression,
   clock: Expression,
-  en: Expression) extends Statement with IsDeclaration {
+  en: Expression) extends Statement with IsDeclaration with UseSerializer {
   def mapExpr(f: Expression => Expression): Statement = this.copy(addr = f(addr), clock = f(clock), en = f(en))
   def mapStmt(f: Statement => Statement): Statement = this
   def mapType(f: Type => Type): Statement = this
@@ -455,7 +455,7 @@ case class ApplyMemAccess(
   mem: Expression,
   access: Expression,
   tpe: Type = UnknownType,
-  flow: Flow = UnknownFlow) extends Expression {
+  flow: Flow = UnknownFlow) extends Expression with UseSerializer {
   def mapExpr(f: Expression => Expression): Expression = this.copy(mem = f(mem), access = f(access))
   def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
   def mapWidth(f: Width => Width): Expression = this
@@ -472,7 +472,7 @@ case class MemMaskedWrite(
   mem: Expression,
   memaccess: Expression,
   data: Expression,
-  mask: Expression) extends Statement with HasInfo {
+  mask: Expression) extends Statement with HasInfo with UseSerializer {
   def mapExpr(f: Expression => Expression): Statement = {
     this.copy(mem = f(mem), memaccess = f(memaccess), data = f(data), mask = f(mask))
   }

@@ -98,7 +98,7 @@ stmt
   | 'smem' id ':' type ruw? info?
   | mdir 'mport' id '=' id '[' exp ']' exp info?
   | 'memaccess' id '=' exp exp ('with' ':' 'enable' '=>' exp )? info?
-  | 'memwrite' exp '[' exp ']' '<=' exp exp ('with' ':' 'mask' '=>' exp )? info?
+  | 'memwrite' exp '[' exp ']' '<=' exp exp ('with' ':' 'write-mask' '=>' exp )? info?
   | 'inst' id 'of' id info?
   | 'node' id '=' exp info?
   | exp '<=' exp info?
