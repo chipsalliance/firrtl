@@ -14,7 +14,7 @@ import firrtl.PrimOps._
 import firrtl.WrappedExpression._
 import Utils._
 import MemPortUtils.{memPortField, memType}
-import firrtl.options.{HasShellOptions, CustomFileEmission, ShellOption, StageOptions, PhaseException}
+import firrtl.options.{HasShellOptions, CustomFileEmission, ShellOption, PhaseException}
 import firrtl.options.Viewer.view
 import firrtl.stage.{FirrtlFileAnnotation, FirrtlOptions, RunFirrtlTransformAnnotation, TransformManager}
 // Datastructures

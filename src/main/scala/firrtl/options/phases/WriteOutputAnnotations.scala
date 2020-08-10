@@ -3,10 +3,12 @@
 package firrtl.options.phases
 
 import firrtl.AnnotationSeq
-import firrtl.annotations.{DeletedAnnotation, JsonProtocol}
-import firrtl.options.{CustomFileEmission, Dependency, Phase, StageOptions, Unserializable, Viewer}
+import firrtl.annotations.{Annotation, DeletedAnnotation, JsonProtocol}
+import firrtl.options.{CustomFileEmission, Dependency, Phase, PhaseException, StageOptions, Unserializable, Viewer}
 
-import java.io.{BufferedWriter, FileWriter, PrintWriter}
+import java.io.{BufferedWriter, File, FileWriter, PrintWriter}
+
+import scala.collection.mutable
 
 /** [[firrtl.options.Phase Phase]] that writes an [[AnnotationSeq]] to a file. A file is written if and only if a
   * [[StageOptions]] view has a non-empty [[StageOptions.annotationFileOut annotationFileOut]].
@@ -26,15 +28,32 @@ class WriteOutputAnnotations extends Phase {
   /** Write the input [[AnnotationSeq]] to a fie. */
   def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val sopts = Viewer[StageOptions].view(annotations)
+    val filesWritten = mutable.HashMap.empty[String, Annotation]
     val serializable: AnnotationSeq = annotations.toSeq.flatMap {
       case _: Unserializable     => None
       case a: DeletedAnnotation  => if (sopts.writeDeleted) { Some(a) } else { None }
       case a: CustomFileEmission =>
         val filename = a.filename(annotations)
-        a.toBytes.map { str =>
-          val w = new BufferedWriter(new FileWriter(filename))
-          str.foreach( w.write(_) )
-          w.close()
+        val canonical = filename.getCanonicalPath()
+
+        (a.toBytes, filesWritten.get(canonical)) match {
+          case (Some(x), None) =>
+            val w = new BufferedWriter(new FileWriter(filename))
+            x.foreach( w.write(_) )
+            w.close()
+            filesWritten(canonical) = a
+          case (Some(_), Some(first)) =>
+            val msg =
+              s"""|Multiple CustomFileEmission annotations would be serialized to the same file, '$canonical'
+                  |  - first writer:
+                  |      class: ${first.getClass.getName}
+                  |      trimmed serialization: ${first.serialize.take(80)}
+                  |  - second writer:
+                  |      class: ${a.getClass.getName}
+                  |      trimmed serialization: ${a.serialize.take(80)}
+                  |""".stripMargin
+            throw new PhaseException(msg)
+          case (None, _) =>
         }
         a.replacements(filename)
       case a => Some(a)

@@ -12,6 +12,7 @@ import firrtl.options.{
   InputAnnotationFileAnnotation,
   OutputAnnotationFileAnnotation,
   Phase,
+  PhaseException,
   StageOptions,
   TargetDirAnnotation,
   WriteDeletedAnnotation}
@@ -128,6 +129,17 @@ class WriteOutputAnnotationsSpec extends AnyFlatSpec with Matchers with firrtl.t
 
     info(s"file '$serializedFileName' exists")
     new File(serializedFileName) should (exist)
+  }
+
+  it should "error if multiple annotations try to write to the same file" in new Fixture {
+    val file = new File("write-CustomFileEmission-annotations-error.anno.json")
+    val annotations = Seq( TargetDirAnnotation(dir),
+                           OutputAnnotationFileAnnotation(file.toString),
+                           WriteOutputAnnotationsSpec.Custom("foo"),
+                           WriteOutputAnnotationsSpec.Custom("bar") )
+    intercept[PhaseException] {
+      phase.transform(annotations)
+    }.getMessage should startWith ("Multiple CustomFileEmission annotations")
   }
 
 }
