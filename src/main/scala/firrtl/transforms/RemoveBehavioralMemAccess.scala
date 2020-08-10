@@ -6,6 +6,7 @@ package transforms
 import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
+import firrtl.options.Dependency
 import firrtl.traversals.Foreachers._
 import firrtl.passes.MemPortUtils._
 
@@ -13,8 +14,15 @@ import collection.mutable
 
 object RemoveBehavioralMemAccess extends Transform with DependencyAPIMigration {
   override def prerequisites = Nil
+
   override def optionalPrerequisites = Nil
-  override def optionalPrerequisiteOf = Nil
+
+  override def optionalPrerequisiteOf = Seq(
+    Dependency(passes.CheckChirrtl),
+    Dependency(passes.CInferTypes),
+    Dependency(passes.CInferMDir),
+    Dependency(passes.RemoveCHIRRTL))
+
   override def invalidates(a: Transform) = false
 
   // TODO: how does explicit enable in accessor decl compose with condition on write op? on read op?
