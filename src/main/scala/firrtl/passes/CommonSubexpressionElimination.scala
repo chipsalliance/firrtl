@@ -12,9 +12,7 @@ object CommonSubexpressionElimination extends Pass {
   override def prerequisites = firrtl.stage.Forms.LowForm ++
     Seq( Dependency(firrtl.passes.RemoveValidIf),
          Dependency[firrtl.transforms.ConstantPropagation],
-         Dependency(firrtl.passes.memlib.VerilogMemDelays),
-         Dependency(firrtl.passes.SplitExpressions),
-         Dependency[firrtl.transforms.CombineCats] )
+         Dependency(firrtl.passes.SplitExpressions))
 
   override def optionalPrerequisiteOf =
     Seq( Dependency[SystemVerilogEmitter],

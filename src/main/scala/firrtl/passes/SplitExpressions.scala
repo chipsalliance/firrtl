@@ -17,8 +17,7 @@ import scala.collection.mutable
 object SplitExpressions extends Pass {
 
   override def prerequisites = firrtl.stage.Forms.LowForm ++
-    Seq( Dependency(firrtl.passes.RemoveValidIf),
-         Dependency(firrtl.passes.memlib.VerilogMemDelays) )
+    Seq( Dependency(firrtl.passes.RemoveValidIf))
 
   override def optionalPrerequisiteOf =
     Seq( Dependency[SystemVerilogEmitter],

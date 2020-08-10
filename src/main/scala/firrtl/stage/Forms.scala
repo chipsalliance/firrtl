@@ -68,21 +68,19 @@ object Forms {
          Dependency[checks.CheckResets],
          Dependency[firrtl.transforms.RemoveWires] )
 
-  val LowFormMinimumOptimized: Seq[TransformDependency] = LowForm ++
-    Seq( Dependency(passes.RemoveValidIf),
-         Dependency(passes.PadWidths),
-         Dependency(passes.memlib.VerilogMemDelays),
-         Dependency(passes.SplitExpressions),
-         Dependency[firrtl.transforms.LegalizeAndReductionsTransform] )
+  val LowFormMinimumOptimized: Seq[TransformDependency] = LowForm ++ Seq(Dependency(passes.memlib.VerilogMemDelays))
 
   val LowFormOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
     Seq( Dependency[firrtl.transforms.ConstantPropagation],
-         Dependency[firrtl.transforms.CombineCats],
          Dependency(passes.CommonSubexpressionElimination),
          Dependency[firrtl.transforms.DeadCodeElimination] )
 
   val VerilogMinimumOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
-    Seq( Dependency[firrtl.transforms.BlackBoxSourceHelper],
+    Seq( Dependency(passes.RemoveValidIf),
+         Dependency(passes.PadWidths),
+         Dependency(passes.SplitExpressions),
+         Dependency[firrtl.transforms.LegalizeAndReductionsTransform],
+         Dependency[firrtl.transforms.BlackBoxSourceHelper],
          Dependency[firrtl.transforms.FixAddingNegativeLiterals],
          Dependency[firrtl.transforms.ReplaceTruncatingArithmetic],
          Dependency[firrtl.transforms.InlineBitExtractionsTransform],
@@ -94,7 +92,8 @@ object Forms {
          Dependency(passes.VerilogPrep),
          Dependency[firrtl.AddDescriptionNodes] )
 
-  val VerilogOptimized: Seq[TransformDependency] = LowFormOptimized ++ VerilogMinimumOptimized
+  val VerilogOptimized: Seq[TransformDependency] =
+    LowFormOptimized ++ Seq(Dependency[firrtl.transforms.CombineCats]) ++ VerilogMinimumOptimized
 
   val AssertsRemoved: Seq[TransformDependency] =
     Seq( Dependency(firrtl.transforms.formal.ConvertAsserts),

@@ -13,11 +13,7 @@ import scala.collection.mutable
 // Makes all implicit width extensions and truncations explicit
 object PadWidths extends Pass {
 
-  override def prerequisites =
-    ((new mutable.LinkedHashSet())
-       ++ firrtl.stage.Forms.LowForm
-       - Dependency(firrtl.passes.Legalize)
-       + Dependency(firrtl.passes.RemoveValidIf)).toSeq
+  override def prerequisites = firrtl.stage.Forms.LowForm
 
   override def optionalPrerequisites = Seq(Dependency[firrtl.transforms.ConstantPropagation])
 
