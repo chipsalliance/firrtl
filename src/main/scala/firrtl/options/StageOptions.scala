@@ -59,11 +59,13 @@ class StageOptions private [firrtl] (
       } else {
         new File(targetDir + "/" + f)
       }
+    }.toPath.normalize.toFile
+
+    file.getParentFile match {
+      case null =>
+      case parent if (!parent.exists) => parent.mkdirs()
+      case _ =>
     }
-
-    val parent = file.getParentFile
-
-    if (!parent.exists) { parent.mkdirs() }
 
     file.toString
   }
