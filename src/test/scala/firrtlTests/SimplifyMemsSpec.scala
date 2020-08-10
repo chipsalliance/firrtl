@@ -3,12 +3,11 @@
 package firrtlTests
 
 import firrtl.transforms._
-import firrtl._
+import firrtl.options.Dependency
+import firrtl.testutils.LeanTransformSpec
 
-import CompilerUtils.getLoweringTransforms
 
-class SimplifyMemsSpec extends ConstantPropagationSpec {
-  override val transforms = getLoweringTransforms(ChirrtlForm, MidForm) ++ Seq(new SimplifyMems)
+class SimplifyMemsSpec extends LeanTransformSpec(Seq(Dependency[SimplifyMems])) {
 
   "SimplifyMems" should "lower aggregate memories" in {
     val input =

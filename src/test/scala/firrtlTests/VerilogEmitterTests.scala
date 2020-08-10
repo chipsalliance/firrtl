@@ -6,6 +6,7 @@ import java.io.File
 
 import firrtl._
 import firrtl.annotations._
+import firrtl.options.Dependency
 import firrtl.passes._
 import firrtl.transforms.VerilogRename
 import firrtl.transforms.CombineCats
@@ -15,9 +16,8 @@ import firrtl.util.BackendCompilationUtilities
 
 import scala.sys.process.{Process, ProcessLogger}
 
-class DoPrimVerilog extends FirrtlFlatSpec {
+class DoPrimVerilog extends FirrtlFlatSpec with MakeCompiler {
   "Xorr" should "emit correctly" in {
-    val compiler = new VerilogCompiler
     val input =
       """circuit Xorr :
         |  module Xorr :
@@ -32,10 +32,9 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |  assign b = ^a;
         |endmodule
         |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, Dependency[VerilogEmitter])
   }
   "Andr" should "emit correctly" in {
-    val compiler = new VerilogCompiler
     val input =
       """circuit Andr :
         |  module Andr :
@@ -50,10 +49,9 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |  assign b = &a;
         |endmodule
         |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, Dependency[VerilogEmitter])
   }
   "Orr" should "emit correctly" in {
-    val compiler = new VerilogCompiler
     val input =
       """circuit Orr :
         |  module Orr :
@@ -68,10 +66,9 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |  assign b = |a;
         |endmodule
         |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, Dependency[VerilogEmitter])
   }
   "Not" should "emit correctly" in {
-    val compiler = new VerilogCompiler
     val input =
       """circuit Not :
         |  module Not :
@@ -86,10 +83,9 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |  assign b = ~a;
         |endmodule
         |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, Dependency[VerilogEmitter])
   }
   "inline Bits" should "emit correctly" in {
-    val compiler = new VerilogCompiler
     val input =
       """circuit InlineBits :
         |  module InlineBits :
@@ -180,10 +176,9 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |  assign u = a[3];
         |endmodule
         |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, Dependency[VerilogEmitter])
   }
   "Rem" should "emit correctly" in {
-    val compiler = new VerilogCompiler
     val input =
       """circuit Test :
         |  module Test :
@@ -200,10 +195,10 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |  assign out = _GEN_0[0];
         |endmodule
         |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, Dependency[VerilogEmitter])
   }
   "nested cats" should "emit correctly" in {
-    val compiler = new MinimumVerilogCompiler
+    val compiler = makeMinimumVerilogCompiler(Seq(Dependency[CombineCats]))
     val input =
       """circuit Test :
         |  module Test :
@@ -227,7 +222,7 @@ class DoPrimVerilog extends FirrtlFlatSpec {
         |endmodule
         |""".stripMargin.split("\n") map normalized
 
-    val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm), Seq(new CombineCats()))
+    val finalState = compiler.transform(CircuitState(parse(input), Seq()))
     val lines = finalState.getEmittedCircuit.value split "\n" map normalized
     for (e <- check) {
       lines should contain (e)
@@ -235,19 +230,16 @@ class DoPrimVerilog extends FirrtlFlatSpec {
   }
 }
 
-class VerilogEmitterSpec extends FirrtlFlatSpec {
-  private def compile(input: String): CircuitState =
-    (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
+class VerilogEmitterSpec extends FirrtlFlatSpec with MakeCompiler {
   private def compileBody(body: String): CircuitState = {
     val str = """
       |circuit Test :
       |  module Test :
       |""".stripMargin + body.split("\n").mkString("    ", "\n    ", "")
-    compile(str)
+    makeVerilogCompiler().transform(CircuitState(parse(str), Seq()))
   }
 
   "Ports" should "emit with widths aligned and names aligned" in {
-    val compiler = new VerilogCompiler
     val input =
       """circuit Test :
         |  module Test :
@@ -269,25 +261,24 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
       "  inout  [31:0]    f"
     )
     // We don't use executeTest because we care about the spacing in the result
-    val writer = new java.io.StringWriter
-    compiler.compile(CircuitState(parse(input), ChirrtlForm), writer)
-    val lines = writer.toString.split("\n")
+    val lines = makeVerilogCompiler()
+      .transform(CircuitState(parse(input), Seq()))
+      .getEmittedCircuit.value.split("\n")
     for (c <- check) {
       lines should contain (c)
     }
   }
   "The Verilog Emitter" should "support Modules with no ports" in {
-    val compiler = new VerilogCompiler
+    val compiler = makeVerilogCompiler()
     val input =
       """circuit Test :
         |  module Test :
         |    wire x : UInt<32>
         |    x <= UInt(0)
       """.stripMargin
-    compiler.compile(CircuitState(parse(input), ChirrtlForm), new java.io.StringWriter)
+    compiler.transform(CircuitState(parse(input), Seq()))
   }
   "AsClock" should "emit correctly" in {
-    val compiler = new VerilogCompiler
     val input =
       """circuit Test :
         |  module Test :
@@ -303,7 +294,7 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
         |  assign out = in;
         |endmodule
         |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, Dependency[VerilogEmitter])
   }
   "The Verilog Emitter" should "support pads with width <= the width of the argument" in {
     // We do just a few passes instead of using the VerilogCompiler to ensure that the pad actually
@@ -323,14 +314,14 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     for (w <- Seq(6, 8)) {
       val circuit = passes.foldLeft(parse(input(w))) { case (c, p) => p.run(c) }
       val state = CircuitState(circuit, LowForm, Seq(EmitCircuitAnnotation(classOf[VerilogEmitter])))
-      val emitter = new VerilogEmitter
+      val emitter = Dependency[VerilogEmitter]
       val result = emitter.execute(state)
       result should containLine ("assign out = in;")
     }
   }
 
   "The verilog emitter" should "offer support for generating bindable forms of modules" in {
-    val emitter = new VerilogEmitter
+    val emitter = Dependency[VerilogEmitter]
     val input =
       """circuit Test :
         |  module Test :
@@ -361,10 +352,10 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     // We don't use executeTest because we care about the spacing in the result
     val writer = new java.io.StringWriter
 
-    val initialState = CircuitState(parse(input), ChirrtlForm)
-    val compiler = new LowFirrtlCompiler()
+    val initialState = CircuitState(parse(input), Seq())
+    val compiler = makeLowFirrtlCompiler()
 
-    val state = compiler.compile(initialState, Seq.empty)
+    val state = compiler.transform(initialState)
 
     val moduleMap = state.circuit.modules.map(m => m.name -> m).toMap
 
@@ -399,8 +390,8 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
         |    r <= in
         |    out <= r
         """.stripMargin
-    val state = CircuitState(parse(input), ChirrtlForm)
-    val result = (new VerilogCompiler).compileAndEmit(state, List())
+    val state = CircuitState(parse(input), Seq())
+    val result = makeVerilogCompiler().transform(state)
     result should containLines ("`ifndef SYNTHESIS",
                                 "`ifdef FIRRTL_BEFORE_INITIAL",
                                 "`FIRRTL_BEFORE_INITIAL",
@@ -454,7 +445,7 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
          |    node const_ = add(UInt<4>("h1"), UInt<3>("h1"))
          |    fork_ <= const_
          |""".stripMargin
-    val state = CircuitState(parse(input), UnknownForm, Seq.empty, None)
+    val state = CircuitState(parse(input), Seq.empty)
     val output = Seq( ToWorkingIR, ResolveKinds, InferTypes, new VerilogRename )
       .foldLeft(state){ case (c, tx) => tx.runTransform(c) }
     Seq( CheckHighForm )
@@ -482,8 +473,8 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
           |    out <= tmp
           |""".stripMargin
     val circuit = Seq(ToWorkingIR, ResolveKinds, InferTypes).foldLeft(parse(input)) { case (c, p) => p.run(c) }
-    val state = CircuitState(circuit, LowForm, Seq(EmitCircuitAnnotation(classOf[VerilogEmitter])))
-    val result = (new VerilogEmitter).execute(state)
+    val state = CircuitState(circuit, Seq(EmitCircuitAnnotation(classOf[VerilogEmitter])))
+    val result = (Dependency[VerilogEmitter]).execute(state)
     result should containLine ("if (sel == 2'h0) begin")
     result should containLine ("end else if (sel == 2'h1) begin" )
     result should containLine ("end else if (sel == 2'h2) begin")
@@ -503,8 +494,8 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
           |    out <= tmp
           |""".stripMargin
     val circuit = Seq(ToWorkingIR, ResolveKinds, InferTypes).foldLeft(parse(input)) { case (c, p) => p.run(c) }
-    val state = CircuitState(circuit, LowForm, Seq(EmitCircuitAnnotation(classOf[VerilogEmitter])))
-    val result = (new VerilogEmitter).execute(state)
+    val state = CircuitState(circuit, Seq(EmitCircuitAnnotation(classOf[VerilogEmitter])))
+    val result = (Dependency[VerilogEmitter]).execute(state)
     result should not (containLine ("tmp <= tmp"))
   }
 
@@ -521,8 +512,8 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
           |    out <= tmp
           |""".stripMargin
     val circuit = Seq(ToWorkingIR, ResolveKinds, InferTypes).foldLeft(parse(input)) { case (c, p) => p.run(c) }
-    val state = CircuitState(circuit, LowForm, Seq(EmitCircuitAnnotation(classOf[VerilogEmitter])))
-    val result = (new VerilogEmitter).execute(state)
+    val state = CircuitState(circuit, Seq(EmitCircuitAnnotation(classOf[VerilogEmitter])))
+    val result = (Dependency[VerilogEmitter]).execute(state)
     result should containLine ("if (!(sel == 1'h0)) begin")
     result should not (containLine ("tmp <= tmp"))
   }
@@ -540,8 +531,8 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
           |    out <= tmp
           |""".stripMargin
     val circuit = Seq(ToWorkingIR, ResolveKinds, InferTypes).foldLeft(parse(input)) { case (c, p) => p.run(c) }
-    val state = CircuitState(circuit, LowForm, Seq(EmitCircuitAnnotation(classOf[VerilogEmitter])))
-    val result = (new VerilogEmitter).execute(state)
+    val state = CircuitState(circuit, Seq(EmitCircuitAnnotation(classOf[VerilogEmitter])))
+    val result = (Dependency[VerilogEmitter]).execute(state)
     result should not (containLine ("tmp <= tmp"))
     result should not (containLine ("always @(posedge clock) begin"))
   }
@@ -579,8 +570,8 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
           |    out <= tmp
           |""".stripMargin
     val circuit = Seq(ToWorkingIR, ResolveKinds, InferTypes).foldLeft(parse(input)) { case (c, p) => p.run(c) }
-    val state = CircuitState(circuit, LowForm, Seq(EmitCircuitAnnotation(classOf[VerilogEmitter])))
-    val result = (new VerilogEmitter).execute(state)
+    val state = CircuitState(circuit, Seq(EmitCircuitAnnotation(classOf[VerilogEmitter])))
+    val result = (Dependency[VerilogEmitter]).execute(state)
     /* The Verilog string is used to check for no whitespace between "else" and "if". */
     val verilogString = result.getEmittedCircuit.value
     result        should containLine ("if (sel == 3'h0) begin")
@@ -604,7 +595,6 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
   }
 
   "SInt addition" should "have casts" in {
-    val compiler = new VerilogCompiler
     val result = compileBody(
       """input x : SInt<4>
         |input y : SInt<4>
@@ -616,7 +606,6 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
   }
 
   it should "NOT cast SInt literals" in {
-    val compiler = new VerilogCompiler
     val result = compileBody(
       """input x : SInt<4>
         |output z : SInt
@@ -627,7 +616,6 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
   }
 
   it should "inline asSInt casts" in {
-    val compiler = new VerilogCompiler
     val result = compileBody(
       """input x : UInt<4>
         |input y : UInt<4>
@@ -640,7 +628,6 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
   }
 
   "Verilog Emitter" should "drop asUInt casts on Clocks" in {
-    val compiler = new VerilogCompiler
     val result = compileBody(
       """input x : Clock
         |input y : Clock
@@ -653,7 +640,6 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
   }
 
   it should "drop asClock casts on UInts" in {
-    val compiler = new VerilogCompiler
     val result = compileBody(
       """input x : UInt<1>
         |input y : UInt<1>
@@ -666,7 +652,6 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
   }
 
   it should "drop asUInt casts on AsyncResets" in {
-    val compiler = new VerilogCompiler
     val result = compileBody(
       """input x : AsyncReset
         |input y : AsyncReset
@@ -679,7 +664,6 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
   }
 
   it should "drop asAsyncReset casts on UInts" in {
-    val compiler = new VerilogCompiler
     val result = compileBody(
       """input x : UInt<1>
         |input y : UInt<1>
@@ -692,7 +676,6 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
   }
 
   it should "subtract positive literals instead of adding negative literals" in {
-    val compiler = new VerilogCompiler
     val result = compileBody(
       """input x : SInt<8>
         |output z : SInt<9>
@@ -704,7 +687,6 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
   }
 
   it should "subtract positive literals even with max negative literal" in {
-    val compiler = new VerilogCompiler
     val result = compileBody(
       """input x : SInt<2>
         |output z : SInt<3>
@@ -716,7 +698,6 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
   }
 
   it should "subtract positive literals even with max negative literal with no carryout" in {
-    val compiler = new VerilogCompiler
     val result = compileBody(
       """input x : SInt<2>
         |output z : SInt<2>
@@ -749,9 +730,9 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
   }
 }
 
-class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
+class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec with MakeCompiler {
   "Port descriptions" should "emit aligned comments on the line above" in {
-    val compiler = new VerilogCompiler
+    val compiler = makeVerilogCompiler()
     val input =
       """circuit Test :
         |  module Test :
@@ -773,7 +754,7 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
     val annos = Seq(
       DocStringAnnotation(ComponentName("a", modName), "multi\nline"),
       DocStringAnnotation(ComponentName("b", modName), "single line"))
-    val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
+    val finalState = compiler.transform(CircuitState(parse(input), annos))
     val output = finalState.getEmittedCircuit.value
     for (c <- check) {
       assert(output.contains(c))
@@ -781,7 +762,7 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
   }
 
   "Declaration descriptions" should "emit aligned comments on the line above" in {
-    val compiler = new VerilogCompiler
+    val compiler = makeVerilogCompiler()
     val input =
       """circuit Test :
         |  module Test :
@@ -817,7 +798,7 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
       DocStringAnnotation(ComponentName("d", modName), "multi\nline"),
       DocStringAnnotation(ComponentName("e", modName), "multi\nline"),
       DocStringAnnotation(ComponentName("f", modName), "single line"))
-    val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
+    val finalState = compiler.transform(CircuitState(parse(input), annos))
     val output = finalState.getEmittedCircuit.value
     for (c <- check) {
       assert(output.contains(c))
@@ -825,7 +806,7 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
   }
 
   "Module descriptions" should "emit aligned comments on the line above" in {
-    val compiler = new VerilogCompiler
+    val compiler = makeVerilogCompiler()
     val input =
       """circuit Test :
         |  module Test :
@@ -852,7 +833,7 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
     // We don't use executeTest because we care about the spacing in the result
     val modName = ModuleName("Test", CircuitName("Test"))
     val annos = Seq(DocStringAnnotation(modName, "multi\nline"))
-    val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
+    val finalState = compiler.transform(CircuitState(parse(input), annos))
     val output = finalState.getEmittedCircuit.value
     for (c <- check) {
       assert(output.contains(c))
@@ -860,7 +841,7 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
   }
 
   "Multiple descriptions" should "be combined" in {
-    val compiler = new VerilogCompiler
+    val compiler = makeVerilogCompiler()
     val input =
       """circuit Test :
         |  module Test :
@@ -908,7 +889,7 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
       AttributeAnnotation(ComponentName("d", modName), "parallel_case"),
       AttributeAnnotation(ComponentName("d", modName), "mark_debug")
     )
-    val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
+    val finalState = compiler.transform(CircuitState(parse(input), annos))
     val output = finalState.getEmittedCircuit.value
     for (c <- check) {
       assert(output.contains(c))

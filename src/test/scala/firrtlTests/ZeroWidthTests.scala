@@ -3,6 +3,7 @@
 package firrtlTests
 
 import firrtl._
+import firrtl.options.Dependency
 import firrtl.passes._
 import firrtl.testutils._
 
@@ -227,7 +228,6 @@ class ZeroWidthTests extends FirrtlFlatSpec {
 
 class ZeroWidthVerilog extends FirrtlFlatSpec {
   "Circuit" should "accept zero width wires" in {
-    val compiler = new VerilogCompiler
     val input =
       """circuit Top :
          |  module Top :
@@ -241,6 +241,6 @@ class ZeroWidthVerilog extends FirrtlFlatSpec {
         |  assign x = 3'h0;
         |endmodule
         |""".stripMargin.split("\n") map normalized
-    executeTest(input, check, compiler)
+    executeTest(input, check, Dependency[VerilogEmitter])
   }
 }

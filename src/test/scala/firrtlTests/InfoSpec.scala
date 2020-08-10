@@ -9,7 +9,7 @@ import FirrtlCheckers._
 import firrtl.Parser.AppendInfo
 import firrtl.options.Dependency
 
-class InfoSpec extends LeanTransformSpec(Seq(Dependency[firrtl.VerilogEmitter])) {
+class InfoSpec extends LeanTransformSpec(Seq(Dependency[firrtl.VerilogEmitter])) with MakeCompiler {
   def compileBody(body: String) = {
     val str = """
       |circuit Test :
@@ -169,7 +169,7 @@ class InfoSpec extends LeanTransformSpec(Seq(Dependency[firrtl.VerilogEmitter]))
      |
       """.stripMargin
 
-    val result = (new LowFirrtlCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
+    val result = makeLowFirrtlCompiler().transform(CircuitState(parse(input), Seq()))
     result should containLine ("node _GEN_0 = mux(_T_14, _T_16, x) @[GCD.scala 17:18 GCD.scala 17:22 GCD.scala 15:14]")
     result should containLine ("node _GEN_2 = mux(io_e, io_a, _GEN_0) @[GCD.scala 19:15 GCD.scala 19:19]")
     result should containLine ("x <= _GEN_2")

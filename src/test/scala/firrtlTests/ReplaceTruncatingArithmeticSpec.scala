@@ -6,9 +6,7 @@ import firrtl._
 import firrtl.testutils._
 import firrtl.testutils.FirrtlCheckers._
 
-class ReplaceTruncatingArithmeticSpec extends FirrtlFlatSpec {
-  def compile(input: String): CircuitState =
-    (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
+class ReplaceTruncatingArithmeticSpec extends VerilogTransformSpec {
   def compileBody(body: String) = {
     val str = """
       |circuit Test :

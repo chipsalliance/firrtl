@@ -47,7 +47,7 @@ object AnnotationTests {
 
 // Abstract but with lots of tests defined so that we can use the same tests
 // for Legacy and newer Annotations
-abstract class AnnotationTests extends AnnotationSpec with Matchers {
+abstract class AnnotationTests extends AnnotationSpec with Matchers with MakeCompiler {
   import AnnotationTests._
 
   def anno(s: String, value: String ="this is a value", mod: String = "Top"): Annotation
@@ -63,9 +63,6 @@ abstract class AnnotationTests extends AnnotationSpec with Matchers {
     val ta = anno("c", "")
     execute(input, ta, Seq(ta))
   }
-
-  private def makeVerilogCompiler(transforms: Seq[TransformDependency] = Seq()) =
-    new firrtl.stage.transforms.Compiler(Seq(Dependency[firrtl.VerilogEmitter]) ++ transforms)
 
   "Deleting annotations" should "create a DeletedAnnotation" in {
     val transform = Dependency[DeletingTransform]

@@ -5,9 +5,8 @@ package firrtlTests
 import firrtl._
 import firrtl.testutils._
 import FirrtlCheckers._
-import firrtl.options.Dependency
 
-class MemSpec extends FirrtlPropSpec with FirrtlMatchers {
+class MemSpec extends FirrtlPropSpec with FirrtlMatchers with MakeCompiler {
 
   property("Zero-ported mems should be supported!") {
     runFirrtlTest("ZeroPortMem", "/features")
@@ -49,7 +48,7 @@ class MemSpec extends FirrtlPropSpec with FirrtlMatchers {
          |    m.w.clk <= clock
          |    m.w.mask <= UInt(1)
        """.stripMargin
-    val result = makeVerilogCompiler.transform(CircuitState(parse(input), Seq()))
+    val result = makeVerilogCompiler().transform(CircuitState(parse(input), Seq()))
     // TODO Not great that it includes the sparse comment for VCS
     result should containLine (s"reg /* sparse */ [7:0] m [0:$addrWidth'd${memSize-1}];")
   }
@@ -75,12 +74,9 @@ class MemSpec extends FirrtlPropSpec with FirrtlMatchers {
          |    when wen :
          |      w <= wdata
        """.stripMargin
-    val result = makeVerilogCompiler.transform(CircuitState(parse(input), Seq()))
+    val result = makeVerilogCompiler().transform(CircuitState(parse(input), Seq()))
     // TODO Not great that it includes the sparse comment for VCS
     result should containLine (s"reg /* sparse */ [7:0] m [0:$addrWidth'd${memSize-1}];")
   }
-
-  private val makeVerilogCompiler =
-    new firrtl.stage.transforms.Compiler(Seq(Dependency[firrtl.VerilogEmitter]))
 }
 

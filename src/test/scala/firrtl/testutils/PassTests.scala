@@ -38,6 +38,15 @@ class LeanTransformSpec(protected val transforms: Seq[TransformDependency]) exte
    }
 }
 
+trait MakeCompiler {
+   protected def makeVerilogCompiler(transforms: Seq[TransformDependency] = Seq()) =
+      new firrtl.stage.transforms.Compiler(Seq(Dependency[firrtl.VerilogEmitter]) ++ transforms)
+   protected def makeMinimumVerilogCompiler(transforms: Seq[TransformDependency] = Seq()) =
+      new firrtl.stage.transforms.Compiler(Seq(Dependency[firrtl.MinimumVerilogEmitter]) ++ transforms)
+   protected def makeLowFirrtlCompiler(transforms: Seq[TransformDependency] = Seq()) =
+      new firrtl.stage.transforms.Compiler(Seq(Dependency[firrtl.LowFirrtlEmitter]) ++ transforms)
+}
+
 
 // An example methodology for testing Firrtl Passes
 // Spec class should extend this class

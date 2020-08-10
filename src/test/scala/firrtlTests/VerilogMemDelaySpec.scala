@@ -5,10 +5,11 @@ package firrtlTests
 import firrtl._
 import firrtl.passes.memlib.VerilogMemDelays
 import firrtl.passes.CheckHighForm
+import firrtl.testutils.MakeCompiler
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 
-class VerilogMemDelaySpec extends AnyFreeSpec with Matchers {
+class VerilogMemDelaySpec extends AnyFreeSpec with Matchers with MakeCompiler {
   "The following low FIRRTL should be parsed by VerilogMemDelays" in {
     val input =
       """
@@ -43,9 +44,9 @@ class VerilogMemDelaySpec extends AnyFreeSpec with Matchers {
       """.stripMargin
 
     val circuit = Parser.parse(input)
-    val compiler = new LowFirrtlCompiler
+    val compiler = makeLowFirrtlCompiler()
 
-    val result = compiler.compile(CircuitState(circuit, ChirrtlForm), Seq.empty)
+    val result = compiler.transform(CircuitState(circuit, Seq()))
     val result2 = VerilogMemDelays.run(result.circuit)
     CheckHighForm.run(result2)
     //result.circuit.serialize.length > 0 should be (true)
@@ -93,9 +94,9 @@ class VerilogMemDelaySpec extends AnyFreeSpec with Matchers {
       """.stripMargin
 
     val circuit = Parser.parse(input)
-    val compiler = new LowFirrtlCompiler
+    val compiler = makeLowFirrtlCompiler()
 
-    val result = compiler.compile(CircuitState(circuit, ChirrtlForm), Seq.empty)
+    val result = compiler.transform(CircuitState(circuit, Seq()))
     val result2 = VerilogMemDelays.run(result.circuit)
     CheckHighForm.run(result2)
   }

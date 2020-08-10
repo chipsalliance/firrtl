@@ -21,7 +21,7 @@ case class AnnotationWithDontTouches(target: ReferenceTarget)
   def dontTouches: Seq[ReferenceTarget] = targets
 }
 
-class DCETests extends FirrtlFlatSpec {
+class DCETests extends FirrtlFlatSpec with MakeCompiler {
   // Not using executeTest because it is for positive testing, we need to check that stuff got
   // deleted
   private val customTransforms = Forms.LowFormOptimized ++ Seq(Dependency(RemoveEmpty))
@@ -465,7 +465,7 @@ class DCETests extends FirrtlFlatSpec {
         |    z <= r""".stripMargin
     )
 
-    val result = makeVerilogCompiler.transform(CircuitState(input, Seq()))
+    val result = makeVerilogCompiler().transform(CircuitState(input, Seq()))
     val verilog = result.getEmittedCircuit.value
     // Check that mux is removed!
     verilog shouldNot include regex ("""a \? x : r;""")
@@ -483,13 +483,11 @@ class DCETests extends FirrtlFlatSpec {
         |      stop(clock, UInt<1>(1), 1)""".stripMargin
     )
 
-    val result = makeVerilogCompiler.transform(CircuitState(input, Seq()))
+    val result = makeVerilogCompiler().transform(CircuitState(input, Seq()))
     val verilog = result.getEmittedCircuit.value
     verilog shouldNot include regex ("""fwrite""")
     verilog shouldNot include regex ("""fatal""")
   }
-
-  private def makeVerilogCompiler = new firrtl.stage.transforms.Compiler(Seq(Dependency[firrtl.VerilogEmitter]))
 }
 
 class DCECommandLineSpec extends FirrtlFlatSpec {

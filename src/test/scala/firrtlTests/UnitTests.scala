@@ -3,14 +3,16 @@
 package firrtlTests
 
 import java.io._
+
 import firrtl._
 import firrtl.ir._
 import firrtl.passes._
 import firrtl.transforms._
 import firrtl.testutils._
 import FirrtlCheckers._
+import firrtl.options.Dependency
 
-class UnitTests extends FirrtlFlatSpec {
+class UnitTests extends FirrtlFlatSpec with MakeCompiler {
   private def executeTest(input: String, expected: Seq[String], transforms: Seq[Transform]) = {
     val lines = execute(input, transforms).circuit.serialize.split("\n") map normalized
 
@@ -24,10 +26,9 @@ class UnitTests extends FirrtlFlatSpec {
   }
 
   def execute(input: String, transforms: Seq[Transform]): CircuitState = {
-    val c = transforms.foldLeft(CircuitState(parse(input), UnknownForm)) {
-      (c: CircuitState, t: Transform) => t.runTransform(c)
-    }.circuit
-    CircuitState(c, UnknownForm, Seq(), None)
+    val deps = transforms.map(Dependency.fromTransform)
+    val compiler = new firrtl.stage.transforms.Compiler(deps)
+    compiler.transform(CircuitState(parse(input), Seq()))
   }
 
   "Pull muxes" should "not be exponential in runtime" in {
@@ -489,7 +490,7 @@ class UnitTests extends FirrtlFlatSpec {
         |    output out : UInt<8>
         |    out <= shl(in, 4)
         |""".stripMargin
-    val res = (new VerilogCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm))
+    val res = makeVerilogCompiler().transform(CircuitState(parse(input), Seq()))
     res should containLine ("assign out = {in, 4'h0};")
   }
 }
