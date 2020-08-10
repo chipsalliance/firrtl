@@ -4,7 +4,7 @@ package firrtlTests.stage
 
 
 import firrtl.stage.RunFirrtlTransformAnnotation
-import firrtl.options.Shell
+import firrtl.options.{Dependency, Shell}
 import firrtl.stage.FirrtlCli
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -18,18 +18,20 @@ class FirrtlCliSpec extends AnyFlatSpec with Matchers {
     val args = Array(
       "--custom-transforms", "firrtl.transforms.BlackBoxSourceHelper,firrtl.transforms.CheckCombLoops",
       "--custom-transforms", "firrtl.transforms.CombineCats",
-      "--custom-transforms", "firrtl.transforms.ConstantPropagation" )
+      "--custom-transforms", "firrtl.transforms.ConstantPropagation",
+      "--custom-transforms", "firrtl.passes.InferTypes$")
     val expected = Seq(
-      classOf[firrtl.transforms.BlackBoxSourceHelper],
-      classOf[firrtl.transforms.CheckCombLoops],
-      classOf[firrtl.transforms.CombineCats],
-      classOf[firrtl.transforms.ConstantPropagation] )
+      Dependency[firrtl.transforms.BlackBoxSourceHelper],
+      Dependency[firrtl.transforms.CheckCombLoops],
+      Dependency[firrtl.transforms.CombineCats],
+      Dependency[firrtl.transforms.ConstantPropagation],
+      Dependency(firrtl.passes.InferTypes))
 
     shell
       .parse(args)
       .collect{ case a: RunFirrtlTransformAnnotation => a }
       .zip(expected)
-      .map{ case (RunFirrtlTransformAnnotation(a), b) => a.getClass should be (b) }
+      .map{ case (RunFirrtlTransformAnnotation(a), b) => a should be (b) }
   }
 
 }

@@ -5,7 +5,7 @@ package firrtl.stage
 import firrtl._
 import firrtl.ir.Circuit
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
-import firrtl.options.{HasShellOptions, OptionsException, ShellOption, Unserializable}
+import firrtl.options.{Dependency, HasShellOptions, OptionsException, ShellOption, Unserializable}
 
 
 import java.io.FileNotFoundException
@@ -168,29 +168,41 @@ object CompilerAnnotation extends HasShellOptions {
 
 }
 
-/** Holds the unambiguous class name of a [[Transform]] to run
-  *  - will be append to [[FirrtlExecutionOptions.customTransforms]]
-  *  - set with `-fct/--custom-transforms`
-  * @param transform the full class name of the transform
+/** Add a [[Transform]] to be run by the FIRRTL compiler.
+  *
+  * Either this annotation can be included directly, or a transform can be added with `-fct`/`--custom-transforms`
+  *
+  * @param transform a [[firrtl.options.Dependency Dependency]] wrapped [[Transform]]
   */
-case class RunFirrtlTransformAnnotation(transform: Transform) extends NoTargetAnnotation
+case class RunFirrtlTransformAnnotation(transform: Dependency[Transform]) extends NoTargetAnnotation
 
 object RunFirrtlTransformAnnotation extends HasShellOptions {
+
+  @deprecated("Use RunFirrtlTransformAnnotation(Dependency(transform)).", "FIRRTL 1.4")
+  def apply(transform: Transform): RunFirrtlTransformAnnotation =
+    RunFirrtlTransformAnnotation(Dependency.fromTransform(transform))
 
   val options = Seq(
     new ShellOption[Seq[String]](
       longOption = "custom-transforms",
       toAnnotationSeq = _.map(txName =>
         try {
-          val tx = Class.forName(txName).asInstanceOf[Class[_ <: Transform]].newInstance()
+          val tx = txName.endsWith("$") match {
+            case true =>
+              Dependency(Class.forName(txName).getField("MODULE$").get(null).asInstanceOf[Transform with Singleton])
+            case false =>
+              Dependency(Class.forName(txName).asInstanceOf[Class[_ <: Transform]])
+          }
           RunFirrtlTransformAnnotation(tx)
         } catch {
           case e: ClassNotFoundException => throw new OptionsException(
             s"Unable to locate custom transform $txName (did you misspell it?)", e)
           case e: InstantiationException => throw new OptionsException(
             s"Unable to create instance of Transform $txName (is this an anonymous class?)", e)
-          case e: Throwable => throw new OptionsException(
-            s"Unknown error when instantiating class $txName", e) }),
+          case e: ClassCastException => throw new OptionsException(
+            s"$txName is not a Transform (did you misspell it?)")
+          case e: Throwable =>
+            throw new OptionsException(s"Unknown error when instantiating class $txName", e) }),
       helpText = "Run these transforms during compilation",
       shortOption = Some("fct"),
       helpValueName = Some("<package>.<class>") ),
