@@ -5,7 +5,7 @@ package firrtl.stage
 import firrtl._
 import firrtl.ir.Circuit
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
-import firrtl.options.{HasShellOptions, OptionsException, ShellOption, Unserializable}
+import firrtl.options.{Dependency, HasShellOptions, OptionsException, ShellOption, Unserializable}
 
 
 import java.io.FileNotFoundException
@@ -168,14 +168,19 @@ object CompilerAnnotation extends HasShellOptions {
 
 }
 
-/** Holds the unambiguous class name of a [[Transform]] to run
-  *  - will be append to [[FirrtlExecutionOptions.customTransforms]]
-  *  - set with `-fct/--custom-transforms`
-  * @param transform the full class name of the transform
+/** Add a [[Transform]] to be run by the FIRRTL compiler.
+  *
+  * Either this annotation can be included directly, or a transform can be added with `-fct`/`--custom-transforms`
+  *
+  * @param transform a [[firrtl.options.Dependency Dependency]] wrapped [[Transform]]
   */
-case class RunFirrtlTransformAnnotation(transform: Transform) extends NoTargetAnnotation
+case class RunFirrtlTransformAnnotation(transform: Dependency[Transform]) extends NoTargetAnnotation
 
 object RunFirrtlTransformAnnotation extends HasShellOptions {
+
+  @deprecated("Use RunFirrtlTransformAnnotation(Dependency(transform)).", "FIRRTL 1.4")
+  def apply(transform: Transform): RunFirrtlTransformAnnotation =
+    RunFirrtlTransformAnnotation(Dependency.fromTransform(transform))
 
   val options = Seq(
     new ShellOption[Seq[String]](

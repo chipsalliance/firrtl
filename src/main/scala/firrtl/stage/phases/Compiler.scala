@@ -13,13 +13,13 @@ import scala.collection.mutable
 private [stage] case class CompilerRun(
   stateIn: CircuitState,
   stateOut: Option[CircuitState],
-  transforms: Seq[Transform],
+  transforms: Seq[Dependency[Transform]],
   compiler: Option[FirrtlCompiler] )
 
 /** An encoding of possible defaults for a [[CompilerRun]] */
 private [stage] case class Defaults(
   annotations: AnnotationSeq = Seq.empty,
-  transforms: Seq[Transform] = Seq.empty,
+  transforms: Seq[Dependency[Transform]] = Seq.empty,
   compiler: Option[FirrtlCompiler] = None)
 
 /** Runs the FIRRTL compilers on an [[AnnotationSeq]]. If the input [[AnnotationSeq]] contains more than one circuit
@@ -97,7 +97,7 @@ class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] {
   protected def internalTransform(b: Seq[CompilerRun]): Seq[CompilerRun] = {
     def f(c: CompilerRun): CompilerRun = {
       val targets = c.compiler match {
-        case Some(d) => c.transforms.reverse.map(Dependency.fromTransform(_)) ++ compilerToTransforms(d)
+        case Some(d) => c.transforms.reverse ++ compilerToTransforms(d)
         case None    => throw new PhasePrerequisiteException("No compiler specified!") }
       val tm = new firrtl.stage.transforms.Compiler(targets)
       /* Transform order is lazily evaluated. Force it here to remove its resolution time from actual compilation. */
