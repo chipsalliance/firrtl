@@ -14,7 +14,7 @@ import firrtl.PrimOps._
 import firrtl.WrappedExpression._
 import Utils._
 import MemPortUtils.{memPortField, memType}
-import firrtl.options.{HasShellOptions, HowToSerialize, ShellOption, StageOptions, PhaseException}
+import firrtl.options.{HasShellOptions, CustomFileEmission, ShellOption, StageOptions, PhaseException}
 import firrtl.options.Viewer.view
 import firrtl.stage.{FirrtlFileAnnotation, FirrtlOptions, RunFirrtlTransformAnnotation, TransformManager}
 // Datastructures
@@ -95,7 +95,7 @@ final case class EmittedFirrtlModule(name: String, value: String, outputSuffix: 
 final case class EmittedVerilogModule(name: String, value: String, outputSuffix: String) extends EmittedModule
 
 /** Traits for Annotations containing emitted components */
-sealed trait EmittedAnnotation[T <: EmittedComponent] extends NoTargetAnnotation with HowToSerialize {
+sealed trait EmittedAnnotation[T <: EmittedComponent] extends NoTargetAnnotation with CustomFileEmission {
   val value: T
 
   override protected val baseFileName: String = value.name
@@ -105,7 +105,7 @@ sealed trait EmittedAnnotation[T <: EmittedComponent] extends NoTargetAnnotation
 }
 sealed trait EmittedCircuitAnnotation[T <: EmittedCircuit] extends EmittedAnnotation[T] {
 
-  override def howToSerialize = Some(new StringBuilder(value.value).map(_.toByte))
+  override def toBytes = Some(new StringBuilder(value.value).map(_.toByte))
 
   override def filename(annotations: AnnotationSeq): File = {
     val sopts = view[StageOptions](annotations)
@@ -116,22 +116,22 @@ sealed trait EmittedCircuitAnnotation[T <: EmittedCircuit] extends EmittedAnnota
 }
 sealed trait EmittedModuleAnnotation[T <: EmittedModule] extends EmittedAnnotation[T] {
 
-  override def howToSerialize = Some(new StringBuilder(value.value).map(_.toByte))
+  override def toBytes = Some(new StringBuilder(value.value).map(_.toByte))
 
-  override def howToResume(file: File): Option[AnnotationSeq] = None
+  override def replacements(file: File): Option[AnnotationSeq] = None
 
 }
 
 case class EmittedFirrtlCircuitAnnotation(value: EmittedFirrtlCircuit)
     extends EmittedCircuitAnnotation[EmittedFirrtlCircuit] {
 
-  override def howToResume(file: File): Option[AnnotationSeq] = Some(Seq(FirrtlFileAnnotation(file.toString)))
+  override def replacements(file: File): Option[AnnotationSeq] = Some(Seq(FirrtlFileAnnotation(file.toString)))
 
 }
 case class EmittedVerilogCircuitAnnotation(value: EmittedVerilogCircuit)
     extends EmittedCircuitAnnotation[EmittedVerilogCircuit] {
 
-  override def howToResume(file: File): Option[AnnotationSeq] = None
+  override def replacements(file: File): Option[AnnotationSeq] = None
 
 }
 case class EmittedFirrtlModuleAnnotation(value: EmittedFirrtlModule)

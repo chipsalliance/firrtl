@@ -30,7 +30,7 @@ trait Unserializable { this: Annotation => }
   * expected to be available to downstream transforms. Communication of information between transforms must occur
   * through the annotations that will eventually be serialized to files.
   */
-trait HowToSerialize { this: Annotation =>
+trait CustomFileEmission { this: Annotation =>
 
   /** Output filename where serialized content will be written */
   protected def baseFileName: String
@@ -45,7 +45,7 @@ trait HowToSerialize { this: Annotation =>
     *  def toBytes: Option[Iterable[Byte]] = Some(myString.getBytes)
     * }}}
     */
-  def howToSerialize: Option[Iterable[Byte]]
+  def toBytes: Option[Iterable[Byte]]
 
   /** Optionally, a sequence of annotations that will replace this annotation in the output annotation file.
     *
@@ -54,7 +54,7 @@ trait HowToSerialize { this: Annotation =>
     * serialized to a separate file, this method could include an input file annotation that a later stage can use to
     * read the serialized FIRRTL circuit back in.
     */
-  def howToResume(file: File): Option[AnnotationSeq]
+  def replacements(file: File): Option[AnnotationSeq]
 
   /** Method that returns the filename where this annotation will be serialized.
     *

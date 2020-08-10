@@ -8,7 +8,7 @@ import java.io.File
 import firrtl.AnnotationSeq
 import firrtl.annotations.{DeletedAnnotation, NoTargetAnnotation}
 import firrtl.options.{
-  HowToSerialize,
+  CustomFileEmission,
   InputAnnotationFileAnnotation,
   OutputAnnotationFileAnnotation,
   Phase,
@@ -108,14 +108,14 @@ class WriteOutputAnnotationsSpec extends AnyFlatSpec with Matchers with firrtl.t
     out.toSeq should be (annotations)
   }
 
-  it should "write HowToSerialize annotations" in new Fixture {
-    val file = new File("write-HowToSerialize-annotations.anno.json")
+  it should "write CustomFileEmission annotations" in new Fixture {
+    val file = new File("write-CustomFileEmission-annotations.anno.json")
     val annotations = Seq( TargetDirAnnotation(dir),
                            OutputAnnotationFileAnnotation(file.toString),
-                           WriteOutputAnnotationsSpec.HowTo("hello!") )
-    val serializedFileName = view[StageOptions](annotations).getBuildFileName("HowTo", Some(".Serialize"))
+                           WriteOutputAnnotationsSpec.Custom("hello!") )
+    val serializedFileName = view[StageOptions](annotations).getBuildFileName("Custom", Some(".Emission"))
     val expected = annotations.map {
-      case _: WriteOutputAnnotationsSpec.HowTo => WriteOutputAnnotationsSpec.HowToFindMe(serializedFileName)
+      case _: WriteOutputAnnotationsSpec.Custom => WriteOutputAnnotationsSpec.Replacement(serializedFileName)
       case a => a
     }
 
@@ -138,18 +138,18 @@ private object WriteOutputAnnotationsSpec {
 
   case class BarAnnotation(x: Int) extends NoTargetAnnotation
 
-  case class HowTo(value: String) extends NoTargetAnnotation with HowToSerialize {
+  case class Custom(value: String) extends NoTargetAnnotation with CustomFileEmission {
 
-    override protected def baseFileName: String = "HowTo"
+    override protected def baseFileName: String = "Custom"
 
-    override protected def suffix: Option[String] = Some(".Serialize")
+    override protected def suffix: Option[String] = Some(".Emission")
 
-    override def howToSerialize: Option[Stream[Byte]] = Some(new StringBuilder(value).toStream.map(_.toByte))
+    override def toBytes: Option[Stream[Byte]] = Some(new StringBuilder(value).toStream.map(_.toByte))
 
-    override def howToResume(file: File): Option[AnnotationSeq] = Some(Seq(HowToFindMe(file.toString)))
+    override def replacements(file: File): Option[AnnotationSeq] = Some(Seq(Replacement(file.toString)))
 
   }
 
-  case class HowToFindMe(file: String) extends NoTargetAnnotation
+  case class Replacement(file: String) extends NoTargetAnnotation
 
 }
