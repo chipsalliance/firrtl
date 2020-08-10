@@ -97,7 +97,7 @@ stmt
   | 'cmem' id ':' type info?
   | 'smem' id ':' type ruw? info?
   | mdir 'mport' id '=' id '[' exp ']' exp info?
-  | 'memaccess' id '=' exp exp ('with' ':' 'en' '=>' exp )? info?
+  | 'memaccess' id '=' exp exp ('with' ':' 'enable' '=>' exp )? info?
   | 'memwrite' exp '[' exp ']' '<=' exp exp ('with' ':' 'mask' '=>' exp )? info?
   | 'inst' id 'of' id info?
   | 'node' id '=' exp info?
@@ -173,6 +173,7 @@ exp
   | 'mux(' exp exp exp ')'
   | 'validif(' exp exp ')'
   | primop exp* intLit*  ')'
+  | exp '(' exp ')'
   ;
 
 id

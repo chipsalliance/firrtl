@@ -451,6 +451,22 @@ case class DefMemAccess(
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
 
+case class ApplyMemAccess(
+  mem: Expression,
+  access: Expression,
+  tpe: Type = UnknownType,
+  flow: Flow = UnknownFlow) extends Expression {
+  def mapExpr(f: Expression => Expression): Expression = this.copy(mem = f(mem), access = f(access))
+  def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
+  def mapWidth(f: Width => Width): Expression = this
+  def foreachExpr(f: Expression => Unit): Unit = {
+    f(mem)
+    f(access)
+  }
+  def foreachType(f: Type => Unit): Unit = f(tpe)
+  def foreachWidth(f: Width => Unit): Unit = ()
+}
+
 case class MemMaskedWrite(
   info: Info,
   mem: Expression,

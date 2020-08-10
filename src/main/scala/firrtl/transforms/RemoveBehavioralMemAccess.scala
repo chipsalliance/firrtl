@@ -70,7 +70,7 @@ object RemoveBehavioralMemAccess extends Transform with DependencyAPIMigration {
   }
 
   private def analyzeExpr(memInfo: MemAnalysis)(expr: Expression): Unit = expr match {
-    case SubAccess(mem: Reference, acc: Reference, _, _) if memInfo.isMem(mem) =>
+    case ApplyMemAccess(mem: Reference, acc: Reference, _, _) if memInfo.isMem(mem) =>
       memInfo.associateRead(mem.name, acc.name)
     case e => e.foreach(analyzeExpr(memInfo))
   }
@@ -81,7 +81,7 @@ object RemoveBehavioralMemAccess extends Transform with DependencyAPIMigration {
     case ma: DefMemAccess =>
       memInfo.defMemAccess(ma)
       ma.foreach(analyzeExpr(memInfo))
-    case Connect(_, SubAccess(mem: Reference, acc: Reference, _, _), wdata) if memInfo.isMem(mem) =>
+    case Connect(_, ApplyMemAccess(mem: Reference, acc: Reference, _, _), wdata) if memInfo.isMem(mem) =>
       memInfo.associateWrite(mem.name, acc.name)
       wdata.foreach(analyzeExpr(memInfo))
     case mw @ MemMaskedWrite(_, mem: Reference, acc: Reference, _, _) =>
@@ -93,7 +93,7 @@ object RemoveBehavioralMemAccess extends Transform with DependencyAPIMigration {
   }
 
   private def replaceExpr(memInfo: MemAnalysis)(expr: Expression): Expression = expr match {
-    case SubAccess(mem: Reference, acc: Reference, _, _) if memInfo.isMem(mem) =>
+    case ApplyMemAccess(mem: Reference, acc: Reference, _, _) if memInfo.isMem(mem) =>
       val rdataName = if (memInfo.getPort(mem.name, acc.name).isReadwrite) "rdata" else "data"
       memPortField(memInfo.getMem(mem), memInfo.getPort(mem.name, acc.name).name, rdataName)
     case e => e.map(replaceExpr(memInfo))

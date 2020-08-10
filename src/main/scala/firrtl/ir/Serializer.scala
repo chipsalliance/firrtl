@@ -67,6 +67,7 @@ object Serializer {
     case SubField(expr, name, _, _) => s(expr) ; b += '.' ; b ++= name
     case SubIndex(expr, value, _, _) => s(expr) ; b += '[' ; b ++= value.toString ; b += ']'
     case SubAccess(expr, index, _, _) => s(expr) ; b += '[' ; s(index) ; b += ']'
+    case ApplyMemAccess(mem, acc, _, _) => s(mem); b += '('; s(acc); b += ')' 
     case Mux(cond, tval, fval, _) =>
       b ++= "mux(" ; s(cond) ; b ++= ", " ; s(tval) ; b ++= ", " ; s(fval) ; b += ')'
     case ValidIf(cond, value, _) => b ++= "validif(" ; s(cond) ; b ++= ", " ; s(value) ; b += ')'

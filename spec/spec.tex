@@ -958,8 +958,9 @@ In such cases, the data that is read out of the read port is undefined.
 
 In all cases, if a memory location is written to by more than one port on the same cycle, the stored value is undefined.
 
-\subsubsection{Inferred Memory Ports}
+\subsubsection{Behavioral Memory Access Statements}
 
+In order to support behavioral accesses to memories (accessing contents without a structural connection to an explicitly declared port), FIRRTL includes two high-level statements.
 An inferred memory port is one that is not explicitly declared in the original definition of the memory.
 Extra memory ports can be inferred for any memory that is in scope with the `read mport` and `write mport` statements.
 For this section, we will consider the following memory with no explicitly-declared ports.
@@ -973,7 +974,7 @@ mem syncmem :
   read-under-write => undefined
 \end{lstlisting}
 
-\subsubsubsection{Inferred Read Ports}
+\subsubsection{Inferred Read Ports}
 
 An inferred read port statement has four mandatory arguments: the name of the
 port, the memory to access, the address signal, and the clock. This has the
@@ -1005,7 +1006,7 @@ when (cmd.ren) :
   resp.rdata <= r
 \end{lstlisting}
 
-\subsubsubsection{Inferred Write Ports}
+\subsubsection{Inferred Write Ports}
 
 An inferred write port statement accepts four mandatory arguments: the name of the port, the memory
 to access, the address signal, and the clock. This has the effect of implicitly declaring the
