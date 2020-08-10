@@ -1,9 +1,10 @@
 // See LICENSE for license details.
 
-package firrtl
+package firrtl.analyses
 
 import firrtl.ir._
 import firrtl.passes.MemPortUtils
+import firrtl.{InstanceKind, Kind, WDefInstance}
 
 import scala.collection.mutable
 

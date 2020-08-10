@@ -2,6 +2,8 @@
 
 package firrtl
 
+import firrtl.analyses.{NamespaceTable, SymbolTable}
+
 import scala.collection.mutable
 import firrtl.ir._
 

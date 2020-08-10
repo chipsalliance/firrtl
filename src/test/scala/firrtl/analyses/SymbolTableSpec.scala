@@ -1,7 +1,8 @@
 // See LICENSE for license details.
 
-package firrtl
+package firrtl.analyses
 
+import firrtl.ir
 import firrtl.options.Dependency
 import org.scalatest.flatspec.AnyFlatSpec
 
