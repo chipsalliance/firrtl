@@ -54,7 +54,7 @@ trait CustomFileEmission { this: Annotation =>
     * serialized to a separate file, this method could include an input file annotation that a later stage can use to
     * read the serialized FIRRTL circuit back in.
     */
-  def replacements(file: File): Option[AnnotationSeq]
+  def replacements(file: File): Option[AnnotationSeq] = None
 
   /** Method that returns the filename where this annotation will be serialized.
     *
