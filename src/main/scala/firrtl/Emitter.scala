@@ -98,7 +98,9 @@ final case class EmittedVerilogModule(name: String, value: String, outputSuffix:
 sealed trait EmittedAnnotation[T <: EmittedComponent] extends NoTargetAnnotation with CustomFileEmission {
   val value: T
 
-  override protected val baseFileName: String = value.name
+  override protected def baseFileName(annotations: AnnotationSeq): String = {
+    view[FirrtlOptions](annotations).outputFileName.getOrElse(value.name)
+  }
 
   override protected val suffix: Option[String] = Some(value.outputSuffix)
 
@@ -106,12 +108,6 @@ sealed trait EmittedAnnotation[T <: EmittedComponent] extends NoTargetAnnotation
 sealed trait EmittedCircuitAnnotation[T <: EmittedCircuit] extends EmittedAnnotation[T] {
 
   override def toBytes = Some(new StringBuilder(value.value).map(_.toByte))
-
-  override def filename(annotations: AnnotationSeq): File = {
-    val sopts = view[StageOptions](annotations)
-    val fopts = view[FirrtlOptions](annotations)
-    new File(sopts.getBuildFileName(fopts.outputFileName.getOrElse(baseFileName), suffix))
-  }
 
 }
 sealed trait EmittedModuleAnnotation[T <: EmittedModule] extends EmittedAnnotation[T] {

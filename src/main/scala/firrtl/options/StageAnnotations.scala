@@ -32,8 +32,15 @@ trait Unserializable { this: Annotation => }
   */
 trait CustomFileEmission { this: Annotation =>
 
-  /** Output filename where serialized content will be written */
-  protected def baseFileName: String
+  /** Output filename where serialized content will be written
+    *
+    * The full annotation sequence is a parameter to allow for the location where this annotation will be serialized to
+    * be a function of other annotations, e.g., if the location where information is written is controlled by a separate
+    * file location annotation.
+    *
+    * @param annotations the annotation sequence at the time of emission
+    */
+  protected def baseFileName(annotations: AnnotationSeq): String
 
   /** Optional suffix of the output file */
   protected def suffix: Option[String]
@@ -58,15 +65,10 @@ trait CustomFileEmission { this: Annotation =>
 
   /** Method that returns the filename where this annotation will be serialized.
     *
-    * Users are not normally expected to override this method. Instead, changes to the default behavior can be handled
-    * by overriding the baseFileName and suffix methods. However, if the filename cannot be statically known and is a
-    * function of the content being serialized, then users may need to override this, e.g., if the filename should
-    * include the top module of a FIRRTL circuit.
-    *
     * @param annotations the annotations at the time of serialization
     */
-  def filename(annotations: AnnotationSeq): File = {
-    val name = view[StageOptions](annotations).getBuildFileName(baseFileName, suffix)
+  final def filename(annotations: AnnotationSeq): File = {
+    val name = view[StageOptions](annotations).getBuildFileName(baseFileName(annotations), suffix)
     new File(name)
   }
 

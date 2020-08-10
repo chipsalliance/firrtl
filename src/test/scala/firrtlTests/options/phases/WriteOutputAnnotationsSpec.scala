@@ -140,7 +140,7 @@ private object WriteOutputAnnotationsSpec {
 
   case class Custom(value: String) extends NoTargetAnnotation with CustomFileEmission {
 
-    override protected def baseFileName: String = "Custom"
+    override protected def baseFileName(a: AnnotationSeq): String = "Custom"
 
     override protected def suffix: Option[String] = Some(".Emission")
 
