@@ -146,7 +146,7 @@ private object WriteOutputAnnotationsSpec {
 
     override def toBytes: Option[Stream[Byte]] = Some(new StringBuilder(value).toStream.map(_.toByte))
 
-    override def replacements(file: File): Option[AnnotationSeq] = Some(Seq(Replacement(file.toString)))
+    override def replacements(file: File): AnnotationSeq = Seq(Replacement(file.toString))
 
   }
 

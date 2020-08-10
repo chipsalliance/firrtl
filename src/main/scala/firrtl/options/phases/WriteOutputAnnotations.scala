@@ -26,7 +26,7 @@ class WriteOutputAnnotations extends Phase {
   /** Write the input [[AnnotationSeq]] to a fie. */
   def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val sopts = Viewer[StageOptions].view(annotations)
-    val serializable: AnnotationSeq = annotations.flatMap{
+    val serializable: AnnotationSeq = annotations.toSeq.flatMap {
       case _: Unserializable     => None
       case a: DeletedAnnotation  => if (sopts.writeDeleted) { Some(a) } else { None }
       case a: CustomFileEmission =>
@@ -36,10 +36,7 @@ class WriteOutputAnnotations extends Phase {
           str.foreach( w.write(_) )
           w.close()
         }
-        a.replacements(filename) match {
-          case Some(a) => a
-          case None => None
-        }
+        a.replacements(filename)
       case a => Some(a)
     }
 

@@ -118,22 +118,16 @@ sealed trait EmittedModuleAnnotation[T <: EmittedModule] extends EmittedAnnotati
 
   override def toBytes = Some(new StringBuilder(value.value).map(_.toByte))
 
-  override def replacements(file: File): Option[AnnotationSeq] = None
-
 }
 
 case class EmittedFirrtlCircuitAnnotation(value: EmittedFirrtlCircuit)
     extends EmittedCircuitAnnotation[EmittedFirrtlCircuit] {
 
-  override def replacements(file: File): Option[AnnotationSeq] = Some(Seq(FirrtlFileAnnotation(file.toString)))
+  override def replacements(file: File): AnnotationSeq = Seq(FirrtlFileAnnotation(file.toString))
 
 }
 case class EmittedVerilogCircuitAnnotation(value: EmittedVerilogCircuit)
-    extends EmittedCircuitAnnotation[EmittedVerilogCircuit] {
-
-  override def replacements(file: File): Option[AnnotationSeq] = None
-
-}
+    extends EmittedCircuitAnnotation[EmittedVerilogCircuit]
 case class EmittedFirrtlModuleAnnotation(value: EmittedFirrtlModule)
     extends EmittedModuleAnnotation[EmittedFirrtlModule]
 case class EmittedVerilogModuleAnnotation(value: EmittedVerilogModule)

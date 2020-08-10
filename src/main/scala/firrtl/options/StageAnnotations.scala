@@ -49,12 +49,12 @@ trait CustomFileEmission { this: Annotation =>
 
   /** Optionally, a sequence of annotations that will replace this annotation in the output annotation file.
     *
-    * A non-None implementation of this method is a mechanism for telling a downstream [[firrtl.options.Stage Stage]]
+    * A non-empty implementation of this method is a mechanism for telling a downstream [[firrtl.options.Stage Stage]]
     * how to deserialize the information that was serialized to a separate file. For example, if a FIRRTL circuit is
     * serialized to a separate file, this method could include an input file annotation that a later stage can use to
     * read the serialized FIRRTL circuit back in.
     */
-  def replacements(file: File): Option[AnnotationSeq] = None
+  def replacements(file: File): AnnotationSeq = Seq.empty
 
   /** Method that returns the filename where this annotation will be serialized.
     *
