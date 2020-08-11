@@ -3,7 +3,7 @@
 package firrtl
 package transforms
 
-import firrtl.annotations.Target
+import firrtl.annotations.{NoTargetAnnotation, Target}
 import firrtl.annotations.TargetToken.{fromStringToTargetToken, OfModule, Ref}
 import firrtl.ir._
 import firrtl.passes.{InferTypes, LowerTypes, SplitExpressions}
@@ -12,6 +12,12 @@ import firrtl.PrimOps._
 import firrtl.WrappedExpression._
 
 import scala.collection.mutable
+
+case class InlineBooleanExpressionsMax(max: Int) extends NoTargetAnnotation
+
+object InlineBooleanExpressions {
+  val defaultMax = 30
+}
 
 /** Inline Bool expressions
   *
@@ -52,39 +58,6 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
     }
   }
 
-  /** Maps a [[PrimOp]] to a precedence number, lower number means higher precedence
-    *
-    * Only the [[PrimOp]]s contained in this map will be inlined. [[PrimOp]]s
-    * like [[PrimOp.Neg]] are not in this map because inlining them may result
-    * in illegal verilog like '--2sh1'
-    */
-  private val precedenceMap: Map[PrimOp, Int] = {
-    val precedenceSeq = Seq(
-      Set(Head, Tail, Bits),
-      Set(Andr, Orr, Xorr),
-      Set(Lt, Leq, Gt, Geq),
-      Set(Eq, Neq),
-      Set(And),
-      Set(Xor),
-      Set(Or)
-    )
-    precedenceSeq.zipWithIndex.foldLeft(Map.empty[PrimOp, Int]) {
-      case (map, (ops, idx)) => map ++ ops.map(_ -> idx)
-    }
-  }
-
-  /** true if op1 has greater or equal precendence than op2
-    */
-  private def precedenceGeq(op1: PrimOp, op2: PrimOp): Boolean = {
-    precedenceMap(op1) <= precedenceMap(op2)
-  }
-
-  /** true if op1 has greater precendence than op2
-    */
-  private def precedenceGt(op1: PrimOp, op2: PrimOp): Boolean = {
-    precedenceMap(op1) < precedenceMap(op2)
-  }
-
   /** true if the reference can be inlined into the containing expressoin
     *
     * @param outerExpr the containing expression
@@ -92,27 +65,7 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
     * @param refExpr the expression that is bound to ref
     */
   private def canInline(outerExpr: Expression, ref: WRef, refExpr: Expression): Boolean = {
-    if (refExpr.tpe == Utils.BoolType) {
-      (outerExpr, refExpr) match {
-        case (outerExpr: DoPrim, refExpr: DoPrim) if precedenceMap.contains(outerExpr.op) && precedenceMap.contains(refExpr.op) =>
-          // only inline nested DoPrim if one of these conditions is satisfied
-          // 1. sub DoPrim has greater precedence
-          // 2. sub DoPrim has greater or equal precedence and is the left
-          //    operand (all ops except conditional are left associative)
-          precedenceGt(refExpr.op, outerExpr.op) ||
-          (precedenceGeq(refExpr.op, outerExpr.op) && isArgN(outerExpr, ref, 0))
-
-         // inline any op into Mux, verilog conditional has lowest precedence
-        case (outerExpr: Mux, refExpr: DoPrim) => true
-
-         // only inline nested mux in false value, verilog conditional is right associative
-        case (outerExpr: Mux, refExpr: Mux) => outerExpr.fval eq ref
-
-        case _ => false
-      }
-    } else {
-      false
-    }
+    refExpr.tpe == Utils.BoolType
   }
 
   private val fileLineRegex = """(.*) ([0-9]+):[0-9]+""".r
@@ -129,37 +82,49 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
     }
   }
 
-  private def onExpr(
+  private class MapMethods(
     netlist: Netlist,
-    dontTouches: Set[Ref],
-    info: Info,
-    outerExpr: Option[Expression])(expr: Expression): Expression = {
-    expr match {
-      case ref: WRef if !dontTouches.contains(ref.name.Ref) && ref.name.head == '_' =>
-        netlist.get(we(ref)) match {
-          case Some((refExpr, refInfo)) if sameFileAndLineInfo(info, refInfo) =>
-            if (!outerExpr.isDefined || canInline(outerExpr.get, ref, refExpr)) {
-              refExpr
-            } else {
-              ref
-            }
-          case other => ref
-        }
-      case other => other.mapExpr(onExpr(netlist, dontTouches, info, Some(other)))
-    }
-  }
+    maxInlineCount: Int,
+    inlineCounts: mutable.Map[Ref, Int],
+    dontTouches: Set[Ref]) {
+    var inlineCount: Int = 1
 
-  private def onStmt(netlist: Netlist, dontTouches: Set[Ref])(stmt: Statement): Statement = {
-    stmt.mapStmt(onStmt(netlist, dontTouches)) match {
-      case hasInfo: HasInfo =>
-        val stmtx = hasInfo.mapExpr(onExpr(netlist, dontTouches, hasInfo.info, None))
-        stmtx match {
-          case node @ DefNode(info, name, value) =>
-            netlist(we(WRef(name))) = (value, info)
-          case _ =>
-        }
-        stmtx
-      case other => other
+    def onExpr(info: Info, outerExpr: Option[Expression])(expr: Expression): Expression = {
+      expr match {
+        case ref: WRef if !dontTouches.contains(ref.name.Ref) && ref.name.head == '_' =>
+          val refKey = ref.name.Ref
+          netlist.get(we(ref)) match {
+            case Some((refExpr, refInfo)) if sameFileAndLineInfo(info, refInfo) =>
+              val inlineNum = inlineCounts.getOrElse(refKey, 1)
+              if (!outerExpr.isDefined || canInline(outerExpr.get, ref, refExpr) && (inlineNum + inlineCount) < maxInlineCount) {
+                inlineCount += inlineNum
+                refExpr
+              } else {
+                ref
+              }
+            case other => ref
+          }
+        case other => other.mapExpr(onExpr(info, Some(other)))
+      }
+    }
+
+    def onStmt(stmt: Statement): Statement = {
+      stmt.mapStmt(onStmt) match {
+        case hasInfo: HasInfo =>
+          inlineCount = 1
+          val stmtx = hasInfo.mapExpr(onExpr(hasInfo.info, None))
+          stmtx match {
+            case node: DefNode => inlineCounts(node.name.Ref) = inlineCount
+            case _ =>
+          }
+          stmtx match {
+            case node @ DefNode(info, name, value) =>
+              netlist(we(WRef(name))) = (value, info)
+            case _ =>
+          }
+          stmtx
+        case other => other
+      }
     }
   }
 
@@ -175,8 +140,17 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
       dontTouches.groupBy(_._1).mapValues(_.map(_._2).toSet).toMap
     }
 
+    val maxInlineCount = state.annotations.collectFirst {
+      case InlineBooleanExpressionsMax(max) => max
+    }.getOrElse(InlineBooleanExpressions.defaultMax)
+
     val modulesx = state.circuit.modules.map { m =>
-      m.mapStmt(onStmt(new Netlist, dontTouchMap.getOrElse(m.name.OfModule, Set.empty[Ref])))
+      val mapMethods = new MapMethods(
+        new Netlist,
+        maxInlineCount,
+        mutable.Map.empty,
+        dontTouchMap.getOrElse(m.name.OfModule, Set.empty[Ref]))
+      m.mapStmt(mapMethods.onStmt(_))
     }
 
     state.copy(circuit = state.circuit.copy(modules = modulesx))
