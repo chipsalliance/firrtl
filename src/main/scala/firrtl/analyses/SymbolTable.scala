@@ -1,9 +1,10 @@
 // See LICENSE for license details.
 
-package firrtl
+package firrtl.analyses
 
 import firrtl.ir._
 import firrtl.passes.MemPortUtils
+import firrtl.{InstanceKind, Kind, WDefInstance}
 
 import scala.collection.mutable
 
@@ -31,23 +32,45 @@ trait SymbolTable {
   def declare(d: Port): Unit = declare(d.name, d.tpe, firrtl.PortKind)
 }
 
-/** Implements the symbol table interface with a single backing store.
-  * Trusts the type annotation on DefInstance nodes instead of re-deriving the type from
-  * the module ports which would require global (cross-module) information.
-  */
-private[firrtl] class LocalSymbolTable  extends SymbolTable {
-  import LocalSymbolTable._
-  def declare(name: String, tpe: Type, kind: Kind): Unit = {
-    assert(!symbols.contains(name), s"Symbol $name already declared: ${symbols(name)}")
-    symbols(name) = Symbol(tpe, kind)
-  }
+/** Trusts the type annotation on DefInstance nodes instead of re-deriving the type from
+  * the module ports which would require global (cross-module) information. */
+private[firrtl] abstract class LocalSymbolTable extends SymbolTable {
   def declareInstance(name: String, module: String): Unit = declare(name, UnknownType, InstanceKind)
   override def declare(d: WDefInstance): Unit = declare(d.name, d.tpe, InstanceKind)
-  private val symbols = mutable.HashMap[String, Symbol]()
-  def getSymbols: Map[String, Symbol] = symbols.toMap
 }
 
-private[firrtl] object LocalSymbolTable { case class Symbol(tpe: Type, kind: Kind) }
+/** Uses a function to derive instance types from module names */
+private[firrtl] abstract class ModuleTypesSymbolTable(moduleTypes: String => Type) extends SymbolTable {
+  def declareInstance(name: String, module: String): Unit = declare(name, moduleTypes(module), InstanceKind)
+}
+
+/** Uses a single buffer. No O(1) access, but deterministic Symbol order. */
+private[firrtl] trait WithSeq extends SymbolTable {
+  private val symbols = mutable.ArrayBuffer[Symbol]()
+  override def declare(name: String, tpe: Type, kind: Kind): Unit = symbols.append(Sym(name, tpe, kind))
+  def getSymbols: Iterable[Symbol] = symbols
+}
+
+/** Uses a mutable map to provide O(1) access to symbols by name. */
+private[firrtl] trait WithMap extends SymbolTable {
+  private val symbols = mutable.HashMap[String, Symbol]()
+  override def declare(name: String, tpe: Type, kind: Kind): Unit = {
+    assert(!symbols.contains(name), s"Symbol $name already declared: ${symbols(name)}")
+    symbols(name) = Sym(name, tpe, kind)
+  }
+  def apply(name: String): Symbol = symbols(name)
+  def size: Int = symbols.size
+}
+
+private case class Sym(name: String, tpe: Type, kind: Kind) extends Symbol
+private[firrtl] trait Symbol { def name: String; def tpe: Type;  def kind: Kind }
+
+/** only remembers the names of symbols */
+private[firrtl] class NamespaceTable  extends LocalSymbolTable {
+  private var names = List[String]()
+  override def declare(name: String, tpe: Type, kind: Kind): Unit = names = name :: names
+  def getNames: Seq[String] = names
+}
 
 /** Provides convenience methods to populate SymbolTables. */
 object SymbolTable {

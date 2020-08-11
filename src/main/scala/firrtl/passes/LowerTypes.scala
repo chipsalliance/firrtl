@@ -2,9 +2,9 @@
 
 package firrtl.passes
 
-import firrtl.analyses.InstanceKeyGraph
+import firrtl.analyses.{InstanceKeyGraph, SymbolTable}
 import firrtl.annotations.{CircuitTarget, MemoryInitAnnotation, MemoryRandomInitAnnotation, ModuleTarget, ReferenceTarget}
-import firrtl.{CircuitForm, CircuitState, DependencyAPIMigration, InstanceKind, Kind, MemKind, PortKind, RenameMap, SymbolTable, Transform, UnknownForm, Utils}
+import firrtl.{CircuitForm, CircuitState, DependencyAPIMigration, InstanceKind, Kind, MemKind, PortKind, RenameMap, Transform, UnknownForm, Utils}
 import firrtl.ir._
 import firrtl.options.Dependency
 import firrtl.stage.TransformManager.TransformDependency

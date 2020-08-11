@@ -1,7 +1,8 @@
 // See LICENSE for license details.
 
-package firrtl
+package firrtl.analysis
 
+import firrtl.analyses._
 import firrtl.ir
 import firrtl.options.Dependency
 import org.scalatest.flatspec.AnyFlatSpec
@@ -35,23 +36,23 @@ class SymbolTableSpec extends AnyFlatSpec {
     val c = firrtl.Parser.parse(src)
     val m = c.modules.find(_.name == "m").get
 
-    val syms = SymbolTable.scanModule(m, new LocalSymbolTable).getSymbols
+    val syms = SymbolTable.scanModule(m, new LocalSymbolTable with WithMap)
     assert(syms.size == 8)
-    assert(syms("clk") == LocalSymbolTable.Symbol(ir.ClockType, firrtl.PortKind))
-    assert(syms("x") == LocalSymbolTable.Symbol(ir.UIntType(ir.IntWidth(1)), firrtl.PortKind))
-    assert(syms("y") == LocalSymbolTable.Symbol(ir.UIntType(ir.IntWidth(3)), firrtl.PortKind))
-    assert(syms("z") == LocalSymbolTable.Symbol(ir.SIntType(ir.IntWidth(1)), firrtl.WireKind))
+    assert(syms("clk").tpe == ir.ClockType && syms("clk").kind == firrtl.PortKind)
+    assert(syms("x").tpe == ir.UIntType(ir.IntWidth(1)) && syms("x").kind == firrtl.PortKind)
+    assert(syms("y").tpe == ir.UIntType(ir.IntWidth(3)) && syms("y").kind == firrtl.PortKind)
+    assert(syms("z").tpe == ir.SIntType(ir.IntWidth(1)) && syms("z").kind == firrtl.WireKind)
     // The expression type which determines the node type is only known after InferTypes.
-    assert(syms("a") == LocalSymbolTable.Symbol(ir.UnknownType, firrtl.NodeKind))
+    assert(syms("a").tpe == ir.UnknownType && syms("a").kind == firrtl.NodeKind)
     // The type of the instance is unknown because we scanned the module before InferTypes and the table
     // uses only local information.
-    assert(syms("i") == LocalSymbolTable.Symbol(ir.UnknownType, firrtl.InstanceKind))
-    assert(syms("r") == LocalSymbolTable.Symbol(ir.SIntType(ir.IntWidth(4)), firrtl.RegKind))
+    assert(syms("i").tpe == ir.UnknownType && syms("i").kind == firrtl.InstanceKind)
+    assert(syms("r").tpe == ir.SIntType(ir.IntWidth(4)) && syms("r").kind == firrtl.RegKind)
     val mType = firrtl.passes.MemPortUtils.memType(
       // only dataType, depth and reader, writer, readwriter properties affect the data type
       ir.DefMemory(ir.NoInfo, "???", ir.UIntType(ir.IntWidth(8)), 32, 10, 10, Seq("r"), Seq(), Seq(), ir.ReadUnderWrite.New)
     )
-    assert(syms("m") == LocalSymbolTable.Symbol(mType, firrtl.MemKind))
+    assert(syms("m") .tpe == mType && syms("m").kind == firrtl.MemKind)
   }
 
   it should "find all declarations in module m after InferTypes" in {
@@ -60,12 +61,35 @@ class SymbolTableSpec extends AnyFlatSpec {
     val inferredC = inferTypesCompiler.execute(firrtl.CircuitState(c, Seq())).circuit
     val m = inferredC.modules.find(_.name == "m").get
 
-    val syms = SymbolTable.scanModule(m, new LocalSymbolTable).getSymbols
-    assert(syms.keys.toSet == Set("clk", "x", "y", "z", "a", "i", "r", "m"))
+    val syms = SymbolTable.scanModule(m, new LocalSymbolTable with WithMap)
     // The node type is now known
-    assert(syms("a") == LocalSymbolTable.Symbol(ir.UIntType(ir.IntWidth(2)), firrtl.NodeKind))
+    assert(syms("a").tpe == ir.UIntType(ir.IntWidth(2)) && syms("a").kind == firrtl.NodeKind)
     // The type of the instance is now known because it has been filled in by InferTypes.
     val iType = ir.BundleType(Seq(ir.Field("x", ir.Flip, ir.UIntType(ir.IntWidth(2)))))
-    assert(syms("i") == LocalSymbolTable.Symbol(iType, firrtl.InstanceKind))
+    assert(syms("i").tpe == iType && syms("i").kind == firrtl.InstanceKind)
+  }
+
+  behavior of "WithSeq"
+
+  it should "preserve declaration order" in {
+    val c = firrtl.Parser.parse(src)
+    val m = c.modules.find(_.name == "m").get
+
+    val syms = SymbolTable.scanModule(m, new LocalSymbolTable with WithSeq)
+    assert(syms.getSymbols.map(_.name) == Seq("clk", "x", "y", "z", "a", "i", "r", "m"))
+  }
+
+  behavior of "ModuleTypesSymbolTable"
+
+  it should "derive the module type from the module types map" in {
+    val c = firrtl.Parser.parse(src)
+    val m = c.modules.find(_.name == "m").get
+
+    val childType = ir.BundleType(Seq(ir.Field("x", ir.Flip, ir.UIntType(ir.IntWidth(2)))))
+    val moduleTypes = Map("child" -> childType)
+
+    val syms = SymbolTable.scanModule(m, new ModuleTypesSymbolTable(moduleTypes) with WithMap)
+    assert(syms.size == 8)
+    assert(syms("i").tpe == childType && syms("i").kind == firrtl.InstanceKind)
   }
 }
