@@ -68,4 +68,55 @@ class RemoveBehavioralMemAccessSpec extends FirrtlFlatSpec {
     val result = lowerMems(input)
     (result.serialize) should be (parse(check).serialize)
   }
+
+  it should "lower a sequential read memory with a simple readwrite" in {
+    val input =
+      """circuit test :
+        |  module test :
+        |    input clk : Clock
+        |    input addr : UInt<1>
+        |    input wen : UInt<1>
+        |    input wdata : UInt<8>[2]
+        |    mem m :
+        |      data-type => UInt<8>[2]
+        |      depth => 256
+        |      read-latency => 1
+        |      write-latency => 1
+        |      read-under-write => undefined
+        |    memaccess rwp = addr, clk
+        |    node rd = m(rwp)
+        |    when wen:
+        |      m(rwp) <= wdata
+        |""".stripMargin
+    val check =
+      """circuit test :
+        |  module test :
+        |    input clk : Clock
+        |    input addr : UInt<1>
+        |    input wen : UInt<1>
+        |    input wdata : UInt<8>[2]
+        |    mem m :
+        |      data-type => UInt<8>[2]
+        |      depth => 256
+        |      read-latency => 1
+        |      write-latency => 1
+        |      readwriter => rwp
+        |      read-under-write => undefined
+        |    m.rwp.clk <= clk
+        |    m.rwp.en <= UInt<1>(1)
+        |    m.rwp.addr <= addr
+        |    m.rwp.wmask is invalid
+        |    m.rwp.wdata is invalid
+        |    m.rwp.wmode <= UInt<1>(0)
+        |    node rd = m.rwp.rdata
+        |    when wen:
+        |      m.rwp.wmode <= UInt<1>(1)
+        |      m.rwp.wdata <= wdata
+        |      m.rwp.wmask[0] <= UInt<1>(1)
+        |      m.rwp.wmask[1] <= UInt<1>(1)
+        |""".stripMargin
+
+    val result = lowerMems(input)
+    (result.serialize) should be (parse(check).serialize)
+  }
 }
