@@ -24,7 +24,7 @@ import java.io.PrintWriter
   *
   * Any annotations written to files will be deleted.
   */
-@deprecated("Annotations that mixin the HowToSerialize trait are automatically serialized by stages." +
+@deprecated("Annotations that mixin the CustomFileEmission trait are automatically serialized by stages." +
               "This will be removed in FIRRTL 1.5", "FIRRTL 1.4.0")
 class WriteEmitted extends Phase {
 
