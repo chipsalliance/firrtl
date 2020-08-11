@@ -107,12 +107,12 @@ sealed trait EmittedAnnotation[T <: EmittedComponent] extends NoTargetAnnotation
 }
 sealed trait EmittedCircuitAnnotation[T <: EmittedCircuit] extends EmittedAnnotation[T] {
 
-  override def toBytes = Some(new StringBuilder(value.value).map(_.toByte))
+  override def toBytes = Some(value.value.getBytes)
 
 }
 sealed trait EmittedModuleAnnotation[T <: EmittedModule] extends EmittedAnnotation[T] {
 
-  override def toBytes = Some(new StringBuilder(value.value).map(_.toByte))
+  override def toBytes = Some(value.value.getBytes)
 
 }
 
