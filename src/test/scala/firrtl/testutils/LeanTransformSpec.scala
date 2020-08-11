@@ -1,6 +1,6 @@
 package firrtl.testutils
 
-import firrtl.{AnnotationSeq, CircuitState, ir}
+import firrtl.{AnnotationSeq, CircuitState, EmitCircuitAnnotation, ir}
 import firrtl.options.Dependency
 import firrtl.passes.RemoveEmpty
 import firrtl.stage.TransformManager.TransformDependency
@@ -13,12 +13,13 @@ class LowFirrtlTransformSpec extends LeanTransformSpec(Seq(Dependency[firrtl.Low
 /** The new cool kid on the block, creates a custom compiler for your transform. */
 class LeanTransformSpec(protected val transforms: Seq[TransformDependency]) extends AnyFlatSpec with FirrtlMatchers with LazyLogging {
   private val compiler = new firrtl.stage.transforms.Compiler(transforms)
+  private val emitterAnnos = LeanTransformSpec.deriveEmitCircuitAnnotations(transforms)
 
   protected def compile(src: String): CircuitState = compile(src, Seq())
   protected def compile(src: String, annos: AnnotationSeq): CircuitState = compile(firrtl.Parser.parse(src), annos)
   protected def compile(c: ir.Circuit): CircuitState = compile(c, Seq())
   protected def compile(c: ir.Circuit, annos: AnnotationSeq): CircuitState =
-    compiler.transform(CircuitState(c, annos))
+    compiler.transform(CircuitState(c, emitterAnnos ++ annos))
   protected def execute(input: String, check: String): CircuitState = execute(input, check ,Seq())
   protected def execute(input: String, check: String, inAnnos: AnnotationSeq): CircuitState = {
     val finalState = compiler.transform(CircuitState(parse(input), inAnnos))
@@ -28,6 +29,13 @@ class LeanTransformSpec(protected val transforms: Seq[TransformDependency]) exte
     logger.debug(expected)
     actual should be (expected)
     finalState
+  }
+}
+
+private object LeanTransformSpec {
+  private def deriveEmitCircuitAnnotations(transforms: Iterable[TransformDependency]): AnnotationSeq = {
+    val emitters = transforms.map(_.getObject()).collect{ case e: firrtl.Emitter => e }
+    emitters.map(e => EmitCircuitAnnotation(e.getClass)).toSeq
   }
 }
 
