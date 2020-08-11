@@ -82,11 +82,9 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
     }
   }
 
-  private class MapMethods(
-    netlist: Netlist,
-    maxInlineCount: Int,
-    inlineCounts: mutable.Map[Ref, Int],
-    dontTouches: Set[Ref]) {
+  private class MapMethods(maxInlineCount: Int, dontTouches: Set[Ref]) {
+    val netlist: Netlist = new Netlist
+    val inlineCounts = mutable.Map.empty[Ref, Int]
     var inlineCount: Int = 1
 
     def onExpr(info: Info, outerExpr: Option[Expression])(expr: Expression): Expression = {
@@ -145,11 +143,7 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
     }.getOrElse(InlineBooleanExpressions.defaultMax)
 
     val modulesx = state.circuit.modules.map { m =>
-      val mapMethods = new MapMethods(
-        new Netlist,
-        maxInlineCount,
-        mutable.Map.empty,
-        dontTouchMap.getOrElse(m.name.OfModule, Set.empty[Ref]))
+      val mapMethods = new MapMethods(maxInlineCount, dontTouchMap.getOrElse(m.name.OfModule, Set.empty[Ref]))
       m.mapStmt(mapMethods.onStmt(_))
     }
 

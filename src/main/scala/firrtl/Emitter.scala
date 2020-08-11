@@ -262,7 +262,18 @@ class VerilogEmitter extends SeqTransform with Emitter {
     case ClockType | AsyncResetType => ""
     case _ => throwInternalError(s"trying to write unsupported type in the Verilog Emitter: $tpe")
   }
-  def emit(x: Any)(implicit w: Writer): Unit = { emit(x, 0) }
+  private def getLeadingTabs(x: Any): String = {
+    x match {
+      case seq: Seq[_] =>
+        val head = seq.takeWhile(_ == tab).mkString
+        val tail = seq.dropWhile(_ == tab).lift(0).map(getLeadingTabs).getOrElse(tab)
+        head + tail
+      case _ => tab
+    }
+  }
+  def emit(x: Any)(implicit w: Writer): Unit = {
+    emitCol(x, 0, getLeadingTabs(x), 0)
+  }
   private def emitCast(e: Expression): Any = e.tpe match {
     case (t: UIntType) => e
     case (t: SIntType) => Seq("$signed(",e,")")
@@ -271,22 +282,23 @@ class VerilogEmitter extends SeqTransform with Emitter {
     case _ => throwInternalError(s"unrecognized cast: $e")
   }
   def emit(x: Any, top: Int)(implicit w: Writer): Unit = {
-    emitCol(x, top, 2)
+    emitCol(x, top, "", 0)
   }
   private val maxCol = 120
-  def emitCol(x: Any, top: Int, colNum: Int)(implicit w: Writer): Int = {
+  private def emitCol(x: Any, top: Int, tabs: String, colNum: Int)(implicit w: Writer): Int = {
     def writeCol(contents: String): Int = {
       if ((contents.size + colNum) > maxCol) {
-        w write "\n    "
+        w write "\n"
+        w write tabs
         w write contents
-        4 + contents.size
+        tabs.size + contents.size
       } else {
         w write contents
         colNum + contents.size
       }
     }
     x match {
-      case (e: DoPrim) => emitCol(op_stream(e), top + 1, colNum)
+      case (e: DoPrim) => emitCol(op_stream(e), top + 1, tabs, colNum)
       case (e: Mux) => {
         if (e.tpe == ClockType) {
           throw EmitterException("Cannot emit clock muxes directly")
@@ -294,9 +306,9 @@ class VerilogEmitter extends SeqTransform with Emitter {
         if (e.tpe == AsyncResetType) {
           throw EmitterException("Cannot emit async reset muxes directly")
         }
-        emitCol(Seq(e.cond," ? ",emitCast(e.tval)," : ",emitCast(e.fval)), top + 1, colNum)
+        emitCol(Seq(e.cond," ? ",emitCast(e.tval)," : ",emitCast(e.fval)), top + 1, tabs, colNum)
       }
-      case (e: ValidIf) => emitCol(Seq(emitCast(e.value)), top + 1, colNum)
+      case (e: ValidIf) => emitCol(Seq(emitCast(e.value)), top + 1, tabs, colNum)
       case (e: WRef) => writeCol(e.serialize)
       case (e: WSubField) => writeCol(LowerTypes.loweredName(e))
       case (e: WSubAccess) => writeCol(s"${LowerTypes.loweredName(e.expr)}[${LowerTypes.loweredName(e.index)}]")
@@ -305,7 +317,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case (e: VRandom) => writeCol(s"{${e.nWords}{`RANDOM}}")
       case (t: GroundType) => writeCol(stringify(t))
       case (t: VectorType) =>
-        emitCol(t.tpe, top + 1, colNum)
+        emitCol(t.tpe, top + 1, tabs, colNum)
         writeCol(s"[${t.size - 1}:0]")
       case (s: String) => writeCol(s)
       case (i: Int) => writeCol(i.toString)
@@ -324,7 +336,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       }
       case (s: Seq[Any]) =>
         val nextColNum = s.foldLeft(colNum) {
-          case (colNum, e) => emitCol(e, top + 1, colNum)
+          case (colNum, e) => emitCol(e, top + 1, tabs, colNum)
         }
         if (top == 0) {
           w write "\n"
@@ -752,7 +764,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     }
 
     def regUpdate(r: Expression, clk: Expression, reset: Expression, init: Expression) = {
-      def addUpdate(info: Info, expr: Expression, tabs: String): Seq[Seq[Any]] = expr match {
+      def addUpdate(info: Info, expr: Expression, tabs: Seq[String]): Seq[Seq[Any]] = expr match {
         case m: Mux =>
           if (m.tpe == ClockType) throw EmitterException("Cannot emit clock muxes directly")
           if (m.tpe == AsyncResetType) throw EmitterException("Cannot emit async reset muxes directly")
@@ -762,8 +774,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
           lazy val _else   = Seq(tabs, "end else begin")
           lazy val _ifNot  = Seq(tabs, "if (!(", m.cond, ")) begin", eninfo)
           lazy val _end    = Seq(tabs, "end")
-          lazy val _true   = addUpdate(tinfo, m.tval, tabs + tab)
-          lazy val _false  = addUpdate(finfo, m.fval, tabs + tab)
+          lazy val _true   = addUpdate(tinfo, m.tval, tab +: tabs)
+          lazy val _false  = addUpdate(finfo, m.fval, tab +: tabs)
           lazy val _elseIfFalse = {
             val _falsex = addUpdate(finfo, m.fval, tabs) // _false, but without an additional tab
             Seq(tabs, "end else ", _falsex.head.tail) +: _falsex.tail
@@ -792,13 +804,13 @@ class VerilogEmitter extends SeqTransform with Emitter {
       }
       if (weq(init, r)) { // Synchronous Reset
         val InfoExpr(info, e) = netlist(r)
-        noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]()) ++= addUpdate(info, e, "")
+        noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]()) ++= addUpdate(info, e, Seq.empty)
       } else { // Asynchronous Reset
         assert(reset.tpe == AsyncResetType, "Error! Synchronous reset should have been removed!")
         val tv = init
         val InfoExpr(finfo, fv) = netlist(r)
         // TODO add register info argument and build a MultiInfo to pass
-        asyncResetAlwaysBlocks += ((clk, reset, addUpdate(NoInfo, Mux(reset, tv, fv, mux_type_and_widths(tv, fv)), "")))
+        asyncResetAlwaysBlocks += ((clk, reset, addUpdate(NoInfo, Mux(reset, tv, fv, mux_type_and_widths(tv, fv)), Seq.empty)))
       }
     }
 
@@ -1284,11 +1296,14 @@ class VerilogEmitter extends SeqTransform with Emitter {
   }
 
   override def execute(state: CircuitState): CircuitState = {
+    val writerToString = (writer: java.io.StringWriter) =>
+      writer.toString.replaceAll("""(?m) +$""", "") // trim trailing whitespace
+
     val newAnnos = state.annotations.flatMap {
       case EmitCircuitAnnotation(a) if this.getClass == a =>
         val writer = new java.io.StringWriter
         emit(state, writer)
-        Seq(EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit(state.circuit.main, writer.toString, outputSuffix)))
+        Seq(EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit(state.circuit.main, writerToString(writer), outputSuffix)))
 
       case EmitAllModulesAnnotation(a) if this.getClass == a =>
         val cs = runTransforms(state)
@@ -1300,12 +1315,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
             val writer = new java.io.StringWriter
             val renderer = new VerilogRender(d, pds, module, moduleMap, cs.circuit.main, emissionOptions)(writer)
             renderer.emit_verilog()
-            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString, outputSuffix)))
+            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writerToString(writer), outputSuffix)))
           case module: Module =>
             val writer = new java.io.StringWriter
             val renderer = new VerilogRender(module, moduleMap, cs.circuit.main, emissionOptions)(writer)
             renderer.emit_verilog()
-            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writer.toString, outputSuffix)))
+            Some(EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writerToString(writer), outputSuffix)))
           case _ => None
         }
       case _ => Seq()
