@@ -112,8 +112,13 @@ object RemoveBehavioralMemAccess extends Transform with DependencyAPIMigration {
     def inv(sf: String) = IsInvalid(port.info, memPortField(mem, port.name, sf))
     val defaultEnVal = if (port.isWriteOnly) Utils.zero else port.en
     val base = Seq(conn("clk", port.clock), conn("en", defaultEnVal), conn("addr", port.addr))
-    val wsignals = if (port.isReadwrite) Seq(inv("wmask"), inv("wdata"), conn("wmode", Utils.zero)) else Seq(inv("mask"), conn("data", Utils.zero))
+    val wsignals = if (port.isReadwrite) Seq(inv("wmask"), inv("wdata"), conn("wmode", Utils.zero)) else Seq(inv("mask"), inv("data"))
     if (port.isReadOnly) base else base ++ wsignals
+  }
+
+  private def asMask(tpe: Type): Type = tpe match {
+    case t: GroundType => UIntType(IntWidth(1))
+    case t => t.map(asMask)
   }
 
   private def writeConns(info: Info, mem: DefMemory, port: PortMetadata, data: Expression, mask: Option[Expression] = None): Seq[Statement] = {
@@ -121,7 +126,9 @@ object RemoveBehavioralMemAccess extends Transform with DependencyAPIMigration {
     val (wen, wdata, wmask) = if (port.isReadwrite) ("wmode", "wdata", "wmask") else ("en", "data", "mask")
     val maskConns = mask match {
       case Some(m) => conn(wmask, m)
-      case None => EmptyStmt // TODO: gen all-one mask
+      case None =>
+        val leaves = Utils.create_exps(memPortField(mem, port.name, wmask).copy(tpe = mem.dataType.map(asMask)))
+        Block(leaves.map(leaf => Connect(port.info ++ info, leaf, Utils.one)))
     }
     Seq(conn(wen, port.en), conn(wdata, data), maskConns)
   }
@@ -139,7 +146,7 @@ object RemoveBehavioralMemAccess extends Transform with DependencyAPIMigration {
       )
       Block(newMem +: inferredPorts.flatMap(p => defaultConns(mem, p)).toSeq)
     case ma: DefMemAccess => EmptyStmt
-    case Connect(info, SubAccess(mem: Reference, acc: Reference, _, _), wdata) if memInfo.isMem(mem) =>
+    case Connect(info, ApplyMemAccess(mem: Reference, acc: Reference, _, _), wdata) if memInfo.isMem(mem) =>
       val wdataFinal = wdata.map(replaceExpr(memInfo))
       Block(writeConns(info, memInfo.getMem(mem), memInfo.getPort(mem.name, acc.name), wdataFinal))
     case MemMaskedWrite(info, mem: Reference, acc: Reference, wdata, mask) =>
