@@ -1993,7 +1993,8 @@ A FIRRTL circuit is defined to be a valid MidFIRRTL circuit if it obeys the foll
 \item All widths must be explicitly defined.
 \item The conditional statement is not used.
 \item The dynamic sub-access expression is not used.
-\item The inferred memory port statements are not used.
+\item The behavioral memory statements are not used.
+\item The apply memory access expression is not used.
 \item All components are connected to exactly once.
 \end{itemize}
 
@@ -2003,7 +2004,8 @@ A FIRRTL circuit is defined to be a valid LoFIRRTL circuit if it obeys the follo
 \begin{itemize}
 \item All widths must be explicitly defined.
 \item The conditional statement is not used.
-\item The inferred memory port statements are not used.
+\item The behavioral memory statements are not used.
+\item The apply memory access expression is not used.
 \item All components are connected to exactly once.
 \item All components must be declared with a ground type.
 \item The partial connect statement is not used.
