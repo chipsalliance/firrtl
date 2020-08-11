@@ -1,4 +1,4 @@
-// See LICENSE for liAcense details.
+// See LICENSE for license details.
 
 grammar FIRRTL;
 
