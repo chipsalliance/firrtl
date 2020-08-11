@@ -134,7 +134,7 @@ object Serializer {
     case DefMemAccess(info, name, addr, clock, en) =>
       b ++= "memaccess "; b ++= name; b ++= " = "; s(addr); b ++= ", "; s(clock); b ++= ", "; s(en)
     case MemMaskedWrite(info, mem, memaccess, data, mask) =>
-      b ++= "maskedwrite "; s(mem); b ++= "["; s(memaccess); b ++= "], <= "; s(data); b ++= ", "; s(mask)
+      b ++= "memwrite "; s(mem); b ++= "("; s(memaccess); b ++= "), <= "; s(data); b ++= ", "; s(mask)
 
     // WIR
     case firrtl.CDefMemory(info, name, tpe, size, seq, readUnderWrite) =>
