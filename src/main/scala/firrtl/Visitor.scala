@@ -327,7 +327,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
             DefMemAccess(info, ctx.id(0).getText, visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), visitExp(ctx_exp(2)))
           else
             DefMemAccess(info, ctx.id(0).getText, visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), UIntLiteral(1))
-        case "maskedwrite" =>
+        case "memwrite" =>
           MemMaskedWrite(info, visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), visitExp(ctx_exp(2)), visitExp(ctx_exp(3)))
         case "inst" => DefInstance(info, ctx.id(0).getText, ctx.id(1).getText)
         case "node" => DefNode(info, ctx.id(0).getText, visitExp(ctx_exp(0)))
