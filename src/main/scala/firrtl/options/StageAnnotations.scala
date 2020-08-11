@@ -49,10 +49,10 @@ trait CustomFileEmission { this: Annotation =>
     *
     * If you only need to serialize a string, you can use the `getBytes` method:
     * {{{
-    *  def toBytes: Option[Iterable[Byte]] = Some(myString.getBytes)
+    *  def getBytes: Iterable[Byte] = myString.getBytes
     * }}}
     */
-  def toBytes: Option[Iterable[Byte]]
+  def getBytes: Iterable[Byte]
 
   /** Optionally, a sequence of annotations that will replace this annotation in the output annotation file.
     *

@@ -36,13 +36,13 @@ class WriteOutputAnnotations extends Phase {
         val filename = a.filename(annotations)
         val canonical = filename.getCanonicalPath()
 
-        (a.toBytes, filesWritten.get(canonical)) match {
-          case (Some(x), None) =>
+        filesWritten.get(canonical) match {
+          case None =>
             val w = new BufferedWriter(new FileWriter(filename))
-            x.foreach( w.write(_) )
+            a.getBytes.foreach( w.write(_) )
             w.close()
             filesWritten(canonical) = a
-          case (Some(_), Some(first)) =>
+          case Some(first) =>
             val msg =
               s"""|Multiple CustomFileEmission annotations would be serialized to the same file, '$canonical'
                   |  - first writer:
@@ -53,7 +53,6 @@ class WriteOutputAnnotations extends Phase {
                   |      trimmed serialization: ${a.serialize.take(80)}
                   |""".stripMargin
             throw new PhaseException(msg)
-          case (None, _) =>
         }
         a.replacements(filename)
       case a => Some(a)

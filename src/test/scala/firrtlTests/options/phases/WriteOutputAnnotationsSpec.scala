@@ -156,7 +156,7 @@ private object WriteOutputAnnotationsSpec {
 
     override protected def suffix: Option[String] = Some(".Emission")
 
-    override def toBytes: Option[Iterable[Byte]] = Some(value.getBytes)
+    override def getBytes: Iterable[Byte] = value.getBytes
 
     override def replacements(file: File): AnnotationSeq = Seq(Replacement(file.toString))
 
