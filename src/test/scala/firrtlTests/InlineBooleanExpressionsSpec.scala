@@ -91,7 +91,7 @@ class InlineBooleanExpressionsSpec extends FirrtlFlatSpec {
     firrtlEquivalenceTest(input, Seq(new InlineBooleanExpressions))
   }
 
-  it should "only inline ops with greater precedence" in {
+  it should "inline boolean DoPrims" in {
     val input =
       """circuit Top :
         |  module Top :
@@ -132,7 +132,7 @@ class InlineBooleanExpressionsSpec extends FirrtlFlatSpec {
     firrtlEquivalenceTest(input, Seq(new InlineBooleanExpressions))
   }
 
-  it should "only inline ops with equal precedence if it is the left operand" in {
+  it should "inline more boolean DoPrims" in {
     val input =
       """circuit Top :
         |  module Top :
@@ -166,51 +166,77 @@ class InlineBooleanExpressionsSpec extends FirrtlFlatSpec {
         |    node _d = geq(gt(leq(lt(x1, x2), x2), x2), x2)
         |
         |    node _e = lt(x1, x2)
-        |    node _f = leq(x1, _e)
-        |    node _g = gt(x1, _f)
-        |    node _h = geq(x1, _g)
+        |    node _f = leq(x1, lt(x1, x2))
+        |    node _g = gt(x1, leq(x1, lt(x1, x2)))
+        |    node _h = geq(x1, gt(x1, leq(x1, lt(x1, x2))))
         |
         |    outA <= geq(gt(leq(lt(x1, x2), x2), x2), x2)
-        |    outB <= geq(x1, _g)""".stripMargin
+        |    outB <= geq(x1, gt(x1, leq(x1, lt(x1, x2))))""".stripMargin
     val result = exec(input)
     (result) should be (parse(check).serialize)
     firrtlEquivalenceTest(input, Seq(new InlineBooleanExpressions))
   }
 
-  it should "only inline nested mux in false branch" in {
+  it should "limit the number of inlines" in {
     val input =
-      """circuit Top :
-        |  module Top :
-        |    output out : UInt<1>
-        |    node c = UInt<1>(0)
-        |    node t = UInt<1>(1)
-        |    node f = UInt<1>(1)
-        |
-        |    node _a = mux(c, t, f)
-        |    node _b = mux(c, t, _a)
-        |    node _c = mux(c, t, _b)
-        |    out <= _c
-        |
-        |    node _d = mux(c, _c, f)
-        |    node _e = mux(_c, t, f)""".stripMargin
+      s"""circuit Top :
+         |  module Top :
+         |    input c_0: UInt<1>
+         |    input c_1: UInt<1>
+         |    input c_2: UInt<1>
+         |    input c_3: UInt<1>
+         |    input c_4: UInt<1>
+         |    input c_5: UInt<1>
+         |    input c_6: UInt<1>
+         |    output out : UInt<1>
+         |
+         |    node _1 = or(c_0, c_1)
+         |    node _2 = or(_1, c_2)
+         |    node _3 = or(_2, c_3)
+         |    node _4 = or(_3, c_4)
+         |    node _5 = or(_4, c_5)
+         |    node _6 = or(_5, c_6)
+         |
+         |    out <= _6""".stripMargin
     val check =
-      """circuit Top :
-        |  module Top :
-        |    output out : UInt<1>
-        |    node c = UInt<1>(0)
-        |    node t = UInt<1>(1)
-        |    node f = UInt<1>(1)
-        |
-        |    node _a = mux(c, t, f)
-        |    node _b = mux(c, t, mux(c, t, f))
-        |    node _c = mux(c, t, mux(c, t, mux(c, t, f)))
-        |
-        |    node _d = mux(c, _c, f)
-        |    node _e = mux(_c, t, f)
-        |
-        |    out <= mux(c, t, mux(c, t, mux(c, t, f)))""".stripMargin
-    val result = exec(input)
+      s"""circuit Top :
+         |  module Top :
+         |    input c_0: UInt<1>
+         |    input c_1: UInt<1>
+         |    input c_2: UInt<1>
+         |    input c_3: UInt<1>
+         |    input c_4: UInt<1>
+         |    input c_5: UInt<1>
+         |    input c_6: UInt<1>
+         |    output out : UInt<1>
+         |
+         |    node _1 = or(c_0, c_1)
+         |    node _2 = or(or(c_0, c_1), c_2)
+         |    node _3 = or(or(or(c_0, c_1), c_2), c_3)
+         |    node _4 = or(_3, c_4)
+         |    node _5 = or(or(_3, c_4), c_5)
+         |    node _6 = or(or(or(_3, c_4), c_5), c_6)
+         |
+         |    out <= or(or(or(_3, c_4), c_5), c_6)""".stripMargin
+    val result = exec(input, Seq(InlineBooleanExpressionsMax(3)))
     (result) should be (parse(check).serialize)
+    firrtlEquivalenceTest(input, Seq(new InlineBooleanExpressions))
+  }
+
+  it should "be equivalent" in {
+    val input =
+      """circuit InlineBooleanExpressionsEquivalenceTest :
+        |  module InlineBooleanExpressionsEquivalenceTest :
+        |    input in : UInt<1>[6]
+        |    output out : UInt<1>
+        |
+        |    node _a = or(in[0], in[1])
+        |    node _b = and(in[2], _a)
+        |    node _c = eq(in[3], _b)
+        |    node _d = lt(in[4], _c)
+        |    node _e = eq(in[5], _d)
+        |    node _f = head(_e, 1)
+        |    out <= _f""".stripMargin
     firrtlEquivalenceTest(input, Seq(new InlineBooleanExpressions))
   }
 }

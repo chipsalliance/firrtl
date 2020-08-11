@@ -358,17 +358,19 @@ class VerilogEmitter extends SeqTransform with Emitter {
    // reference is actually unsigned in the emitted Verilog. Thus we must cast refs as necessary
    // to ensure Verilog operations are signed.
    def op_stream(doprim: DoPrim): Seq[Any] = {
-     // Cast to SInt, don't cast multiple times
-     val needsParens = doprim.op match {
-       case Shl | Cat | Cvt | AsUInt | AsSInt | AsClock | AsAsyncReset => (_: Expression, _: Boolean) => false
-       case _ => (e: Expression, isFirst: Boolean) => e match {
-         case DoPrim(Shl | Cat | AsUInt | AsSInt | AsClock | AsAsyncReset, _, _, _) => false
+     def needsParens(e: Expression, isFirst: Boolean): Boolean = doprim.op match {
+       case Shl | Cat | Cvt | AsUInt | AsSInt | AsClock | AsAsyncReset => false
+       case _ => e match {
+         case DoPrim(Shl | Cat, _, _, _) => false
+         case DoPrim(AsUInt | AsSInt | AsClock | AsAsyncReset, Seq(arg), _, _) => needsParens(arg, isFirst)
          case DoPrim(op, _, _, _) =>
-           VerilogEmitter.precedenceGt(op, doprim.op) || (VerilogEmitter.precedenceGeq(op, doprim.op) && isFirst)
+           VerilogEmitter.precedenceGt(doprim.op, op) || (VerilogEmitter.precedenceGeq(doprim.op, op) && isFirst)
          case _: Mux => true
          case _ => false
        }
      }
+
+     // Cast to SInt, don't cast multiple times
      def doCast(e: Expression): Any = e match {
        case DoPrim(AsSInt, Seq(arg), _,_) => doCast(arg)
        case slit: SIntLiteral             => slit

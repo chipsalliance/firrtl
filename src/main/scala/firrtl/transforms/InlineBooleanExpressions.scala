@@ -96,7 +96,7 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
           netlist.get(we(ref)) match {
             case Some((refExpr, refInfo)) if sameFileAndLineInfo(info, refInfo) =>
               val inlineNum = inlineCounts.getOrElse(refKey, 1)
-              if (!outerExpr.isDefined || canInline(outerExpr.get, ref, refExpr) && (inlineNum + inlineCount) < maxInlineCount) {
+              if (!outerExpr.isDefined || canInline(outerExpr.get, ref, refExpr) && (inlineNum + inlineCount) <= maxInlineCount) {
                 inlineCount += inlineNum
                 refExpr
               } else {
