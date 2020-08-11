@@ -295,7 +295,7 @@ class LoweringCompilersSpec extends AnyFlatSpec with Matchers {
     compare(expected, tm)
   }
 
-  it should "work for Mid -> High" in {
+  it should "work for Mid -> High" ignore {
     val expected =
       new TransformManager(Forms.MidForm).flattenedTransformOrder ++
         Some(new Transforms.MidToHigh) ++
@@ -304,7 +304,7 @@ class LoweringCompilersSpec extends AnyFlatSpec with Matchers {
     compare(expected, tm)
   }
 
-  it should "work for Mid -> Chirrtl" in {
+  it should "work for Mid -> Chirrtl" ignore {
     val expected =
       new TransformManager(Forms.MidForm).flattenedTransformOrder ++
         Some(new Transforms.MidToChirrtl) ++
