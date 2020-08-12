@@ -3,7 +3,7 @@
 package firrtl.transforms
 
 import firrtl._
-import firrtl.analyses.InstanceGraph
+import firrtl.analyses.InstanceKeyGraph
 import firrtl.Mappers._
 
 import firrtl.annotations.{
@@ -141,17 +141,21 @@ private class RenameDataStructure(
   val namespaces: mutable.HashMap[CompleteTarget, Namespace] =
     mutable.HashMap(CircuitTarget(circuit.main) -> Namespace(circuit))
 
+  /** Wraps a HashMap to provide better error messages when accessing a non-existing element  */
+  class InstanceHashMap {
+    type Key = ReferenceTarget
+    type Value = Either[ReferenceTarget, InstanceTarget]
+    private val m = mutable.HashMap[Key, Value]()
+    def apply(key: ReferenceTarget):  Value = m.getOrElse(key, {
+      throw new FirrtlUserException(
+        s"""|Reference target '${key.serialize}' did not exist in mapping of reference targets to insts/mems.
+            |    This is indicative of a circuit that has not been run through LowerTypes.""".stripMargin)
+    })
+    def update(key: Key, value: Value): Unit = m.update(key, value)
+  }
+
   /** A mapping of a reference to either an instance or a memory (encoded as a [[ReferenceTarget]] */
-  val instanceMap: mutable.HashMap[ReferenceTarget, Either[ReferenceTarget, InstanceTarget]] =
-    new mutable.HashMap[ReferenceTarget, Either[ReferenceTarget, InstanceTarget]] {
-      override def apply(a: ReferenceTarget) = try {
-        super.apply(a)
-      } catch {
-        case t: NoSuchElementException => throw new FirrtlUserException(
-          s"""|Reference target '${a.serialize}' did not exist in mapping of reference targets to insts/mems.
-              |    This is indicative of a circuit that has not been run through LowerTypes.""".stripMargin, t)
-      }
-    }
+  val instanceMap: InstanceHashMap = new InstanceHashMap
 
   /** Return true if a target should be skipped based on allow and block parameters */
   def skip(a: Target): Boolean = block(a) || !allow(a)
@@ -418,7 +422,7 @@ abstract class ManipulateNames[A <: ManipulateNames[_] : ClassTag] extends Trans
          * roots ensures that the rename map is safe for parents to blindly consult. Store this in mapping of old module
          * target to new module to allow the modules to be put in the old order.
          */
-        val modulesx: Map[ModuleTarget, ir.DefModule] = new InstanceGraph(c).moduleOrder.reverse
+        val modulesx: Map[ModuleTarget, ir.DefModule] = InstanceKeyGraph(c).moduleOrder.reverse
           .map(m => t.module(m.name) -> onModule(m, r, t))
           .toMap
 
@@ -432,14 +436,24 @@ abstract class ManipulateNames[A <: ManipulateNames[_] : ClassTag] extends Trans
   def execute(state: CircuitState): CircuitState = {
 
     val block = state.annotations.collect {
-      case ManipulateNamesBlocklistAnnotation(targetSeq, _: Dependency[A]) => targetSeq
+      case ManipulateNamesBlocklistAnnotation(targetSeq, t) => t.getObject match {
+        case _: A => targetSeq
+        case _    => Nil
+      }
     }.flatten.flatten.toSet
 
-    val allow = state.annotations.collect {
-      case ManipulateNamesAllowlistAnnotation(targetSeq, _: Dependency[A]) => targetSeq
-    } match {
-      case Nil => (a: Target) => true
-      case a   => a.flatten.flatten.toSet
+    val allow = {
+      val allowx = state.annotations.collect {
+         case ManipulateNamesAllowlistAnnotation(targetSeq, t) => t.getObject match {
+           case _: A => targetSeq
+           case _    => Nil
+         }
+      }.flatten.flatten
+
+      allowx match {
+        case Nil => (a: Target) => true
+        case a   => a.toSet
+      }
     }
 
     val renames = RenameMap()
@@ -447,11 +461,18 @@ abstract class ManipulateNames[A <: ManipulateNames[_] : ClassTag] extends Trans
 
     val annotationsx = state.annotations.flatMap {
       /* Consume blocklist annotations */
-      case ManipulateNamesBlocklistAnnotation(_, _: Dependency[A]) => None
-      /* Convert allowlist annotations to result annotations */
-      case ManipulateNamesAllowlistAnnotation(a, t: Dependency[A]) => (a, a.map(_.map(renames(_)).flatten)) match {
-        case (a, b) => Some(ManipulateNamesAllowlistResultAnnotation(b, t, a))
+      case foo@ ManipulateNamesBlocklistAnnotation(_, t) => t.getObject match {
+        case _: A => None
+        case _    => Some(foo)
       }
+      /* Convert allowlist annotations to result annotations */
+      case foo@ ManipulateNamesAllowlistAnnotation(a, t) =>
+        t.getObject match {
+          case _: A => (a, a.map(_.map(renames(_)).flatten)) match {
+            case (a, b) => Some(ManipulateNamesAllowlistResultAnnotation(b, t, a))
+          }
+          case _  => Some(foo)
+        }
       case a => Some(a)
     }
 

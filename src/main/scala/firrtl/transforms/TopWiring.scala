@@ -4,10 +4,12 @@ package TopWiring
 
 import firrtl._
 import firrtl.ir._
-import firrtl.passes.{InferTypes, ResolveKinds, ResolveFlows, ExpandConnects}
+import firrtl.passes.{InferTypes, LowerTypes, ResolveKinds, ResolveFlows, ExpandConnects}
 import firrtl.annotations._
 import firrtl.Mappers._
+import firrtl.analyses.InstanceKeyGraph
 import firrtl.stage.Forms
+import firrtl.options.Dependency
 
 import collection.mutable
 
@@ -33,7 +35,7 @@ class TopWiringTransform extends Transform with DependencyAPIMigration {
 
   override def prerequisites = Forms.MidForm
   override def optionalPrerequisites = Seq.empty
-  override def optionalPrerequisiteOf = Forms.MidEmitters
+  override def optionalPrerequisiteOf = Dependency(LowerTypes) +: Forms.MidEmitters
 
   override def invalidates(a: Transform): Boolean = a match {
     case InferTypes | ResolveKinds | ResolveFlows | ExpandConnects => true
@@ -128,8 +130,8 @@ class TopWiringTransform extends Transform with DependencyAPIMigration {
   private def getSourcesMap(state: CircuitState): Map[String,Seq[(ComponentName, Type, Boolean, InstPath, String)]] = {
     val sSourcesModNames = getSourceModNames(state)
     val sSourcesNames = getSourceNames(state)
-    val instGraph = new firrtl.analyses.InstanceGraph(state.circuit)
-    val cMap = instGraph.getChildrenInstances.map{ case (m, wdis) =>
+    val instGraph = firrtl.analyses.InstanceKeyGraph(state.circuit)
+    val cMap = instGraph.getChildInstances.map{ case (m, wdis) =>
         (m -> wdis.map{ case wdi => (wdi.name, wdi.module) }.toSeq) }.toMap
     val topSort = instGraph.moduleOrder.reverse
 
@@ -166,7 +168,7 @@ class TopWiringTransform extends Transform with DependencyAPIMigration {
     */
   private def onModule(sources: Map[String, Seq[(ComponentName, Type, Boolean, InstPath, String)]],
                        portnamesmap : mutable.Map[String,String],
-                       instgraph : firrtl.analyses.InstanceGraph,
+                       instgraph : firrtl.analyses.InstanceKeyGraph,
                        namespacemap : Map[String, Namespace])
                       (module: DefModule): DefModule = {
     val namespace = namespacemap(module.name)
@@ -185,6 +187,7 @@ class TopWiringTransform extends Transform with DependencyAPIMigration {
         } }
 
         // Add connections to Module
+        val childInstances = instgraph.getChildInstances.toMap
         module match {
           case m: Module =>
             val connections: Seq[Connect] = p.map { case (ComponentName(cname,_), _, _ , path, prefix) =>
@@ -204,7 +207,7 @@ class TopWiringTransform extends Transform with DependencyAPIMigration {
                        val instportname =  portnamesmap.get(prefix + path.tail.mkString("_")) match {
                            case Some(ipn) => ipn
                            case None => {
-                             val instmod = instgraph.getChildrenInstances(module.name).collectFirst {
+                             val instmod = childInstances(module.name).collectFirst {
                                  case wdi if wdi.name == path.head => wdi.module}.get
                              val instnamespace = namespacemap(instmod)
                              portnamesmap(prefix + path.tail.mkString("_")) =
@@ -243,7 +246,7 @@ class TopWiringTransform extends Transform with DependencyAPIMigration {
     val sources = getSourcesMap(state)
     val (nstate, nmappings) = if (sources.nonEmpty) {
       val portnamesmap: mutable.Map[String,String] = mutable.Map()
-      val instgraph = new firrtl.analyses.InstanceGraph(state.circuit)
+      val instgraph = InstanceKeyGraph(state.circuit)
       val namespacemap = state.circuit.modules.map{ case m => (m.name -> Namespace(m)) }.toMap
       val modulesx = state.circuit.modules map onModule(sources, portnamesmap, instgraph, namespacemap)
       val newCircuit = state.circuit.copy(modules = modulesx)
