@@ -27,9 +27,7 @@ object InlineBooleanExpressions {
   * 3. is bound to a [[firrtl.ir.DefNode DefNode]] with a source locator that
   *    points at the same file and line number. If it is a MultiInfo source
   *    locator, the set of file and line number pairs must be the same. Source
-  *    locators may point to differnt column numbers.
-  * 4. the resulting expression can be emitted to verilog without needing any
-  *    parentheses
+  *    locators may point to different column numbers.
   */
 class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
 
@@ -45,7 +43,7 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
   override def optionalPrerequisiteOf = Seq.empty
 
   override def invalidates(a: Transform) = a match {
-    case _: DeadCodeElimination => true
+    case _: DeadCodeElimination => true // this transform does not remove nodes that are unused after inlining
     case _ => false
   }
 
@@ -56,16 +54,6 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
       case Some(arg) => arg eq subExpr
       case _ => false
     }
-  }
-
-  /** true if the reference can be inlined into the containing expressoin
-    *
-    * @param outerExpr the containing expression
-    * @param ref the reference to be inlined, must be a subexpression of outerExpr
-    * @param refExpr the expression that is bound to ref
-    */
-  private def canInline(outerExpr: Expression, ref: WRef, refExpr: Expression): Boolean = {
-    refExpr.tpe == Utils.BoolType
   }
 
   private val fileLineRegex = """(.*) ([0-9]+):[0-9]+""".r
@@ -82,11 +70,23 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
     }
   }
 
+  /** A helper class to initialize and store mutable state that the expression
+    * and statement map functions need access to. This makes it easier to pass
+    * information around without having to plump arguments through the onExpr
+    * and onStmt methods.
+    */
   private class MapMethods(maxInlineCount: Int, dontTouches: Set[Ref]) {
     val netlist: Netlist = new Netlist
     val inlineCounts = mutable.Map.empty[Ref, Int]
     var inlineCount: Int = 1
 
+    /** Inlines [[Wref]]s if they are Boolean, have matching file line numbers,
+      * and would not raise inlineCounts past the maximum.
+      *
+      * @param info the [[Info]] of the enclosing [[Statement]]
+      * @param outerExpr the direct parent [[Expression]] of the current [[Expression]]
+      * @param expr the [[Expression]] to apply inlining to
+      */
     def onExpr(info: Info, outerExpr: Option[Expression])(expr: Expression): Expression = {
       expr match {
         case ref: WRef if !dontTouches.contains(ref.name.Ref) && ref.name.head == '_' =>
@@ -94,7 +94,7 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
           netlist.get(we(ref)) match {
             case Some((refExpr, refInfo)) if sameFileAndLineInfo(info, refInfo) =>
               val inlineNum = inlineCounts.getOrElse(refKey, 1)
-              if (!outerExpr.isDefined || canInline(outerExpr.get, ref, refExpr) && (inlineNum + inlineCount) <= maxInlineCount) {
+              if (!outerExpr.isDefined || (refExpr.tpe == Utils.BoolType) && ((inlineNum + inlineCount) <= maxInlineCount)) {
                 inlineCount += inlineNum
                 refExpr
               } else {
@@ -106,6 +106,12 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
       }
     }
 
+    /** Applies onExpr and records metadata for every [[HasInfo]] in a [[Statement]]
+      *
+      * This resets inlineCount before inlining and records the resulting
+      * inline counts and inlined values in the inlineCounts and netlist maps
+      * after inlining.
+      */
     def onStmt(stmt: Statement): Statement = {
       stmt.mapStmt(onStmt) match {
         case hasInfo: HasInfo =>
