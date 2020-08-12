@@ -6,11 +6,12 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
-import firrtl.options.{Dependency, PreservesAll}
+import firrtl.options.Dependency
 
-object InferTypes extends Pass with PreservesAll[Transform] {
+object InferTypes extends Pass {
 
   override def prerequisites = Dependency(ResolveKinds) +: firrtl.stage.Forms.WorkingIR
+  override def invalidates(a: Transform) = false
 
   @deprecated("This should never have been public", "1.3.2")
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]
@@ -19,7 +20,6 @@ object InferTypes extends Pass with PreservesAll[Transform] {
 
   def run(c: Circuit): Circuit = {
     val namespace = Namespace()
-    val mtypes = (c.modules map (m => m.name -> module_type(m))).toMap
 
     def remove_unknowns_b(b: Bound): Bound = b match {
       case UnknownBound => VarBound(namespace.newName("b"))
@@ -38,6 +38,11 @@ object InferTypes extends Pass with PreservesAll[Transform] {
         case x => x
       }
     }
+
+    // we first need to remove the unknown widths and bounds from all ports,
+    // as their type will determine the module types
+    val portsKnown = c.modules.map(_.map{ p: Port => p.copy(tpe = remove_unknowns(p.tpe)) })
+    val mtypes = portsKnown.map(m => m.name -> module_type(m)).toMap
 
     def infer_types_e(types: TypeLookup)(e: Expression): Expression =
       e map infer_types_e(types) match {
@@ -70,9 +75,10 @@ object InferTypes extends Pass with PreservesAll[Transform] {
         types(sx.name) = t
         sx copy (tpe = t) map infer_types_e(types)
       case sx: DefMemory =>
-        val t = remove_unknowns(MemPortUtils.memType(sx))
-        types(sx.name) = t
-        sx copy (dataType = remove_unknowns(sx.dataType))
+        // we need to remove the unknowns from the data type so that all ports get the same VarWidth
+        val knownDataType = sx.copy(dataType = remove_unknowns(sx.dataType))
+        types(sx.name) = MemPortUtils.memType(knownDataType)
+        knownDataType
       case sx => sx map infer_types_s(types) map infer_types_e(types)
     }
 
@@ -87,13 +93,14 @@ object InferTypes extends Pass with PreservesAll[Transform] {
       m map infer_types_p(types) map infer_types_s(types)
     }
 
-    c copy (modules = c.modules map infer_types)
+    c.copy(modules = portsKnown.map(infer_types))
   }
 }
 
-object CInferTypes extends Pass with PreservesAll[Transform] {
+object CInferTypes extends Pass {
 
   override def prerequisites = firrtl.stage.Forms.ChirrtlForm
+  override def invalidates(a: Transform) = false
 
   @deprecated("This should never have been public", "1.3.2")
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]

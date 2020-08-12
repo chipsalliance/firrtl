@@ -420,26 +420,38 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
          |    input always: UInt<1>
          |    output always$: UInt<1>
          |    inst assign of endmodule
+         |    inst edge of endmodule_
          |    node always_ = not(always)
          |    node always__ = and(always_, assign.fork)
-         |    always$ <= always__
+         |    node always___ = and(always__, edge.fork)
+         |    always$ <= always___
          |  module endmodule:
          |    output fork: UInt<1>
          |    node const = add(UInt<4>("h1"), UInt<3>("h2"))
+         |    fork <= const
+         |  module endmodule_:
+         |    output fork: UInt<1>
+         |    node const = add(UInt<4>("h1"), UInt<3>("h1"))
          |    fork <= const
          |""".stripMargin
     val check_firrtl =
       """|circuit parameter_:
          |  module parameter_:
-         |    input always___: UInt<1>
+         |    input always____: UInt<1>
          |    output always$: UInt<1>
-         |    inst assign_ of endmodule_
-         |    node always_ = not(always___)
+         |    inst assign_ of endmodule__
+         |    inst edge_ of endmodule_
+         |    node always_ = not(always____)
          |    node always__ = and(always_, assign_.fork_)
-         |    always$ <= always__
-         |  module endmodule_:
+         |    node always___ = and(always__, edge_.fork_)
+         |    always$ <= always___
+         |  module endmodule__:
          |    output fork_: UInt<1>
          |    node const_ = add(UInt<4>("h1"), UInt<3>("h2"))
+         |    fork_ <= const_
+         |  module endmodule_:
+         |    output fork_: UInt<1>
+         |    node const_ = add(UInt<4>("h1"), UInt<3>("h1"))
          |    fork_ <= const_
          |""".stripMargin
     val state = CircuitState(parse(input), UnknownForm, Seq.empty, None)
@@ -715,6 +727,26 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     result should    containLine("wire [2:0] _GEN_0 = $signed(x) - 3'sh2;")
     result should    containLine("assign z = _GEN_0[1:0];")
   }
+
+  it should "emit FileInfo as Verilog comment" in {
+    def result(info: String): CircuitState = compileBody(
+      s"""input x : UInt<2>
+        |output z : UInt<2>
+        |z <= x @[$info]
+        |""".stripMargin
+    )
+    result("test") should containLine("  assign z = x; // @[test]")
+    // newlines currently are supposed to be escaped for both firrtl and Verilog
+    // (alternatively one could emit a multi-line comment)
+    result("test\\nx") should containLine("  assign z = x; // @[test\\nx]")
+    // not sure why, but we are also escaping tabs
+    result("test\\tx") should containLine("  assign z = x; // @[test\\tx]")
+    // escaping closing square brackets is only a firrtl issue, should not be reflected in the Verilog emission
+    result("test\\]") should containLine("  assign z = x; // @[test]]")
+    // while firrtl allows for Unicode in the info field they should be escaped for Verilog
+    result("test \uD83D\uDE0E") should containLine("  assign z = x; // @[test \\uD83D\\uDE0E]")
+
+  }
 }
 
 class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
@@ -739,8 +771,8 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
     // We don't use executeTest because we care about the spacing in the result
     val modName = ModuleName("Test", CircuitName("Test"))
     val annos = Seq(
-      DescriptionAnnotation(ComponentName("a", modName), "multi\nline"),
-      DescriptionAnnotation(ComponentName("b", modName), "single line"))
+      DocStringAnnotation(ComponentName("a", modName), "multi\nline"),
+      DocStringAnnotation(ComponentName("b", modName), "single line"))
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
     val output = finalState.getEmittedCircuit.value
     for (c <- check) {
@@ -782,9 +814,9 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
     // We don't use executeTest because we care about the spacing in the result
     val modName = ModuleName("Test", CircuitName("Test"))
     val annos = Seq(
-      DescriptionAnnotation(ComponentName("d", modName), "multi\nline"),
-      DescriptionAnnotation(ComponentName("e", modName), "multi\nline"),
-      DescriptionAnnotation(ComponentName("f", modName), "single line"))
+      DocStringAnnotation(ComponentName("d", modName), "multi\nline"),
+      DocStringAnnotation(ComponentName("e", modName), "multi\nline"),
+      DocStringAnnotation(ComponentName("f", modName), "single line"))
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
     val output = finalState.getEmittedCircuit.value
     for (c <- check) {
@@ -819,7 +851,7 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
     )
     // We don't use executeTest because we care about the spacing in the result
     val modName = ModuleName("Test", CircuitName("Test"))
-    val annos = Seq(DescriptionAnnotation(modName, "multi\nline"))
+    val annos = Seq(DocStringAnnotation(modName, "multi\nline"))
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
     val output = finalState.getEmittedCircuit.value
     for (c <- check) {
@@ -846,29 +878,36 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
         | *
         | * line2
         | */
-        |module Test(""".stripMargin,
+        |(* parallel_case *)
+        |module Test(
+        |""".stripMargin,
       """  /* line3
         |   *
         |   * line4
         |   */
+        |  (* full_case *)
         |  input   a,""".stripMargin,
       """  /* line5
         |   *
         |   * line6
         |   */
+        |  (* parallel_case, mark_debug *)
         |  wire  d = """.stripMargin
     )
     // We don't use executeTest because we care about the spacing in the result
     val modName = ModuleName("Test", CircuitName("Test"))
     val annos = Seq(
-      DescriptionAnnotation(modName, "line1"),
-      DescriptionAnnotation(modName, "line2"),
-      DescriptionAnnotation(ComponentName("a", modName), "line3"),
-      DescriptionAnnotation(ComponentName("a", modName), "line4"),
-      DescriptionAnnotation(ComponentName("d", modName), "line5"),
-      DescriptionAnnotation(ComponentName("d", modName), "line6")
+      DocStringAnnotation(modName, "line1"),
+      DocStringAnnotation(modName, "line2"),
+      AttributeAnnotation(modName, "parallel_case"),
+      DocStringAnnotation(ComponentName("a", modName), "line3"),
+      DocStringAnnotation(ComponentName("a", modName), "line4"),
+      AttributeAnnotation(ComponentName("a", modName), "full_case"),
+      DocStringAnnotation(ComponentName("d", modName), "line5"),
+      DocStringAnnotation(ComponentName("d", modName), "line6"),
+      AttributeAnnotation(ComponentName("d", modName), "parallel_case"),
+      AttributeAnnotation(ComponentName("d", modName), "mark_debug")
     )
-    val writer = new java.io.StringWriter
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
     val output = finalState.getEmittedCircuit.value
     for (c <- check) {

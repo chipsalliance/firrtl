@@ -3,7 +3,7 @@
 package firrtl.stage.phases
 
 import firrtl.{AnnotationSeq, EmittedModuleAnnotation, EmittedCircuitAnnotation}
-import firrtl.options.{Phase, PreservesAll, StageOptions, Viewer}
+import firrtl.options.{Phase, StageOptions, Viewer}
 import firrtl.stage.FirrtlOptions
 
 import java.io.PrintWriter
@@ -24,11 +24,15 @@ import java.io.PrintWriter
   *
   * Any annotations written to files will be deleted.
   */
-class WriteEmitted extends Phase with PreservesAll[Phase] {
+@deprecated("Annotations that mixin the CustomFileEmission trait are automatically serialized by stages." +
+              "This will be removed in FIRRTL 1.5", "FIRRTL 1.4.0")
+class WriteEmitted extends Phase {
 
   override def prerequisites = Seq.empty
 
   override def optionalPrerequisiteOf = Seq.empty
+
+  override def invalidates(a: Phase) = false
 
   /** Write any [[EmittedAnnotation]]s in an [[AnnotationSeq]] to files. Written [[EmittedAnnotation]]s are deleted. */
   def transform(annotations: AnnotationSeq): AnnotationSeq = {

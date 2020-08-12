@@ -2,28 +2,34 @@
 
 package firrtl.stage.phases
 
-import firrtl.AnnotationSeq
-import firrtl.options.{Phase, PreservesAll, TargetDirAnnotation}
+import firrtl.{AnnotationSeq, VerilogEmitter}
+import firrtl.options.{Dependency, Phase, TargetDirAnnotation}
+import firrtl.stage.TransformManager.TransformDependency
 import firrtl.transforms.BlackBoxTargetDirAnno
-import firrtl.stage.{CompilerAnnotation, InfoModeAnnotation, FirrtlOptions}
+import firrtl.stage.{CompilerAnnotation, FirrtlOptions, InfoModeAnnotation, RunFirrtlTransformAnnotation}
 
 /** [[firrtl.options.Phase Phase]] that adds default [[FirrtlOption]] [[firrtl.annotations.Annotation Annotation]]s.
   * This is a part of the preprocessing done by [[FirrtlStage]].
   */
-class AddDefaults extends Phase with PreservesAll[Phase] {
+class AddDefaults extends Phase {
 
   override def prerequisites = Seq.empty
 
   override def optionalPrerequisiteOf = Seq.empty
 
+  override def invalidates(a: Phase) = false
+
+  val DefaultEmitterTarget: TransformDependency = Dependency[VerilogEmitter]
+
   /** Append any missing default annotations to an annotation sequence */
   def transform(annotations: AnnotationSeq): AnnotationSeq = {
-    var bb, c, im = true
+    var bb, c, em, im = true
     annotations.foreach {
       case _: BlackBoxTargetDirAnno => bb = false
       case _: CompilerAnnotation => c  = false
       case _: InfoModeAnnotation => im = false
-      case a =>
+      case RunFirrtlTransformAnnotation(_ : firrtl.Emitter) => em = false
+      case _ =>
     }
 
     val default = new FirrtlOptions()
@@ -32,7 +38,8 @@ class AddDefaults extends Phase with PreservesAll[Phase] {
       .getOrElse(TargetDirAnnotation()).directory
 
     (if (bb) Seq(BlackBoxTargetDirAnno(targetDir)) else Seq() ) ++
-      (if (c) Seq(CompilerAnnotation(default.compiler)) else Seq() ) ++
+    // if there is no compiler or emitter specified, add the default emitter
+      (if (c && em) Seq(RunFirrtlTransformAnnotation(DefaultEmitterTarget)) else Seq() ) ++
       (if (im) Seq(InfoModeAnnotation()) else Seq() ) ++
       annotations
   }

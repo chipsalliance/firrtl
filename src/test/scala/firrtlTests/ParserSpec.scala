@@ -3,7 +3,9 @@
 package firrtlTests
 
 import firrtl._
+import firrtl.ir._
 import firrtl.testutils._
+import firrtl.testutils.FirrtlCheckers._
 import org.scalacheck.Gen
 
 class ParserSpec extends FirrtlFlatSpec {
@@ -19,14 +21,17 @@ class ParserSpec extends FirrtlFlatSpec {
                      "readwriter" -> "c"
                     )
     def fieldsToSeq(m: Map[String, String]): Seq[String] =
-      m map { case (k,v) => s"      ${k} => ${v}" } toSeq
+      m.map { case (k,v) => s"      ${k} => ${v}" }.toSeq
   }
 
   private object RegTests {
     val prelude = Seq("circuit top :", "  module top :")
-    val reg = "    reg r : UInt<32>, clock"
+    val regName = "r"
+    val reg = s"    reg $regName : UInt<32>, clock"
     val reset = "reset => (radReset, UInt(\"hdeadbeef\"))"
-    val finfo = "@[Reg.scala:33:10]"
+    val sourceLocator = "Reg.scala 33:10"
+    val finfo = s"@[$sourceLocator]"
+    val fileInfo = FileInfo(StringLit(sourceLocator))
   }
 
   private object KeywordTests {
@@ -79,12 +84,26 @@ class ParserSpec extends FirrtlFlatSpec {
 
   it should "allow source locators with same-line reset" in {
     import RegTests._
-    firrtl.Parser.parse((prelude :+ s"${reg} with : (${reset}) $finfo" :+ "    wire a : UInt"))
+    val res = firrtl.Parser.parse((prelude :+ s"${reg} with : (${reset}) $finfo" :+ "    wire a : UInt"))
+    CircuitState(res, Nil) should containTree {
+      case DefRegister(`fileInfo`, `regName`, _,_,_,_) => true
+    }
   }
 
   it should "allow source locators with multi-line reset" in {
     import RegTests._
-    firrtl.Parser.parse((prelude :+ s"${reg} with :\n      (${reset}) $finfo"))
+    val res = firrtl.Parser.parse((prelude :+ s"${reg} with :\n      (${reset}) $finfo"))
+    CircuitState(res, Nil) should containTree {
+      case DefRegister(`fileInfo`, `regName`, _,_,_,_) => true
+    }
+  }
+
+  it should "allow source locators with no reset" in {
+    import RegTests._
+    val res = firrtl.Parser.parse((prelude :+ s"${reg} $finfo"))
+    CircuitState(res, Nil) should containTree {
+      case DefRegister(`fileInfo`, `regName`, _,_,_,_) => true
+    }
   }
 
   // ********** Keywords **********
@@ -224,6 +243,18 @@ class ParserSpec extends FirrtlFlatSpec {
     a [SyntaxErrorsException] shouldBe thrownBy {
       Driver.execute(manager)
     }
+  }
+
+  it should "be able to parse a MultiInfo as a FileInfo" in {
+    // currently MultiInfo gets flattened into a single string which can only be recovered as a FileInfo
+    val info = ir.MultiInfo(Seq(ir.MultiInfo(Seq(ir.FileInfo("a"))), ir.FileInfo("b"), ir.FileInfo("c")))
+    val input =
+      s"""circuit m:${info.serialize}
+        |  module m:
+        |    skip
+        |""".stripMargin
+    val c = firrtl.Parser.parse(input)
+    assert(c.info == ir.FileInfo("a b c"))
   }
 }
 

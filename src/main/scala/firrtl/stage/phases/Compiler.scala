@@ -3,7 +3,7 @@
 package firrtl.stage.phases
 
 import firrtl.{AnnotationSeq, ChirrtlForm, CircuitState, Compiler => FirrtlCompiler, Transform, seqToAnnoSeq}
-import firrtl.options.{Dependency, Phase, PhasePrerequisiteException, PreservesAll, Translator}
+import firrtl.options.{Dependency, Phase, PhasePrerequisiteException, Translator}
 import firrtl.stage.{CompilerAnnotation, FirrtlCircuitAnnotation, Forms, RunFirrtlTransformAnnotation}
 import firrtl.stage.TransformManager.TransformDependency
 
@@ -42,7 +42,7 @@ private [stage] case class Defaults(
   * FirrtlCircuitAnnotation(y). Note: A(b) ''may'' overwrite A(a) if this is a CompilerAnnotation.
   * FirrtlCircuitAnnotation(z) has no annotations, so it only gets the default A(a).
   */
-class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] with PreservesAll[Phase] {
+class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] {
 
   override def prerequisites =
     Seq(Dependency[AddDefaults],
@@ -51,7 +51,9 @@ class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] wi
         Dependency[AddCircuit],
         Dependency[AddImplicitOutputFile])
 
-  override def optionalPrerequisiteOf = Seq(Dependency[WriteEmitted])
+  override def optionalPrerequisiteOf = Seq.empty
+
+  override def invalidates(a: Phase) = false
 
   /** Convert an [[AnnotationSeq]] into a sequence of compiler runs. */
   protected def aToB(a: AnnotationSeq): Seq[CompilerRun] = {
@@ -80,7 +82,7 @@ class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] wi
         case annotation => d.copy(annotations = annotation +: d.annotations)
       }
     }
-    c
+    c.toSeq
   }
 
   /** Expand compiler output back into an [[AnnotationSeq]]. Annotations used in the construction of the compiler run are
@@ -96,7 +98,14 @@ class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] wi
     def f(c: CompilerRun): CompilerRun = {
       val targets = c.compiler match {
         case Some(d) => c.transforms.reverse.map(Dependency.fromTransform(_)) ++ compilerToTransforms(d)
-        case None    => throw new PhasePrerequisiteException("No compiler specified!") }
+        case None    =>
+          val hasEmitter = c.transforms.collectFirst { case _: firrtl.Emitter => true }.isDefined
+          if(!hasEmitter) {
+            throw new PhasePrerequisiteException("No compiler specified!")
+          } else {
+            c.transforms.reverse.map(Dependency.fromTransform)
+          }
+      }
       val tm = new firrtl.stage.transforms.Compiler(targets)
       /* Transform order is lazily evaluated. Force it here to remove its resolution time from actual compilation. */
       val (timeResolveDependencies, _) = firrtl.Utils.time { tm.flattenedTransformOrder }
@@ -109,13 +118,14 @@ class Compiler extends Phase with Translator[AnnotationSeq, Seq[CompilerRun]] wi
       c.copy(stateOut = Some(annotationsOut))
     }
 
-    if (b.size <= 1) { b.map(f)         }
-    else             { b.par.map(f).seq }
+    if (b.size <= 1) { b.map(f) } else {
+      collection.parallel.immutable.ParVector(b :_*).par.map(f).seq
+    }
   }
 
   private def compilerToTransforms(a: FirrtlCompiler): Seq[TransformDependency] = a match {
     case _: firrtl.NoneCompiler                                      => Forms.ChirrtlForm
-    case _: firrtl.HighFirrtlCompiler                                => Forms.HighForm
+    case _: firrtl.HighFirrtlCompiler                                => Forms.MinimalHighForm
     case _: firrtl.MiddleFirrtlCompiler                              => Forms.MidForm
     case _: firrtl.LowFirrtlCompiler                                 => Forms.LowForm
     case _: firrtl.VerilogCompiler | _: firrtl.SystemVerilogCompiler => Forms.LowFormOptimized

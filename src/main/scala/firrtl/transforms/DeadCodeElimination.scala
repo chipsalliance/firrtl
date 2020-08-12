@@ -6,11 +6,11 @@ import firrtl.ir._
 import firrtl.passes._
 import firrtl.annotations._
 import firrtl.graph._
-import firrtl.analyses.InstanceGraph
+import firrtl.analyses.InstanceKeyGraph
 import firrtl.Mappers._
 import firrtl.Utils.{throwInternalError, kind}
 import firrtl.MemoizedHash._
-import firrtl.options.{Dependency, PreservesAll, RegisteredTransform, ShellOption}
+import firrtl.options.{Dependency, RegisteredTransform, ShellOption}
 
 import collection.mutable
 
@@ -32,8 +32,7 @@ import collection.mutable
 class DeadCodeElimination extends Transform
     with ResolvedAnnotationPaths
     with RegisteredTransform
-    with DependencyAPIMigration
-    with PreservesAll[Transform] {
+    with DependencyAPIMigration {
 
   override def prerequisites = firrtl.stage.Forms.LowForm ++
     Seq( Dependency(firrtl.passes.RemoveValidIf),
@@ -53,6 +52,8 @@ class DeadCodeElimination extends Transform
          Dependency[firrtl.transforms.VerilogRename],
          Dependency(passes.VerilogPrep),
          Dependency[firrtl.AddDescriptionNodes] )
+
+  override def invalidates(a: Transform) = false
 
   val options = Seq(
     new ShellOption[Unit](
@@ -93,7 +94,7 @@ class DeadCodeElimination extends Transform
       e
     }
     rec(expr)
-    refs
+    refs.toSeq
   }
 
   // Gets all dependencies and constructs LogicNodes from them
@@ -153,6 +154,10 @@ class DeadCodeElimination extends Transform
         Seq(clk, en).flatMap(getDeps(_)).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
       case Print(_, _, args, clk, en) =>
         (args :+ clk :+ en).flatMap(getDeps(_)).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
+      case s: Verification =>
+        for (expr <- Seq(s.clk, s.pred, s.en)) {
+          getDeps(expr).foreach(ref => depGraph.addPairWithEdge(circuitSink, ref))
+        }
       case Block(stmts) => stmts.foreach(onStmt(_))
       case ignore @ (_: IsInvalid | _: WDefInstance | EmptyStmt) => // do nothing
       case other => throw new Exception(s"Unexpected Statement $other")
@@ -255,6 +260,7 @@ class DeadCodeElimination extends Transform
           else decl
         case print: Print => deleteIfNotEnabled(print, print.en)
         case stop: Stop => deleteIfNotEnabled(stop, stop.en)
+        case formal: Verification => deleteIfNotEnabled(formal, formal.en)
         case con: Connect =>
           val node = getDeps(con.loc) match { case Seq(elt) => elt }
           if (deadNodes.contains(node)) EmptyStmt else con
@@ -308,7 +314,7 @@ class DeadCodeElimination extends Transform
           doTouchExtMods: Set[String]): CircuitState = {
     val c = state.circuit
     val moduleMap = c.modules.map(m => m.name -> m).toMap
-    val iGraph = new InstanceGraph(c)
+    val iGraph = InstanceKeyGraph(c)
     val moduleDeps = iGraph.graph.getEdgeMap.map({ case (k,v) =>
       k.module -> v.map(i => i.name -> i.module).toMap
     })

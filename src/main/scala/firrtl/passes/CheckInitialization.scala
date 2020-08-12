@@ -6,7 +6,6 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Utils._
 import firrtl.traversals.Foreachers._
-import firrtl.options.PreservesAll
 
 import annotation.tailrec
 
@@ -15,9 +14,11 @@ import annotation.tailrec
   * @note This pass looks for [[firrtl.WVoid]]s left behind by [[ExpandWhens]]
   * @note Assumes single connection (ie. no last connect semantics)
   */
-object CheckInitialization extends Pass with PreservesAll[Transform] {
+object CheckInitialization extends Pass {
 
   override def prerequisites = firrtl.stage.Forms.Resolved
+
+  override def invalidates(a: Transform) = false
 
   private case class VoidExpr(stmt: Statement, voidDeps: Seq[Expression])
 
@@ -56,7 +57,7 @@ object CheckInitialization extends Pass with PreservesAll[Transform] {
           case _ => e.foreach(hasVoid)
         }
         hasVoid(e)
-        (void, voidDeps)
+        (void, voidDeps.toSeq)
       }
       def checkInitS(s: Statement): Unit = {
         s match {

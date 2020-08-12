@@ -6,7 +6,7 @@ package transforms
 import firrtl.PrimOps._
 import firrtl.annotations._
 import firrtl.ir.{AsyncResetType, _}
-import firrtl.options.{Dependency, PreservesAll}
+import firrtl.options.Dependency
 
 import scala.collection.mutable
 
@@ -36,7 +36,7 @@ object PropagatePresetAnnotations {
   *
   * @note This pass must run before InlineCastsTransform
   */
-class PropagatePresetAnnotations extends Transform with DependencyAPIMigration with PreservesAll[Transform] {
+class PropagatePresetAnnotations extends Transform with DependencyAPIMigration {
 
   override def prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
     Seq( Dependency[BlackBoxSourceHelper],
@@ -47,6 +47,7 @@ class PropagatePresetAnnotations extends Transform with DependencyAPIMigration w
 
   override def optionalPrerequisiteOf = Seq.empty
 
+  override def invalidates(a: Transform) = false
 
   import PropagatePresetAnnotations._
 
@@ -70,7 +71,7 @@ class PropagatePresetAnnotations extends Transform with DependencyAPIMigration w
     * @param presetAnnos all the annotations
     * @return updated annotations
     */
-  private def propagate(cs: CircuitState, presetAnnos: Seq[PresetAnnotation]): AnnotationSeq = {
+  private def propagate(cs: CircuitState, presetAnnos: Seq[PresetAnnotation], otherAnnos: Seq[Annotation]): AnnotationSeq = {
     val presets = presetAnnos.groupBy(_.target)
     // store all annotated asyncreset references
     val asyncToAnnotate = new TargetSet()
@@ -79,7 +80,7 @@ class PropagatePresetAnnotations extends Transform with DependencyAPIMigration w
     // store async-reset trees
     val asyncCoMap = new TargetSetMap()
     // Annotations to be appended and returned as result of the transform
-    val annos = cs.annotations.to[mutable.ArrayBuffer] -- presetAnnos
+    val newAnnos = mutable.ArrayBuffer[Annotation]()
 
     val circuitTarget = CircuitTarget(cs.circuit.main)
 
@@ -261,7 +262,7 @@ class PropagatePresetAnnotations extends Transform with DependencyAPIMigration w
      */
 
     /** Annotate a given target and all its children according to the asyncCoMap */
-    def annotateCo(ta: ReferenceTarget){
+    def annotateCo(ta: ReferenceTarget): Unit = {
       if (asyncCoMap.contains(ta)){
         toCleanUp += ta
         asyncCoMap(ta) foreach( (t: ReferenceTarget) => {
@@ -277,7 +278,7 @@ class PropagatePresetAnnotations extends Transform with DependencyAPIMigration w
         if (asyncRegMap.contains(ta)) {
           annotateRegSet(asyncRegMap(ta))
         } else {
-          annos += new PresetRegAnnotation(ta)
+          newAnnos += PresetRegAnnotation(ta)
         }
       })
     }
@@ -300,7 +301,7 @@ class PropagatePresetAnnotations extends Transform with DependencyAPIMigration w
 
     cs.circuit.foreachModule(processModule) // PHASE 1 : Initialize
     annotateAsyncSet(asyncToAnnotate)       // PHASE 2 : Annotate
-    annos
+    otherAnnos ++ newAnnos
   }
 
   /*
@@ -421,15 +422,14 @@ class PropagatePresetAnnotations extends Transform with DependencyAPIMigration w
 
   def execute(state: CircuitState): CircuitState = {
     // Collect all user-defined PresetAnnotation
-    val presets = state.annotations
-      .collect{ case m : PresetAnnotation => m }
+    val (presets, otherAnnos) = state.annotations.partition { case _: PresetAnnotation => true ; case _ => false }
 
     // No PresetAnnotation => no need to walk the IR
-    if (presets.size == 0){
+    if (presets.isEmpty){
       state
     } else {
       // PHASE I - Propagate
-      val annos = propagate(state, presets)
+      val annos = propagate(state, presets.asInstanceOf[Seq[PresetAnnotation]], otherAnnos)
       // PHASE II - CleanUp
       val cleanCircuit = cleanUpPresetTree(state.circuit, annos)
       // Because toCleanup is a class field, we need to clear it

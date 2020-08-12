@@ -89,7 +89,7 @@ trait IdentityLike[A] { this: TransformLike[A] =>
     * @param a an input object
     * @return nothing
     */
-  protected def internalTransform(a: A): Unit = Unit
+  protected def internalTransform(a: A): Unit = ()
 
   /** This method will execute `internalTransform` and then return the original input object
     * @param a an input object
@@ -184,6 +184,8 @@ trait DependencyAPI[A <: DependencyAPI[A]] { this: TransformLike[_] =>
 /** A trait indicating that no invalidations occur, i.e., all previous transforms are preserved
   * @tparam A some [[TransformLike]]
   */
+@deprecated("Use an explicit `override def invalidates` returning false. This will be removed in FIRRTL 1.5.",
+            "FIRRTL 1.4")
 trait PreservesAll[A <: DependencyAPI[A]] { this: DependencyAPI[A] =>
 
   override final def invalidates(a: A): Boolean = false

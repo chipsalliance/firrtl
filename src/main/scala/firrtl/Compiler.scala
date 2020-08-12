@@ -13,7 +13,7 @@ import firrtl.annotations._
 import firrtl.ir.Circuit
 import firrtl.Utils.throwInternalError
 import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
-import firrtl.options.{DependencyAPI, Dependency, PreservesAll, StageUtils, TransformLike}
+import firrtl.options.{DependencyAPI, Dependency, StageUtils, TransformLike}
 import firrtl.stage.Forms
 
 /** Container of all annotations for a Firrtl compiler */
@@ -114,7 +114,6 @@ sealed abstract class CircuitForm(private val value: Int) extends Ordered[Circui
   def outputSuffix: String
 }
 
-// scalastyle:off magic.number
 // These magic numbers give an ordering to CircuitForm
 /** Chirrtl Form
   *
@@ -191,7 +190,6 @@ final case object UnknownForm extends CircuitForm(-1) {
 
   val outputSuffix: String = ".unknown.fir"
 }
-// scalastyle:on magic.number
 
 // Internal utilities to keep code DRY, not a clean interface
 private[firrtl] object Transform {
@@ -315,7 +313,7 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
   }
 
   override def optionalPrerequisites: Seq[Dependency[Transform]] = inputForm match {
-    case L => Forms.LowFormOptimized
+    case L => Forms.LowFormOptimized ++ Forms.AssertsRemoved
     case _ => Seq.empty
   }
 
@@ -420,7 +418,10 @@ trait ResolvedAnnotationPaths {
 }
 
 /** Defines old API for Emission. Deprecated */
-trait Emitter extends Transform with PreservesAll[Transform] {
+trait Emitter extends Transform {
+
+  override def invalidates(a: Transform) = false
+
   @deprecated("Use emission annotations instead", "firrtl 1.0")
   def emit(state: CircuitState, writer: Writer): Unit
 
@@ -448,7 +449,7 @@ object CompilerUtils extends LazyLogging {
         case ChirrtlForm =>
           Seq(new ChirrtlToHighFirrtl) ++ getLoweringTransforms(HighForm, outputForm)
         case HighForm =>
-          Seq(new IRToWorkingIR, new ResolveAndCheck, new transforms.DedupModules, new HighFirrtlToMiddleFirrtl) ++
+          Seq(new IRToWorkingIR, new ResolveAndCheck, new firrtl.transforms.DedupModules, new HighFirrtlToMiddleFirrtl) ++
             getLoweringTransforms(MidForm, outputForm)
         case MidForm => Seq(new MiddleFirrtlToLowFirrtl) ++ getLoweringTransforms(LowForm, outputForm)
         case LowForm => throwInternalError("getLoweringTransforms - LowForm") // should be caught by if above
@@ -539,7 +540,10 @@ trait Compiler extends Transform with DependencyAPIMigration {
     * @param customTransforms Any custom [[Transform]]s that will be inserted
     *   into the compilation process by [[CompilerUtils.mergeTransforms]]
     */
-  @deprecated("Please use compileAndEmit or other compile method instead", "firrtl 1.0")
+  @deprecated(
+    "Migrate to '(new FirrtlStage).execute(args: Array[String], annotations: AnnotationSeq)'." +
+      "This will be removed in 1.4.",
+    "FIRRTL 1.0")
   def compile(state: CircuitState,
               writer: Writer,
               customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
@@ -560,6 +564,10 @@ trait Compiler extends Transform with DependencyAPIMigration {
     *   into the compilation process by [[CompilerUtils.mergeTransforms]]
     * @return result of compilation with emitted circuit annotated
     */
+  @deprecated(
+    "Migrate to '(new FirrtlStage).execute(args: Array[String], annotations: AnnotationSeq)'." +
+      "This will be removed in 1.4.",
+    "FIRRTL 1.3.3")
   def compileAndEmit(state: CircuitState,
                      customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
     val emitAnno = EmitCircuitAnnotation(emitter.getClass)
@@ -575,6 +583,10 @@ trait Compiler extends Transform with DependencyAPIMigration {
     *   process by [[CompilerUtils.mergeTransforms]]
     * @return result of compilation
     */
+  @deprecated(
+    "Migrate to '(new FirrtlStage).execute(args: Array[String], annotations: AnnotationSeq)'." +
+      "This will be removed in 1.4.",
+    "FIRRTL 1.3.3")
   def compile(state: CircuitState, customTransforms: Seq[Transform]): CircuitState = {
     val transformManager = new stage.transforms.Compiler (
       targets = (emitter +: customTransforms ++: transforms).map(Dependency.fromTransform),

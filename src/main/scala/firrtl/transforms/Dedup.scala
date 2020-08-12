@@ -5,14 +5,17 @@ package transforms
 
 import firrtl.ir._
 import firrtl.Mappers._
-import firrtl.analyses.InstanceGraph
+import firrtl.traversals.Foreachers._
+import firrtl.analyses.InstanceKeyGraph
 import firrtl.annotations._
 import firrtl.passes.{InferTypes, MemPortUtils}
-import firrtl.Utils.throwInternalError
+import firrtl.Utils.{kind, splitRef, throwInternalError}
 import firrtl.annotations.transforms.DupedResult
-import firrtl.annotations.TargetToken.{OfModule, Instance}
-import firrtl.options.{HasShellOptions, PreservesAll, ShellOption}
+import firrtl.annotations.TargetToken.{Instance, OfModule}
+import firrtl.options.{HasShellOptions, ShellOption}
 import logger.LazyLogging
+
+import scala.annotation.tailrec
 
 // Datastructures
 import scala.collection.mutable
@@ -73,11 +76,13 @@ case class DedupedResult(original: ModuleTarget, duplicate: Option[IsModule], in
   * This transform will also emit [[DedupedResult]] for deduped modules that
   * only have one instance.
   */
-class DedupModules extends Transform with DependencyAPIMigration with PreservesAll[Transform] {
+class DedupModules extends Transform with DependencyAPIMigration {
 
   override def prerequisites = firrtl.stage.Forms.Resolved
 
   override def optionalPrerequisiteOf = Seq.empty
+
+  override def invalidates(a: Transform) = false
 
   /** Deduplicate a Circuit
     * @param state Input Firrtl AST
@@ -152,7 +157,7 @@ class DedupModules extends Transform with DependencyAPIMigration with PreservesA
     moduleRenameMap.recordAll(map)
 
     // Build instanceify renaming map
-    val instanceGraph = new InstanceGraph(c)
+    val instanceGraph = InstanceKeyGraph(c)
     val instanceify = RenameMap()
     val moduleName2Index = c.modules.map(_.name).zipWithIndex.map { case (n, i) =>
       {
@@ -166,16 +171,14 @@ class DedupModules extends Transform with DependencyAPIMigration with PreservesA
 
     // get the ordered set of instances a module, includes new Deduped modules
     val getChildrenInstances = {
-      val childrenMap = instanceGraph.getChildrenInstances
-      val newModsMap: Map[String, mutable.LinkedHashSet[WDefInstance]] = dedupMap.map {
-        case (name, m: Module) =>
-          val set = new mutable.LinkedHashSet[WDefInstance]
-          InstanceGraph.collectInstances(set)(m.body)
-          m.name -> set
-        case (name, m: DefModule) =>
-          m.name -> mutable.LinkedHashSet.empty[WDefInstance]
-      }.toMap
-      (mod: String) => childrenMap.get(mod).getOrElse(newModsMap(mod))
+      val childrenMap = instanceGraph.getChildInstances.toMap
+      val newModsMap = dedupMap.map {
+        case (_, m: Module) =>
+          m.name -> InstanceKeyGraph.collectInstances(m)
+        case (_, m: DefModule) =>
+          m.name -> List()
+      }
+      (mod: String) => childrenMap.getOrElse(mod, newModsMap(mod))
     }
 
     val instanceNameMap: Map[OfModule, Map[Instance, Instance]] = {
@@ -195,7 +198,7 @@ class DedupModules extends Transform with DependencyAPIMigration with PreservesA
           // If dedupedAnnos is exactly annos, contains is because dedupedAnnos is type Option
           val newTargets = paths.map { path =>
             val root: IsModule = ct.module(c)
-            path.foldLeft(root -> root) { case ((oldRelPath, newRelPath), WDefInstance(_, name, mod, _)) =>
+            path.foldLeft(root -> root) { case ((oldRelPath, newRelPath), InstanceKeyGraph.InstanceKey(name, mod)) =>
               if(mod == c) {
                 val mod = CircuitTarget(c).module(c)
                 mod -> mod
@@ -239,35 +242,6 @@ class DedupModules extends Transform with DependencyAPIMigration with PreservesA
 
 /** Utility functions for [[DedupModules]] */
 object DedupModules extends LazyLogging {
-  def fastSerializedHash(s: Statement): Int ={
-    def serialize(builder: StringBuilder, nindent: Int)(s: Statement): Unit = s match {
-      case Block(stmts) => stmts.map {
-        val x = serialize(builder, nindent)(_)
-        builder ++= "\n"
-        x
-      }
-      case Conditionally(info, pred, conseq, alt) =>
-        builder ++= ("  " * nindent)
-        builder ++= s"when ${pred.serialize} :"
-        builder ++= info.serialize
-        serialize(builder, nindent + 1)(conseq)
-        builder ++= "\n" + ("  " * nindent)
-        builder ++= "else :\n"
-        serialize(builder, nindent + 1)(alt)
-      case Print(info, string, args, clk, en) =>
-        builder ++= ("  " * nindent)
-        val strs = Seq(clk.serialize, en.serialize, string.string) ++
-          (args map (_.serialize))
-        builder ++= "printf(" + (strs mkString ", ") + ")" + info.serialize
-      case other: Statement =>
-        builder ++= ("  " * nindent)
-        builder ++= other.serialize
-    }
-    val builder = new mutable.StringBuilder()
-    serialize(builder, 0)(s)
-    builder.hashCode()
-  }
-
   /** Change's a module's internal signal names, types, infos, and modules.
     * @param rename Function to rename a signal. Called on declaration and references.
     * @param retype Function to retype a signal. Called on declaration, references, and subfields
@@ -336,60 +310,6 @@ object DedupModules extends LazyLogging {
     module map onPort map onStmt
   }
 
-  def uniquifyField(ref: String, depth: Int, field: String): String = ref + depth + field
-
-  /** Turns a module into a name-agnostic module
-    * @param module module to change
-    * @return name-agnostic module
-    */
-  def agnostify(top: CircuitTarget,
-                module: DefModule,
-                renameMap: RenameMap,
-                agnosticModuleName: String
-               ): DefModule = {
-
-
-    val namespace = Namespace()
-    val typeMap = mutable.HashMap[String, Type]()
-    val nameMap = mutable.HashMap[String, String]()
-
-    val mod = top.module(module.name)
-    val agnosticMod = top.module(agnosticModuleName)
-
-    def rename(name: String): String = {
-      nameMap.getOrElseUpdate(name, {
-        val newName = namespace.newTemp
-        renameMap.record(mod.ref(name), agnosticMod.ref(newName))
-        newName
-      })
-    }
-
-    def retype(name: String)(tpe: Type): Type = {
-      if (typeMap.contains(name)) typeMap(name) else {
-        def onType(depth: Int)(tpe: Type): Type = tpe map onType(depth + 1) match {
-          //TODO bugfix: ref.data.data and ref.datax.data will not rename to the right tags, even if they should be
-          case BundleType(fields) =>
-            BundleType(fields.map(f => Field(rename(uniquifyField(name, depth, f.name)), f.flip, f.tpe)))
-          case other => other
-        }
-        val newType = onType(0)(tpe)
-        typeMap(name) = newType
-        newType
-      }
-    }
-
-    def reOfModule(instance: String, ofModule: String): String = {
-      renameMap.get(top.module(ofModule)) match {
-        case Some(Seq(Target(_, Some(ofModuleTag), Nil))) => ofModuleTag
-        case None => ofModule
-        case other => throwInternalError(other.toString)
-      }
-    }
-
-    val renamedModule = changeInternals(rename, retype, {i: Info => NoInfo}, reOfModule)(module)
-    renamedModule
-  }
-
   /** Dedup a module's instances based on dedup map
     *
     * Will fixes up module if deduped instance's ports are differently named
@@ -411,9 +331,8 @@ object DedupModules extends LazyLogging {
     // If black box, return it (it has no instances)
     if (module.isInstanceOf[ExtModule]) return module
 
-    // Get all instances to know what to rename in the module
-    val instances = mutable.Set[WDefInstance]()
-    InstanceGraph.collectInstances(instances)(module.asInstanceOf[Module].body)
+    // Get all instances to know what to rename in the module s
+    val instances = InstanceKeyGraph.collectInstances(module)
     val instanceModuleMap = instances.map(i => i.name -> i.module).toMap
 
     def getNewModule(old: String): DefModule = {
@@ -444,69 +363,97 @@ object DedupModules extends LazyLogging {
     changeInternals({n => n}, retype, {i => i}, renameOfModule)(module)
   }
 
-  //scalastyle:off
-  /** Returns
-    *  1) map of tag to all matching module names,
-    *  2) renameMap of module name to tag (agnostic name)
-    *  3) maps module name to agnostic renameMap
+  @tailrec
+  private def hasBundleType(tpe: Type): Boolean = tpe match {
+    case _: BundleType => true
+    case _: GroundType => false
+    case VectorType(t, _) => hasBundleType(t)
+  }
+
+  // Find modules that should not have their ports agnostified to avoid bug in
+  // https://github.com/freechipsproject/firrtl/issues/1703
+  // Marks modules that have a port of BundleType that are connected via an aggregate connect or
+  // partial connect in an instantiating parent
+  // Order of modules does not matter
+  private def modsToNotAgnostifyPorts(modules: Seq[DefModule]): Set[String] = {
+    val dontDedup = mutable.HashSet.empty[String]
+    def onModule(mod: DefModule): Unit = {
+      val instToModule = mutable.HashMap.empty[String, String]
+      def markAggregatePorts(expr: Expression): Unit = {
+        if (kind(expr) == InstanceKind && hasBundleType(expr.tpe)) {
+          val (WRef(inst, _, _, _), _) = splitRef(expr)
+          dontDedup += instToModule(inst)
+        }
+      }
+      def onStmt(stmt: Statement): Unit = {
+        stmt.foreach(onStmt)
+        stmt match {
+          case inst: DefInstance =>
+            instToModule(inst.name) = inst.module
+          case Connect(_, lhs, rhs) =>
+            markAggregatePorts(lhs)
+            markAggregatePorts(rhs)
+          case PartialConnect(_, lhs, rhs) =>
+            markAggregatePorts(lhs)
+            markAggregatePorts(rhs)
+          case _ =>
+        }
+      }
+      mod.foreach(onStmt)
+    }
+    modules.foreach(onModule)
+    dontDedup.toSet
+  }
+
+  /** Visits every module in the circuit, starting at the leaf nodes.
+    * Every module is hashed in order to find ones that have the exact
+    * same structure and are thus functionally equivalent.
+    * Every unique hash is mapped to a human-readable tag which starts with `Dedup#`.
     * @param top CircuitTarget
     * @param moduleLinearization Sequence of modules from leaf to top
-    * @param noDedups Set of modules to not dedup
-    * @return
+    * @param noDedups names of modules that should not be deduped
+    * @return A map from tag to names of modules with the same structure and
+    *         a RenameMap which maps Module names to their Tag.
     */
   def buildRTLTags(top: CircuitTarget,
                    moduleLinearization: Seq[DefModule],
                    noDedups: Set[String]
                   ): (collection.Map[String, collection.Set[String]], RenameMap) = {
+    // maps hash code to human readable tag
+    val hashToTag = mutable.HashMap[ir.HashCode, String]()
 
+    // remembers all modules with the same hash
+    val hashToNames = mutable.HashMap[ir.HashCode, List[String]]()
 
-    // Maps a module name to its agnostic name
-    val tagMap = RenameMap()
+    // rename modules that we have already visited to their hash-derived tag name
+    val moduleNameToTag = mutable.HashMap[String, String]()
 
-    // Maps a tag to all matching module names
-    val tag2all = mutable.HashMap.empty[String, mutable.HashSet[String]]
-
-    val agnosticRename = RenameMap()
+    val dontAgnostifyPorts = modsToNotAgnostifyPorts(moduleLinearization)
 
     moduleLinearization.foreach { originalModule =>
-      // Replace instance references to new deduped modules
-      val dontcare = RenameMap()
-      dontcare.setCircuit("dontcare")
-
-      if (noDedups.contains(originalModule.name)) {
-        // Don't dedup. Set dedup module to be the same as fixed module
-        tag2all(originalModule.name) = mutable.HashSet(originalModule.name)
-      } else { // Try to dedup
-
-        // Build name-agnostic module
-        val agnosticModule = DedupModules.agnostify(top, originalModule, agnosticRename, "thisModule")
-        agnosticRename.record(top.module(originalModule.name), top.module("thisModule"))
-        agnosticRename.delete(top.module(originalModule.name))
-
-        // Build tag
-        val builder = new mutable.ArrayBuffer[Any]()
-        agnosticModule.ports.foreach { builder ++= _.serialize }
-
-        agnosticModule match {
-          case Module(i, n, ps, b) => builder ++= fastSerializedHash(b).toString()//.serialize
-          case ExtModule(i, n, ps, dn, p) =>
-            builder ++= dn
-            p.foreach { builder ++= _.serialize }
-        }
-        val tag = builder.hashCode().toString
-
-        // Match old module name to its tag
-        agnosticRename.record(top.module(originalModule.name), top.module(tag))
-        tagMap.record(top.module(originalModule.name), top.module(tag))
-
-        // Set tag's module to be the first matching module
-        val all = tag2all.getOrElseUpdate(tag, mutable.HashSet.empty[String])
-        all += originalModule.name
+      val hash = if (noDedups.contains(originalModule.name)) {
+        // if we do not want to dedup we just hash the name of the module which is guaranteed to be unique
+        StructuralHash.sha256(originalModule.name)
+      } else if (dontAgnostifyPorts(originalModule.name)) {
+        StructuralHash.sha256WithSignificantPortNames(originalModule, moduleNameToTag)
+      } else {
+        StructuralHash.sha256(originalModule, moduleNameToTag)
       }
+
+      if (hashToTag.contains(hash)) {
+        hashToNames(hash) = hashToNames(hash) :+ originalModule.name
+      } else {
+        hashToTag(hash) = "Dedup#" + originalModule.name
+        hashToNames(hash) = List(originalModule.name)
+      }
+      moduleNameToTag(originalModule.name) = hashToTag(hash)
     }
+
+    val tag2all = hashToNames.map{ case (hash, names) => hashToTag(hash) -> names.toSet }
+    val tagMap = RenameMap()
+    moduleNameToTag.foreach{ case (name, tag) => tagMap.record(top.module(name), top.module(tag)) }
     (tag2all, tagMap)
   }
-  //scalastyle:on
 
   /** Deduplicate
     * @param circuit Circuit
@@ -520,7 +467,7 @@ object DedupModules extends LazyLogging {
                   renameMap: RenameMap): Map[String, DefModule] = {
 
     val (moduleMap, moduleLinearization) = {
-      val iGraph = new InstanceGraph(circuit)
+      val iGraph = InstanceKeyGraph(circuit)
       (iGraph.moduleMap, iGraph.moduleOrder.reverse)
     }
     val main = circuit.main
@@ -603,7 +550,7 @@ object DedupModules extends LazyLogging {
     }
 
     changeInternals(rename, retype, {i => i}, {(x, y) => x}, renameExps = false)(m)
-    refs
+    refs.toIndexedSeq
   }
 
   def computeRenameMap(originalNames: IndexedSeq[ReferenceTarget],
@@ -631,6 +578,6 @@ object DedupModules extends LazyLogging {
     }
 
     onExp(root)
-    all
+    all.toSeq
   }
 }

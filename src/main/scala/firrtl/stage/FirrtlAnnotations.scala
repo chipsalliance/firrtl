@@ -6,10 +6,10 @@ import firrtl._
 import firrtl.ir.Circuit
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
 import firrtl.options.{HasShellOptions, OptionsException, ShellOption, Unserializable}
-
-
 import java.io.FileNotFoundException
 import java.nio.file.NoSuchFileException
+
+import firrtl.stage.TransformManager.TransformDependency
 
 /** Indicates that this is an [[firrtl.annotations.Annotation Annotation]] directly used in the construction of a
   * [[FirrtlOptions]] view.
@@ -177,6 +177,9 @@ case class RunFirrtlTransformAnnotation(transform: Transform) extends NoTargetAn
 
 object RunFirrtlTransformAnnotation extends HasShellOptions {
 
+  def apply(transform: TransformDependency): RunFirrtlTransformAnnotation =
+    RunFirrtlTransformAnnotation(transform.getObject)
+
   val options = Seq(
     new ShellOption[Seq[String]](
       longOption = "custom-transforms",
@@ -193,7 +196,18 @@ object RunFirrtlTransformAnnotation extends HasShellOptions {
             s"Unknown error when instantiating class $txName", e) }),
       helpText = "Run these transforms during compilation",
       shortOption = Some("fct"),
-      helpValueName = Some("<package>.<class>") ) )
+      helpValueName = Some("<package>.<class>") ),
+    new ShellOption[String](
+      longOption = "change-name-case",
+      toAnnotationSeq = _ match {
+        case "lower" => Seq(RunFirrtlTransformAnnotation(new firrtl.features.LowerCaseNames))
+        case "upper" => Seq(RunFirrtlTransformAnnotation(new firrtl.features.UpperCaseNames))
+        case a => throw new OptionsException(s"Unknown case '$a'. Did you misspell it?")
+      },
+      helpText = "Convert all FIRRTL names to a specific case",
+      helpValueName = Some("<lower|upper>")
+    )
+  )
 
 }
 

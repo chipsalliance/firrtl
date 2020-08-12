@@ -193,13 +193,13 @@ class DedupModuleTests extends HighTransformSpec {
           |  module A_ : @[xx 1:1]
           |    output y: UInt<1> @[xx 1:1]
           |    inst c of C
-          |    y <= c.v
+          |    y <= c.u
           |  extmodule B : @[aa 3:3]
           |    output u : UInt<1> @[aa 4:4]
           |    defname = BB
           |    parameter N = 0
           |  extmodule C : @[bb 5:5]
-          |    output v : UInt<1> @[bb 6:6]
+          |    output u : UInt<1> @[bb 6:6]
           |    defname = BB
           |    parameter N = 0
         """.stripMargin
@@ -238,13 +238,13 @@ class DedupModuleTests extends HighTransformSpec {
           |  module A_ : @[xx 1:1]
           |    output y: UInt<1> @[xx 1:1]
           |    inst c of C
-          |    y <= c.v
+          |    y <= c.u
           |  extmodule B : @[aa 3:3]
           |    output u : UInt<1> @[aa 4:4]
           |    defname = ${defnames._1}
           |    parameter N = ${params._1}
           |  extmodule C : @[bb 5:5]
-          |    output v : UInt<1> @[bb 6:6]
+          |    output u : UInt<1> @[bb 6:6]
           |    defname = ${defnames._2}
           |    parameter N = ${params._2}
         """.stripMargin
@@ -253,6 +253,61 @@ class DedupModuleTests extends HighTransformSpec {
      val diff_params = mkfir(("BB", "BB"), ("0", "1"))
      execute(diff_params, diff_params, Seq.empty)
   }
+
+  "Modules with aggregate ports that are bulk connected" should "NOT dedup if their port names differ" in {
+    val input =
+      """
+        |circuit FooAndBarModule :
+        |  module FooModule :
+        |    output io : {flip foo : UInt<1>, fuzz : UInt<1>}
+        |    io.fuzz <= io.foo
+        |  module BarModule :
+        |    output io : {flip bar : UInt<1>, buzz : UInt<1>}
+        |    io.buzz <= io.bar
+        |  module FooAndBarModule :
+        |    output io : {foo : {flip foo : UInt<1>, fuzz : UInt<1>}, bar : {flip bar : UInt<1>, buzz : UInt<1>}}
+        |    inst foo of FooModule
+        |    inst bar of BarModule
+        |    io.foo <- foo.io
+        |    io.bar <- bar.io
+        |""".stripMargin
+    val check = input
+    execute(input, check, Seq.empty)
+  }
+
+  "Modules with aggregate ports that are bulk connected" should "dedup if their port names are the same" in {
+    val input =
+      """
+        |circuit FooAndBarModule :
+        |  module FooModule :
+        |    output io : {flip foo : UInt<1>, fuzz : UInt<1>}
+        |    io.fuzz <= io.foo
+        |  module BarModule :
+        |    output io : {flip foo : UInt<1>, fuzz : UInt<1>}
+        |    io.fuzz <= io.foo
+        |  module FooAndBarModule :
+        |    output io : {foo : {flip foo : UInt<1>, fuzz : UInt<1>}, bar : {flip bar : UInt<1>, buzz : UInt<1>}}
+        |    inst foo of FooModule
+        |    inst bar of BarModule
+        |    io.foo <- foo.io
+        |    io.bar <- bar.io
+        |""".stripMargin
+    val check =
+      """
+        |circuit FooAndBarModule :
+        |  module FooModule :
+        |    output io : {flip foo : UInt<1>, fuzz : UInt<1>}
+        |    io.fuzz <= io.foo
+        |  module FooAndBarModule :
+        |    output io : {foo : {flip foo : UInt<1>, fuzz : UInt<1>}, bar : {flip bar : UInt<1>, buzz : UInt<1>}}
+        |    inst foo of FooModule
+        |    inst bar of FooModule
+        |    io.foo <- foo.io
+        |    io.bar <- bar.io
+        |""".stripMargin
+    execute(input, check, Seq.empty)
+  }
+
   "The module A and B" should "be deduped with the first module in order" in {
     val input =
       """circuit Top :
@@ -772,11 +827,15 @@ class DedupModuleTests extends HighTransformSpec {
       |    output oa: {z: {y: {x: UInt<1>}}, a: UInt<1>}
       |    output ob: {a: {b: {c: UInt<1>}}, z: UInt<1>}
       |    inst a of a
-      |    a.i <= ia
-      |    oa <= a.o
+      |    a.i.z.y.x <= ia.z.y.x
+      |    a.i.a <= ia.a
+      |    oa.z.y.x <= a.o.z.y.x
+      |    oa.a <= a.o.a
       |    inst b of b
-      |    b.q <= ib
-      |    ob <= b.r
+      |    b.q.a.b.c <= ib.a.b.c
+      |    b.q.z <= ib.z
+      |    ob.a.b.c <= b.r.a.b.c
+      |    ob.z <= b.r.z
       |  module a:
       |    input i: {z: {y: {x: UInt<1>}}, a: UInt<1>}
       |    output o: {z: {y: {x: UInt<1>}}, a: UInt<1>}
@@ -816,4 +875,3 @@ class DedupModuleTests extends HighTransformSpec {
     csDeduped.annotations.toSeq should contain (expectedAnnB)
   }
 }
-

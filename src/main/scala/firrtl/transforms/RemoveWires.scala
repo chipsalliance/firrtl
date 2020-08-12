@@ -9,7 +9,7 @@ import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedExpression._
 import firrtl.graph.{MutableDiGraph, CyclicException}
-import firrtl.options.{Dependency, PreservesAll}
+import firrtl.options.Dependency
 
 import scala.collection.mutable
 import scala.util.{Try, Success, Failure}
@@ -20,17 +20,23 @@ import scala.util.{Try, Success, Failure}
   *  wires have multiple connections that may be impossible to order in a
   *  flow-foward way
   */
-class RemoveWires extends Transform with DependencyAPIMigration with PreservesAll[Transform] {
+class RemoveWires extends Transform with DependencyAPIMigration {
 
   override def prerequisites = firrtl.stage.Forms.MidForm ++
     Seq( Dependency(passes.LowerTypes),
          Dependency(passes.Legalize),
+         Dependency(passes.ResolveKinds),
          Dependency(transforms.RemoveReset),
          Dependency[transforms.CheckCombLoops] )
 
   override def optionalPrerequisites = Seq(Dependency[checks.CheckResets])
 
   override def optionalPrerequisiteOf = Seq.empty
+
+  override def invalidates(a: Transform) = a match {
+    case passes.ResolveKinds => true
+    case  _ => false
+  }
 
   // Extract all expressions that are references to a Node, Wire, or Reg
   // Since we are operating on LowForm, they can only be WRefs
@@ -45,7 +51,7 @@ class RemoveWires extends Transform with DependencyAPIMigration with PreservesAl
       e
     }
     rec(expr)
-    refs
+    refs.toSeq
   }
 
   // Transform netlist into DefNodes
@@ -122,7 +128,7 @@ class RemoveWires extends Transform with DependencyAPIMigration with PreservesAl
               netlist(we(expr)) = (Seq(ValidIf(Utils.zero, UIntLiteral(BigInt(0), width), expr.tpe)), info)
             case _ => otherStmts += invalid
           }
-        case other @ (_: Print | _: Stop | _: Attach) =>
+        case other @ (_: Print | _: Stop | _: Attach | _: Verification) =>
           otherStmts += other
         case EmptyStmt => // Dont bother keeping EmptyStmts around
         case block: Block => block.foreach(onStmt)
@@ -136,7 +142,7 @@ class RemoveWires extends Transform with DependencyAPIMigration with PreservesAl
         onStmt(body)
         getOrderedNodes(netlist, regInfo) match {
           case Success(logic) =>
-            Module(info, name, ports, Block(decls ++ logic ++ otherStmts))
+            Module(info, name, ports, Block(List() ++ decls ++ logic ++ otherStmts))
           // If we hit a CyclicException, just abort removing wires
           case Failure(c: CyclicException) =>
             val problematicNode = c.node
@@ -149,13 +155,7 @@ class RemoveWires extends Transform with DependencyAPIMigration with PreservesAl
     }
   }
 
-  /* @todo move ResolveKinds outside */
-  private val cleanup = Seq(
-    passes.ResolveKinds
-  )
 
-  def execute(state: CircuitState): CircuitState = {
-    val result = state.copy(circuit = state.circuit.map(onModule))
-    cleanup.foldLeft(result) { case (in, xform) => xform.execute(in) }
-  }
+  def execute(state: CircuitState): CircuitState =
+    state.copy(circuit = state.circuit.map(onModule))
 }

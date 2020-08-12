@@ -11,8 +11,8 @@ import firrtl.traversals.Foreachers._
 import firrtl.annotations._
 import firrtl.Utils.throwInternalError
 import firrtl.graph._
-import firrtl.analyses.InstanceGraph
-import firrtl.options.{Dependency, PreservesAll, RegisteredTransform, ShellOption}
+import firrtl.analyses.InstanceKeyGraph
+import firrtl.options.{Dependency, RegisteredTransform, ShellOption}
 
 /**
   * A case class that represents a net in the circuit. This is necessary since combinational loop
@@ -100,8 +100,7 @@ case class CombinationalPath(sink: ReferenceTarget, sources: Seq[ReferenceTarget
   */
 class CheckCombLoops extends Transform
     with RegisteredTransform
-    with DependencyAPIMigration
-    with PreservesAll[Transform] {
+    with DependencyAPIMigration {
 
   override def prerequisites = firrtl.stage.Forms.MidForm ++
     Seq( Dependency(passes.LowerTypes),
@@ -111,6 +110,8 @@ class CheckCombLoops extends Transform
   override def optionalPrerequisites = Seq.empty
 
   override def optionalPrerequisiteOf = Seq.empty
+
+  override def invalidates(a: Transform) = false
 
   import CheckCombLoops._
 
@@ -240,7 +241,7 @@ class CheckCombLoops extends Transform
       case ann: Annotation => CircuitTarget(c.main)
     }
     val moduleMap = c.modules.map({m => (m.name,m) }).toMap
-    val iGraph = new InstanceGraph(c).graph
+    val iGraph = InstanceKeyGraph(c).graph
     val moduleDeps = iGraph.getEdgeMap.map({ case (k,v) => (k.module, (v map { i => (i.name, i.module) }).toMap) }).toMap
     val topoSortedModules = iGraph.transformNodes(_.module).linearize.reverse map { moduleMap(_) }
     val moduleGraphs = new mutable.HashMap[String, ConnMap]

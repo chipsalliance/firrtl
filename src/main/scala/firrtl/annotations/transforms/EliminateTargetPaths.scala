@@ -3,14 +3,13 @@
 package firrtl.annotations.transforms
 
 import firrtl.Mappers._
-import firrtl.analyses.InstanceGraph
+import firrtl.analyses.InstanceKeyGraph
 import firrtl.annotations.ModuleTarget
 import firrtl.annotations.TargetToken.{Instance, OfModule, fromDefModuleToTargetToken}
 import firrtl.annotations.analysis.DuplicationHelper
 import firrtl.annotations._
 import firrtl.ir._
 import firrtl.{AnnotationSeq, CircuitState, DependencyAPIMigration, FirrtlInternalException, RenameMap, Transform}
-import firrtl.options.PreservesAll
 import firrtl.stage.Forms
 import firrtl.transforms.DedupedResult
 
@@ -102,12 +101,13 @@ object EliminateTargetPaths {
   * B/x -> (B/x, B_/x) // where x is any reference in B
   * C/x -> (C/x, C_/x) // where x is any reference in C
   */
-class EliminateTargetPaths extends Transform with DependencyAPIMigration with PreservesAll[Transform] {
+class EliminateTargetPaths extends Transform with DependencyAPIMigration {
   import EliminateTargetPaths._
 
   override def prerequisites = Forms.MinimalHighForm
   override def optionalPrerequisites = Seq.empty
   override def optionalPrerequisiteOf = Seq.empty
+  override def invalidates(a: Transform) = false
 
   /** Replaces old ofModules with new ofModules by calling dupMap methods
     * Updates oldUsedOfModules, newUsedOfModules
@@ -132,7 +132,7 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration with Pr
     */
   def run(cir: Circuit,
           targets: Seq[IsMember],
-          iGraph: InstanceGraph
+          iGraph: InstanceKeyGraph
          ): (Circuit, RenameMap, AnnotationSeq) = {
 
     val dupMap = DuplicationHelper(cir.modules.map(_.name).toSet)
@@ -211,7 +211,7 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration with Pr
     }
 
     // Return modified circuit and associated renameMap
-    (cir.copy(modules = finalModuleList), renameMap, annos)
+    (cir.copy(modules = finalModuleList.toSeq), renameMap, annos)
   }
 
   override def execute(state: CircuitState): CircuitState = {
@@ -239,8 +239,8 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration with Pr
     val targets = targetsToEliminate.collect { case x: IsMember => x }
 
     // Check validity of paths in targets
-    val iGraph = new InstanceGraph(state.circuit)
-    val instanceOfModules = iGraph.getChildrenInstanceOfModule
+    val iGraph = InstanceKeyGraph(state.circuit)
+    val instanceOfModules = iGraph.getChildInstances.map { case(k,v) => k -> v.map(_.toTokens) }.toMap
     val targetsWithInvalidPaths = mutable.ArrayBuffer[IsMember]()
     targets.foreach { t =>
       val path = t match {
@@ -311,8 +311,8 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration with Pr
         nextRenameMap
       }
 
-    val iGraphx = new InstanceGraph(newCircuit)
-    val newlyUnreachableModules = iGraphx.unreachableModules diff iGraph.unreachableModules
+    val iGraphx = InstanceKeyGraph(newCircuit)
+    val newlyUnreachableModules = iGraphx.unreachableModules.toSet diff iGraph.unreachableModules.toSet
 
     val newCircuitGC = {
       val modulesx = newCircuit.modules.flatMap{

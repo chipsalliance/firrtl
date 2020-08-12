@@ -6,7 +6,7 @@ import firrtl.stage._
 
 import firrtl.{AnnotationSeq, EmitAllModulesAnnotation, EmitCircuitAnnotation}
 import firrtl.annotations.Annotation
-import firrtl.options.{Dependency, OptionsException, Phase, PreservesAll}
+import firrtl.options.{Dependency, OptionsException, Phase}
 
 /** [[firrtl.options.Phase Phase]] that strictly validates an [[AnnotationSeq]]. The checks applied are intended to be
   * extremeley strict. Nothing is inferred or assumed to take a default value (for default value resolution see
@@ -16,11 +16,13 @@ import firrtl.options.{Dependency, OptionsException, Phase, PreservesAll}
   * certain that other [[firrtl.options.Phase Phase]]s or views will succeed. See [[FirrtlStage]] for a list of
   * [[firrtl.options.Phase Phase]] that commonly run before this.
   */
-class Checks extends Phase with PreservesAll[Phase] {
+class Checks extends Phase {
 
   override val prerequisites = Seq(Dependency[AddDefaults], Dependency[AddImplicitEmitter])
 
   override val optionalPrerequisiteOf = Seq.empty
+
+  override def invalidates(a: Phase) = false
 
   /** Determine if annotations are sane
     *
@@ -29,7 +31,7 @@ class Checks extends Phase with PreservesAll[Phase] {
     * @throws firrtl.options.OptionsException if any checks fail
     */
   def transform(annos: AnnotationSeq): AnnotationSeq = {
-    val inF, inS, eam, ec, outF, comp, im, inC = collection.mutable.ListBuffer[Annotation]()
+    val inF, inS, eam, ec, outF, comp, emitter, im, inC = collection.mutable.ListBuffer[Annotation]()
     annos.foreach(
       _ match {
         case a: FirrtlFileAnnotation     => a +=: inF
@@ -40,6 +42,7 @@ class Checks extends Phase with PreservesAll[Phase] {
         case a: CompilerAnnotation       => a +=: comp
         case a: InfoModeAnnotation       => a +=: im
         case a: FirrtlCircuitAnnotation  => a +=: inC
+        case a @ RunFirrtlTransformAnnotation(_ : firrtl.Emitter) => a +=: emitter
         case _                           =>           })
 
     /* At this point, only a FIRRTL Circuit should exist */
@@ -73,8 +76,8 @@ class Checks extends Phase with PreservesAll[Phase] {
         s"""|No more than one output file can be specified, but found '${x.mkString(", ")}' specified via:
             |    - option or annotation: -o, --output-file, OutputFileAnnotation""".stripMargin) }
 
-    /* One mandatory compiler must be specified */
-    if (comp.size != 1) {
+    /* One mandatory compiler (or emitter) must be specified */
+    if (comp.size != 1 && emitter.isEmpty) {
       val x = comp.map{ case CompilerAnnotation(x) => x }
       val (msg, suggest) = if (comp.size == 0) { ("none found",                       "forget one of")   }
       else                                     { (s"""found '${x.mkString(", ")}'""", "use multiple of") }

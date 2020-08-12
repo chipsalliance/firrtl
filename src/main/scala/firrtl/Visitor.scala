@@ -69,26 +69,26 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
     infoMode match {
       case UseInfo =>
         if (useInfo.length == 0) NoInfo
-        else ir.FileInfo(ir.StringLit.unescape(useInfo))
+        else ir.FileInfo.fromEscaped(useInfo)
       case AppendInfo(filename) if (useInfo.length == 0) =>
-        ir.FileInfo(ir.StringLit.unescape(genInfo(filename)))
+        ir.FileInfo.fromEscaped(genInfo(filename))
       case AppendInfo(filename) =>
-        val useFileInfo = ir.FileInfo(ir.StringLit.unescape(useInfo))
-        val newFileInfo = ir.FileInfo(ir.StringLit.unescape(genInfo(filename)))
+        val useFileInfo = ir.FileInfo.fromEscaped(useInfo)
+        val newFileInfo = ir.FileInfo.fromEscaped(genInfo(filename))
         ir.MultiInfo(useFileInfo, newFileInfo)
       case GenInfo(filename) =>
-        ir.FileInfo(ir.StringLit.unescape(genInfo(filename)))
+        ir.FileInfo.fromEscaped(genInfo(filename))
       case IgnoreInfo => NoInfo
     }
   }
 
   private def visitCircuit(ctx: CircuitContext): Circuit =
-    Circuit(visitInfo(Option(ctx.info), ctx), ctx.module.asScala.map(visitModule), ctx.id.getText)
+    Circuit(visitInfo(Option(ctx.info), ctx), ctx.module.asScala.map(visitModule).toSeq, ctx.id.getText)
 
   private def visitModule(ctx: ModuleContext): DefModule = {
     val info = visitInfo(Option(ctx.info), ctx)
     ctx.getChild(0).getText match {
-      case "module" => Module(info, ctx.id.getText, ctx.port.asScala.map(visitPort),
+      case "module" => Module(info, ctx.id.getText, ctx.port.asScala.map(visitPort).toSeq,
         if (ctx.moduleBlock() != null)
           visitBlock(ctx.moduleBlock())
         else EmptyStmt)
@@ -96,7 +96,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
         val defname = if (ctx.defname != null) ctx.defname.id.getText else ctx.id.getText
         val ports = ctx.port.asScala map visitPort
         val params = ctx.parameter.asScala map visitParameter
-        ExtModule(info, ctx.id.getText, ports, defname, params)
+        ExtModule(info, ctx.id.getText, ports.toSeq, defname, params.toSeq)
     }
   }
 
@@ -176,7 +176,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
           case "Reset" => ResetType
           case "Analog" => if (ctx.getChildCount > 1) AnalogType(getWidth(ctx.intLit(0)))
           else AnalogType(UnknownWidth)
-          case "{" => BundleType(ctx.field.asScala.map(visitField))
+          case "{" => BundleType(ctx.field.asScala.map(visitField).toSeq)
         }
       case typeContext: TypeContext => new VectorType(visitType(ctx.`type`), string2Int(ctx.intLit(0).getText))
     }
@@ -201,10 +201,10 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
   }
 
   private def visitBlock(ctx: ModuleBlockContext): Statement =
-    Block(ctx.simple_stmt().asScala.flatMap(x => Option(x.stmt).map(visitStmt)))
+    Block(ctx.simple_stmt().asScala.flatMap(x => Option(x.stmt).map(visitStmt)).toSeq)
 
   private def visitSuite(ctx: SuiteContext): Statement =
-    Block(ctx.simple_stmt().asScala.flatMap(x => Option(x.stmt).map(visitStmt)))
+    Block(ctx.simple_stmt().asScala.flatMap(x => Option(x.stmt).map(visitStmt)).toSeq)
 
   private def visitRuw(ctx: Option[RuwContext]): ReadUnderWrite.Value = ctx match {
     case None => ReadUnderWrite.Undefined
@@ -248,7 +248,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
 
     // Build map of different Memory fields to their values
     try {
-      parseMemFields(ctx.memField().asScala)
+      parseMemFields(ctx.memField().asScala.toSeq)
     } catch {
       // attach line number
       case e: ParameterRedefinedException => throw new ParameterRedefinedException(s"[$info] ${e.message}")
@@ -268,7 +268,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
       depth = lit("depth"),
       writeLatency = lit("write-latency").toInt,
       readLatency = lit("read-latency").toInt,
-      readers = readers, writers = writers, readwriters = readwriters,
+      readers = readers.toSeq, writers = writers.toSeq, readwriters = readwriters.toSeq,
       readUnderWrite = ruw
     )
   }
@@ -304,16 +304,17 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
         case "reg" =>
           val name = ctx.id(0).getText
           val tpe = visitType(ctx.`type`())
-          val (reset, init) = {
+          val (reset, init, rinfo) = {
             val rb = ctx.reset_block()
             if (rb != null) {
               val sr = rb.simple_reset.simple_reset0()
-              (visitExp(sr.exp(0)), visitExp(sr.exp(1)))
+              val innerInfo = if (info == NoInfo) visitInfo(Option(rb.info), ctx) else info
+              (visitExp(sr.exp(0)), visitExp(sr.exp(1)), innerInfo)
             }
             else
-              (UIntLiteral(0, IntWidth(1)), Reference(name, tpe))
+              (UIntLiteral(0, IntWidth(1)), Reference(name, tpe), info)
           }
-          DefRegister(info, name, tpe, visitExp(ctx_exp(0)), reset, init)
+          DefRegister(rinfo, name, tpe, visitExp(ctx_exp(0)), reset, init)
         case "mem" => visitMem(ctx)
         case "cmem" =>
           val (tpe, size) = visitCMemType(ctx.`type`())
@@ -325,9 +326,20 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
         case "node" => DefNode(info, ctx.id(0).getText, visitExp(ctx_exp(0)))
 
         case "stop(" => Stop(info, string2Int(ctx.intLit().getText), visitExp(ctx_exp(0)), visitExp(ctx_exp(1)))
-        case "attach" => Attach(info, ctx_exp map visitExp)
-        case "printf(" => Print(info, visitStringLit(ctx.StringLit), ctx_exp.drop(2).map(visitExp),
+        case "attach" => Attach(info, ctx_exp.map(visitExp).toSeq)
+        case "printf(" => Print(info, visitStringLit(ctx.StringLit), ctx_exp.drop(2).map(visitExp).toSeq,
           visitExp(ctx_exp(0)), visitExp(ctx_exp(1)))
+        // formal
+        case "assert" => Verification(Formal.Assert, info, visitExp(ctx_exp(0)),
+          visitExp(ctx_exp(1)), visitExp(ctx_exp(2)),
+          visitStringLit(ctx.StringLit))
+        case "assume" => Verification(Formal.Assume, info, visitExp(ctx_exp(0)),
+          visitExp(ctx_exp(1)), visitExp(ctx_exp(2)),
+          visitStringLit(ctx.StringLit))
+        case "cover" => Verification(Formal.Cover, info, visitExp(ctx_exp(0)),
+          visitExp(ctx_exp(1)), visitExp(ctx_exp(2)),
+          visitStringLit(ctx.StringLit))
+        // end formal
         case "skip" => EmptyStmt
       }
       // If we don't match on the first child, try the next one
@@ -368,8 +380,8 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
         }
       case _: PrimopContext =>
         DoPrim(visitPrimop(ctx.primop),
-               ctx_exp.map(visitExp),
-               ctx.intLit.asScala.map(x => string2BigInt(x.getText)),
+               ctx_exp.map(visitExp).toSeq,
+               ctx.intLit.asScala.map(x => string2BigInt(x.getText)).toSeq,
                UnknownType)
       case _ =>
         ctx.getChild(0).getText match {
