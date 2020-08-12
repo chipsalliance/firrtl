@@ -234,6 +234,7 @@ object Utils extends LazyLogging {
   def isTemp(str: String): Boolean = str.head == '_'
 
   /** Indent the results of [[ir.FirrtlNode.serialize]] */
+  @deprecated("Use ther new firrt.ir.Serializer instead.", "FIRRTL 1.4")
   def indent(str: String) = str replaceAllLiterally ("\n", "\n  ")
 
   implicit def toWrappedExpression (x:Expression): WrappedExpression = new WrappedExpression(x)
@@ -299,7 +300,7 @@ object Utils extends LazyLogging {
       expr
     }
     onExp(expression)
-    ReferenceTarget(main, module, Nil, ref, tokens)
+    ReferenceTarget(main, module, Nil, ref, tokens.toSeq)
   }
    @deprecated("get_flip is fundamentally slow, use to_flip(flow(expr))", "1.2")
    def get_flip(t: Type, i: Int, f: Orientation): Orientation = {
@@ -358,7 +359,7 @@ object Utils extends LazyLogging {
       e
     }
     e map addKids
-    kids
+    kids.toSeq
   }
 
   /** Walks two expression trees and returns a sequence of tuples of where they differ */
@@ -508,9 +509,15 @@ object Utils extends LazyLogging {
     case Default => Flip
     case Flip => Default
   }
+  // Input  <-> SourceFlow <-> Flip
+  // Output <-> SinkFlow   <-> Default
   def to_dir(g: Flow): Direction = g match {
     case SourceFlow => Input
     case SinkFlow => Output
+  }
+  def to_dir(o: Orientation): Direction = o match {
+    case Flip => Input
+    case Default => Output
   }
   def to_flow(d: Direction): Flow = d match {
     case Input => SourceFlow
@@ -763,6 +770,15 @@ object Utils extends LazyLogging {
       .map(_.end - 1)
       .toSeq
       .foldLeft(Seq[String]()){ case (seq, id) => seq :+ name.splitAt(id)._1 }
+  }
+
+  /** Returns the value masked with the width.
+    *
+    * This supports truncating negative values as well as values that are too
+    * wide for the width
+    */
+  def maskBigInt(value: BigInt, width: Int): BigInt = {
+    value & ((BigInt(1) << width) - 1)
   }
 }
 

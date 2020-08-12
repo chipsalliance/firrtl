@@ -63,36 +63,33 @@ object WSubAccess {
   def unapply(wsa: WSubAccess): Option[(Expression, Expression, Type, Flow)] = Some((wsa.expr, wsa.index, wsa.tpe, wsa.flow))
 }
 
-case object WVoid extends Expression {
+case object WVoid extends Expression with UseSerializer {
   def tpe = UnknownType
-  def serialize: String = "VOID"
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = this
-  def foreachExpr(f: Expression => Unit): Unit = Unit
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = ()
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
-case object WInvalid extends Expression {
+case object WInvalid extends Expression with UseSerializer {
   def tpe = UnknownType
-  def serialize: String = "INVALID"
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = this
-  def foreachExpr(f: Expression => Unit): Unit = Unit
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = ()
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 // Useful for splitting then remerging references
-case object EmptyExpression extends Expression {
+case object EmptyExpression extends Expression with UseSerializer {
   def tpe = UnknownType
-  def serialize: String = "EMPTY"
   def mapExpr(f: Expression => Expression): Expression = this
   def mapType(f: Type => Type): Expression = this
   def mapWidth(f: Width => Width): Expression = this
-  def foreachExpr(f: Expression => Unit): Unit = Unit
-  def foreachType(f: Type => Unit): Unit = Unit
-  def foreachWidth(f: Width => Unit): Unit = Unit
+  def foreachExpr(f: Expression => Unit): Unit = ()
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachWidth(f: Width => Unit): Unit = ()
 }
 
 object WDefInstance {
@@ -108,16 +105,14 @@ case class WDefInstanceConnector(
     name: String,
     module: String,
     tpe: Type,
-    portCons: Seq[(Expression, Expression)]) extends Statement with IsDeclaration {
-  def serialize: String = s"inst $name of $module with ${tpe.serialize} connected to " +
-                          portCons.map(_._2.serialize).mkString("(", ", ", ")") + info.serialize
+    portCons: Seq[(Expression, Expression)]) extends Statement with IsDeclaration with UseSerializer {
   def mapExpr(f: Expression => Expression): Statement =
     this.copy(portCons = portCons map { case (e1, e2) => (f(e1), f(e2)) })
   def mapStmt(f: Statement => Statement): Statement = this
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
   def mapInfo(f: Info => Info): Statement = this.copy(f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = portCons foreach { case (e1, e2) => (f(e1), f(e2)) }
   def foreachType(f: Type => Unit): Unit = f(tpe)
   def foreachString(f: String => Unit): Unit = f(name)
@@ -166,6 +161,44 @@ case object Dshlw extends PrimOp {
       case _: SIntType => SIntType(w1(e))
       case _ => UnknownType
     }
+  }
+}
+
+/** Internal class used for propagating [[Info]] across [[Expression]]s
+  *
+  * In particular, this is useful in "Netlist" datastructures mapping node or other [[Statement]]s
+  * to [[Expression]]s
+  *
+  * @note This is not allowed to leak from any transform
+  */
+private[firrtl] case class InfoExpr(info: Info, expr: Expression) extends Expression {
+  def foreachExpr(f: Expression => Unit): Unit = f(expr)
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachWidth(f: Width => Unit): Unit = ()
+  def mapExpr(f: Expression => Expression): Expression = this.copy(expr = f(this.expr))
+  def mapType(f: Type => Type): Expression = this
+  def mapWidth(f: Width => Width): Expression = this
+  def tpe: Type = expr.tpe
+
+  // Members declared in firrtl.ir.FirrtlNode
+  override def serialize: String = s"(${expr.serialize}: ${info.serialize})"
+}
+
+private[firrtl] object InfoExpr {
+  def wrap(info: Info, expr: Expression): Expression =
+    if (info == NoInfo) expr else InfoExpr(info, expr)
+
+  def unwrap(expr: Expression): (Info, Expression) = expr match {
+    case InfoExpr(i, e) => (i, e)
+    case other          => (NoInfo, other)
+  }
+
+  def orElse(info: Info, alt: => Info): Info = if (info == NoInfo) alt else info
+
+  // TODO this the right name?
+  def map(expr: Expression)(f: Expression => Expression): Expression = expr match {
+    case ie: InfoExpr => ie.mapExpr(f)
+    case e            => f(e)
   }
 }
 
@@ -292,16 +325,14 @@ case class CDefMemory(
     tpe: Type,
     size: BigInt,
     seq: Boolean,
-    readUnderWrite: ReadUnderWrite.Value = ReadUnderWrite.Undefined) extends Statement with HasInfo {
-  def serialize: String = (if (seq) "smem" else "cmem") +
-    s" $name : ${tpe.serialize} [$size]" + info.serialize
+    readUnderWrite: ReadUnderWrite.Value = ReadUnderWrite.Undefined) extends Statement with HasInfo with UseSerializer {
   def mapExpr(f: Expression => Expression): Statement = this
   def mapStmt(f: Statement => Statement): Statement = this
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
   def mapInfo(f: Info => Info): Statement = this.copy(f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
-  def foreachExpr(f: Expression => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
+  def foreachExpr(f: Expression => Unit): Unit = ()
   def foreachType(f: Type => Unit): Unit = f(tpe)
   def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f: Info => Unit): Unit = f(info)
@@ -311,17 +342,13 @@ case class CDefMPort(info: Info,
     tpe: Type,
     mem: String,
     exps: Seq[Expression],
-    direction: MPortDir) extends Statement with HasInfo {
-  def serialize: String = {
-    val dir = direction.serialize
-    s"$dir mport $name = $mem[${exps.head.serialize}], ${exps(1).serialize}" + info.serialize
-  }
+    direction: MPortDir) extends Statement with HasInfo with UseSerializer {
   def mapExpr(f: Expression => Expression): Statement = this.copy(exps = exps map f)
   def mapStmt(f: Statement => Statement): Statement = this
   def mapType(f: Type => Type): Statement = this.copy(tpe = f(tpe))
   def mapString(f: String => String): Statement = this.copy(name = f(name))
   def mapInfo(f: Info => Info): Statement = this.copy(f(info))
-  def foreachStmt(f: Statement => Unit): Unit = Unit
+  def foreachStmt(f: Statement => Unit): Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = exps.foreach(f)
   def foreachType(f: Type => Unit): Unit = f(tpe)
   def foreachString(f: String => Unit): Unit = f(name)
