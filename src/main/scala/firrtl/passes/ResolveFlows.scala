@@ -24,6 +24,8 @@ object ResolveFlows extends Pass {
       WSubIndex(resolve_e(g)(exp), value, tpe, g)
     case WSubAccess(exp, index, tpe, _) =>
       WSubAccess(resolve_e(g)(exp), resolve_e(SourceFlow)(index), tpe, g)
+    case ApplyMemAccess(mem, acc, tpe, _) =>
+      ApplyMemAccess(resolve_e(g)(mem), resolve_e(SourceFlow)(acc), tpe, g)
     case _ => e map resolve_e(g)
   }
 

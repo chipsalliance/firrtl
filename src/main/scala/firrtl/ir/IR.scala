@@ -954,6 +954,11 @@ case object UnknownType extends Type with UseSerializer {
   def foreachWidth(f: Width => Unit): Unit = ()
 }
 
+case class MemAccessType(tpe: Type) extends AggregateType with UseSerializer {
+  def mapType(f: Type => Type): Type = MemAccessType(f(tpe))
+  def foreachType(f: Type => Unit): Unit = f(tpe)
+}
+
 /** [[Port]] Direction */
 sealed abstract class Direction extends FirrtlNode
 case object Input extends Direction {

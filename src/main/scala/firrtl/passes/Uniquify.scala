@@ -263,10 +263,7 @@ object Uniquify extends Transform with DependencyAPIMigration {
       def uniquifyExp(e: Expression): Expression = e match {
         case (_: WRef | _: WSubField | _: WSubIndex | _: WSubAccess ) =>
           uniquifyNamesExp(e, nameMap.toMap)
-        case e: Mux => e map uniquifyExp
-        case e: ValidIf => e map uniquifyExp
-        case (_: UIntLiteral | _: SIntLiteral) => e
-        case e: DoPrim => e map uniquifyExp
+        case e => e map uniquifyExp
       }
 
       def uniquifyStmt(s: Statement): Statement = {

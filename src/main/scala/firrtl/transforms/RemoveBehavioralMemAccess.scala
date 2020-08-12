@@ -13,15 +13,15 @@ import firrtl.passes.MemPortUtils._
 import collection.mutable
 
 object RemoveBehavioralMemAccess extends Transform with DependencyAPIMigration {
-  override def prerequisites = Nil
+  override def prerequisites = Seq(Dependency(passes.ExpandWhens))
 
-  override def optionalPrerequisites = Nil
-
-  override def optionalPrerequisiteOf = Seq(
+  override def optionalPrerequisites = Seq(
     Dependency(passes.CheckChirrtl),
     Dependency(passes.CInferTypes),
     Dependency(passes.CInferMDir),
     Dependency(passes.RemoveCHIRRTL))
+
+  override def optionalPrerequisiteOf = Nil
 
   override def invalidates(a: Transform) = false
 
