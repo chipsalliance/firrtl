@@ -14,7 +14,8 @@ import firrtl.annotations.{
   Target}
 import firrtl.annotations.transforms.CleanupNamedTargets
 
-import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
 object CleanupNamedTargetsSpec {
 
@@ -28,7 +29,7 @@ object CleanupNamedTargetsSpec {
 
 }
 
-class CleanupNamedTargetsSpec extends FlatSpec with Matchers {
+class CleanupNamedTargetsSpec extends AnyFlatSpec with Matchers {
 
   import CleanupNamedTargetsSpec._
 
