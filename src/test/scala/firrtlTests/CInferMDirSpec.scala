@@ -8,7 +8,8 @@ import firrtl.passes._
 import firrtl.transforms._
 import firrtl.testutils._
 
-class CInferMDirSpec extends LowTransformSpec {
+object CInferMDirSpec {
+
   object CInferMDirCheckPass extends Pass {
     // finds the memory and check its read port
     def checkStmt(s: Statement): Boolean = s match {
@@ -36,11 +37,19 @@ class CInferMDirSpec extends LowTransformSpec {
     }
   }
 
-  def transform = new SeqTransform {
+  object CInferMDirSpecTransform extends SeqTransform {
     def inputForm = LowForm
     def outputForm = LowForm
     def transforms = Seq(new ConstantPropagation, CInferMDirCheckPass)
   }
+
+}
+
+class CInferMDirSpec extends LowTransformSpec {
+
+  import CInferMDirSpec._
+
+  def transform = CInferMDirSpecTransform
 
   "Memory" should "have correct mem port directions" in {
     val input = """
