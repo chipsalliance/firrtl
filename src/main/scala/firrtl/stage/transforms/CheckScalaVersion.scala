@@ -13,6 +13,12 @@ object CheckScalaVersion {
     val "2" :: major :: _ :: Nil = BuildInfo.scalaVersion.split("\\.").toList
     major.toInt
   }
+
+  final def deprecationMessage(version: String, option: String) =
+    s"""|FIRRTL support for Scala $version is deprecated, please upgrade to Scala 2.12.
+        |  Migration guide: $migrationDocumentLink
+        |  Suppress warning with '$option'""".stripMargin
+
 }
 
 class CheckScalaVersion extends Transform with DependencyAPIMigration {
@@ -24,13 +30,8 @@ class CheckScalaVersion extends Transform with DependencyAPIMigration {
     def suppress = state.annotations.contains(SuppressScalaVersionWarning)
     if (getScalaMajorVersion == 11 && !suppress) {
       val option = s"--${SuppressScalaVersionWarning.longOption}"
-      val msg =
-        s"""FIRRTL support for Scala 2.11 is deprecated, please upgrade to Scala 2.12.
-           |  Migration guide: $migrationDocumentLink
-           |  Suppress warning with '$option'""".stripMargin
-      dramaticWarning(msg)
+      dramaticWarning(deprecationMessage("2.11", option))
     }
     state
   }
 }
-
