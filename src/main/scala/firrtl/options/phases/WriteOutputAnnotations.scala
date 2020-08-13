@@ -16,7 +16,6 @@ class WriteOutputAnnotations extends Phase {
 
   override def prerequisites =
     Seq( Dependency[GetIncludes],
-         Dependency[ConvertLegacyAnnotations],
          Dependency[AddDefaults],
          Dependency[Checks] )
 
