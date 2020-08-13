@@ -120,12 +120,12 @@ class InlineBooleanExpressionsSpec extends FirrtlFlatSpec {
         |    node _a = lt(x1, x2)
         |    node _b = eq(lt(x1, x2), x2)
         |    node _c = and(eq(lt(x1, x2), x2), x2)
+        |    outA <= and(eq(lt(x1, x2), x2), x2)
         |
         |    node _d = head(_c, 1)
         |    node _e = andr(head(_c, 1))
         |    node _f = lt(andr(head(_c, 1)), x2)
         |
-        |    outA <= and(eq(lt(x1, x2), x2), x2)
         |    outB <= lt(andr(head(_c, 1)), x2)""".stripMargin
     val result = exec(input)
     (result) should be (parse(check).serialize)
@@ -164,13 +164,13 @@ class InlineBooleanExpressionsSpec extends FirrtlFlatSpec {
         |    node _b = leq(lt(x1, x2), x2)
         |    node _c = gt(leq(lt(x1, x2), x2), x2)
         |    node _d = geq(gt(leq(lt(x1, x2), x2), x2), x2)
+        |    outA <= geq(gt(leq(lt(x1, x2), x2), x2), x2)
         |
         |    node _e = lt(x1, x2)
         |    node _f = leq(x1, lt(x1, x2))
         |    node _g = gt(x1, leq(x1, lt(x1, x2)))
         |    node _h = geq(x1, gt(x1, leq(x1, lt(x1, x2))))
         |
-        |    outA <= geq(gt(leq(lt(x1, x2), x2), x2), x2)
         |    outB <= geq(x1, gt(x1, leq(x1, lt(x1, x2))))""".stripMargin
     val result = exec(input)
     (result) should be (parse(check).serialize)
