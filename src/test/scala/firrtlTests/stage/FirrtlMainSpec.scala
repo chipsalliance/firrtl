@@ -8,9 +8,10 @@ import org.scalatest.matchers.should.Matchers
 
 import java.io.{File, PrintWriter}
 
-import firrtl.FileUtils
+import firrtl.{BuildInfo, FileUtils}
 
-import firrtl.stage.FirrtlMain
+import firrtl.stage.{FirrtlMain, SuppressScalaVersionWarning}
+import firrtl.stage.transforms.CheckScalaVersion
 import firrtl.util.BackendCompilationUtilities
 import org.scalatest.featurespec.AnyFeatureSpec
 import org.scalatest.matchers.should.Matchers
@@ -159,6 +160,16 @@ class FirrtlMainSpec extends AnyFeatureSpec with GivenWhenThen with Matchers wit
          |""".stripMargin
   }
 
+  /** This returns a string containing the default standard out string based on the Scala version. E.g., if there are
+    * version-specific deprecation warnings, those are available here and can be passed to tests that should have them.
+    */
+  val defaultStdOut: Option[String] = BuildInfo.scalaVersion.split("\\.").toList match {
+    case "2" :: v :: _ :: Nil if v.toInt <= 11 =>
+      Some(CheckScalaVersion.deprecationMessage("2.11", s"--${SuppressScalaVersionWarning.longOption}"))
+    case x =>
+      None
+  }
+
   info("As a FIRRTL command line user")
   info("I want to compile some FIRRTL")
   Feature("FirrtlMain command line interface") {
@@ -192,32 +203,43 @@ class FirrtlMainSpec extends AnyFeatureSpec with GivenWhenThen with Matchers wit
       FirrtlMainTest(args   = Array("-X", "none", "-E", "chirrtl"),
                       files  = Seq("Top.fir")),
       FirrtlMainTest(args   = Array("-X", "high", "-E", "high"),
+                      stdout = defaultStdOut,
                       files  = Seq("Top.hi.fir")),
       FirrtlMainTest(args   = Array("-X", "middle", "-E", "middle", "-foaf", "Top"),
+                      stdout = defaultStdOut,
                       files  = Seq("Top.mid.fir", "Top.anno.json")),
       FirrtlMainTest(args   = Array("-X", "low", "-E", "low", "-foaf", "annotations.anno.json"),
+                      stdout = defaultStdOut,
                       files  = Seq("Top.lo.fir", "annotations.anno.json")),
       FirrtlMainTest(args   = Array("-X", "verilog", "-E", "verilog", "-foaf", "foo.anno"),
+                      stdout = defaultStdOut,
                       files  = Seq("Top.v", "foo.anno.anno.json")),
       FirrtlMainTest(args   = Array("-X", "sverilog", "-E", "sverilog", "-foaf", "foo.json"),
+                      stdout = defaultStdOut,
                       files  = Seq("Top.sv", "foo.json.anno.json")),
 
       /* Test all one file per module emitters */
       FirrtlMainTest(args   = Array("-X", "none", "-e", "chirrtl"),
                       files  = Seq("Top.fir", "Child.fir")),
       FirrtlMainTest(args   = Array("-X", "high", "-e", "high"),
+                      stdout = defaultStdOut,
                       files  = Seq("Top.hi.fir", "Child.hi.fir")),
       FirrtlMainTest(args   = Array("-X", "middle", "-e", "middle"),
+                      stdout = defaultStdOut,
                       files  = Seq("Top.mid.fir", "Child.mid.fir")),
       FirrtlMainTest(args   = Array("-X", "low", "-e", "low"),
+                      stdout = defaultStdOut,
                       files  = Seq("Top.lo.fir", "Child.lo.fir")),
       FirrtlMainTest(args   = Array("-X", "verilog", "-e", "verilog"),
+                      stdout = defaultStdOut,
                       files  = Seq("Top.v", "Child.v")),
       FirrtlMainTest(args   = Array("-X", "sverilog", "-e", "sverilog"),
+                      stdout = defaultStdOut,
                       files  = Seq("Top.sv", "Child.sv")),
 
       /* Test mixing of -E with -e */
       FirrtlMainTest(args     = Array("-X", "middle", "-E", "high", "-e", "middle"),
+                     stdout   = defaultStdOut,
                      files    = Seq("Top.hi.fir", "Top.mid.fir", "Child.mid.fir"),
                      notFiles = Seq("Child.hi.fir")),
 
@@ -225,14 +247,19 @@ class FirrtlMainSpec extends AnyFeatureSpec with GivenWhenThen with Matchers wit
       FirrtlMainTest(args   = Array("-X", "none", "-E", "chirrtl", "-o", "foo"),
                       files  = Seq("foo.fir")),
       FirrtlMainTest(args   = Array("-X", "high", "-E", "high", "-o", "foo"),
+                      stdout = defaultStdOut,
                       files  = Seq("foo.hi.fir")),
       FirrtlMainTest(args   = Array("-X", "middle", "-E", "middle", "-o", "foo.middle"),
+                      stdout = defaultStdOut,
                       files  = Seq("foo.middle.mid.fir")),
       FirrtlMainTest(args   = Array("-X", "low", "-E", "low", "-o", "foo.lo.fir"),
+                      stdout = defaultStdOut,
                       files  = Seq("foo.lo.fir")),
       FirrtlMainTest(args   = Array("-X", "verilog", "-E", "verilog", "-o", "foo.sv"),
+                      stdout = defaultStdOut,
                       files  = Seq("foo.sv.v")),
       FirrtlMainTest(args   = Array("-X", "sverilog", "-E", "sverilog", "-o", "Foo"),
+                      stdout = defaultStdOut,
                       files  = Seq("Foo.sv"))
     )
       .foreach(runStageExpectFiles)
@@ -304,69 +331,6 @@ class FirrtlMainSpec extends AnyFeatureSpec with GivenWhenThen with Matchers wit
      * behavior.
      */
 
-    Scenario("User tries to use an implicit annotation file") {
-      val f = new FirrtlMainFixture
-      val td = new TargetDirectoryFixture("implict-annotation-file")
-      val circuit = new SimpleFirrtlCircuitFixture
-
-      And("implicit legacy and extant annotation files")
-      val annoFiles = Array( (new File(td.dir + "/Top.anno"), "/annotations/SampleAnnotations.anno"),
-                             (new File(td.dir + "/Top.anno.json"), "/annotations/SampleAnnotations.anno.json") )
-      annoFiles.foreach{ case (file, source) => copyResourceToFile(source, file) }
-
-      When("the user implies an annotation file (an annotation file has the same base name as an input file)")
-      val in = new File(td.dir + "/Top.fir")
-      val pw = new PrintWriter(in)
-      pw.write(circuit.input)
-      pw.close()
-      val (out, _, result) = grabStdOutErr{ catchStatus { f.stage.main(Array("-td", td.dir.toString,
-                                                                             "-i", in.toString,
-                                                                             "-foaf", "Top.out",
-                                                                             "-X", "high",
-                                                                             "-E", "high")) } }
-
-      Then("the implicit annotation file should NOT be read")
-      val annoFileOut = new File(td.dir + "/Top.out.anno.json")
-      val annotationJson = FileUtils.getText(annoFileOut)
-      annotationJson should not include ("InlineInstances")
-
-      And("no warning should be printed")
-      out should not include ("Warning:")
-
-      And("no error should be printed")
-      out should not include ("Error:")
-
-      And("the exit code should be 0")
-      result shouldBe a [Right[_,_]]
-    }
-
-    Scenario("User provides unsupported legacy annotations") {
-      val f = new FirrtlMainFixture
-      val td = new TargetDirectoryFixture("legacy-annotation-file")
-      val circuit = new SimpleFirrtlCircuitFixture
-
-      And("a legacy annotation file")
-      val annoFile = new File(td.dir + "/legacy.anno")
-      copyResourceToFile("/annotations/SampleAnnotations.anno", annoFile)
-
-      When("the user provides legacy annotations")
-      val in = new File(td.dir + "/Top.fir")
-      val pw = new PrintWriter(in)
-      pw.write(circuit.input)
-      pw.close()
-      val (out, _, result) = grabStdOutErr{ catchStatus { f.stage.main(Array("-td", td.dir.toString,
-                                                                             "-i", in.toString,
-                                                                             "-faf", annoFile.toString,
-                                                                             "-foaf", "Top",
-                                                                             "-X", "high")) } }
-
-      Then("a warning should be printed")
-      out should include ("YAML Annotation files are deprecated")
-
-      And("the exit code should be 0")
-      result shouldBe a [Right[_,_]]
-    }
-
     Seq(
       /* Erroneous inputs */
       FirrtlMainTest(args    = Array("--thisIsNotASupportedOption"),
@@ -436,4 +400,5 @@ class FirrtlMainSpec extends AnyFeatureSpec with GivenWhenThen with Matchers wit
     )
       .foreach(runStageExpectFiles)
   }
+
 }
