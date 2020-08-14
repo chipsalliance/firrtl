@@ -43,7 +43,7 @@ object CheckFlows extends Pass {
         val f = (t.fields find (_.name == e.name)).get
         times(get_flow(e.expr, flows), f.flip)
       }
-      case (e: ApplyMemAccess) => DuplexFlow
+      case (e: ApplyMemAccess) => SourceFlow
       case _ => SourceFlow
     }
 

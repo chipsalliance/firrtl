@@ -454,8 +454,7 @@ case class DefMemAccess(
 case class ApplyMemAccess(
   mem: Expression,
   access: Expression,
-  tpe: Type = UnknownType,
-  flow: Flow = UnknownFlow) extends Expression with UseSerializer {
+  tpe: Type = UnknownType) extends Expression with UseSerializer {
   def mapExpr(f: Expression => Expression): Expression = this.copy(mem = f(mem), access = f(access))
   def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
   def mapWidth(f: Width => Width): Expression = this

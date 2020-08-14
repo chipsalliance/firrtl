@@ -78,7 +78,7 @@ object RemoveBehavioralMemAccess extends Transform with DependencyAPIMigration {
   }
 
   private def analyzeExpr(memInfo: MemAnalysis)(expr: Expression): Unit = expr match {
-    case ApplyMemAccess(mem: Reference, acc: Reference, _, _) if memInfo.isMem(mem) =>
+    case ApplyMemAccess(mem: Reference, acc: Reference, _) if memInfo.isMem(mem) =>
       memInfo.associateRead(mem.name, acc.name)
     case e => e.foreach(analyzeExpr(memInfo))
   }
@@ -89,9 +89,6 @@ object RemoveBehavioralMemAccess extends Transform with DependencyAPIMigration {
     case ma: DefMemAccess =>
       memInfo.defMemAccess(ma)
       ma.foreach(analyzeExpr(memInfo))
-    case Connect(_, ApplyMemAccess(mem: Reference, acc: Reference, _, _), wdata) if memInfo.isMem(mem) =>
-      memInfo.associateWrite(mem.name, acc.name)
-      wdata.foreach(analyzeExpr(memInfo))
     case mw @ MemMaskedWrite(_, mem: Reference, acc: Reference, _, _) =>
       memInfo.associateWrite(mem.name, acc.name)
       mw.foreach(analyzeExpr(memInfo))
@@ -101,7 +98,7 @@ object RemoveBehavioralMemAccess extends Transform with DependencyAPIMigration {
   }
 
   private def replaceExpr(memInfo: MemAnalysis)(expr: Expression): Expression = expr match {
-    case ApplyMemAccess(mem: Reference, acc: Reference, _, _) if memInfo.isMem(mem) =>
+    case ApplyMemAccess(mem: Reference, acc: Reference, _) if memInfo.isMem(mem) =>
       val rdataName = if (memInfo.getPort(mem.name, acc.name).isReadwrite) "rdata" else "data"
       memPortField(memInfo.getMem(mem), memInfo.getPort(mem.name, acc.name).name, rdataName)
     case e => e.map(replaceExpr(memInfo))
@@ -146,9 +143,6 @@ object RemoveBehavioralMemAccess extends Transform with DependencyAPIMigration {
       )
       Block(newMem +: inferredPorts.flatMap(p => defaultConns(mem, p)).toSeq)
     case ma: DefMemAccess => EmptyStmt
-    case Connect(info, ApplyMemAccess(mem: Reference, acc: Reference, _, _), wdata) if memInfo.isMem(mem) =>
-      val wdataFinal = wdata.map(replaceExpr(memInfo))
-      Block(writeConns(info, memInfo.getMem(mem), memInfo.getPort(mem.name, acc.name), wdataFinal))
     case MemMaskedWrite(info, mem: Reference, acc: Reference, wdata, mask) =>
       val wdataFinal = wdata.map(replaceExpr(memInfo))
       val maskFinal = mask.map(replaceExpr(memInfo))

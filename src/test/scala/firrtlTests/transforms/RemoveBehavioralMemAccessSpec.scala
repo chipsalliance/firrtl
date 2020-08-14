@@ -141,9 +141,9 @@ class RemoveBehavioralMemAccessIntegrationSpec extends FirrtlFlatSpec {
         |    input clk : Clock
         |    input addr : UInt<1>
         |    input wen : UInt<1>
-        |    input wdata : UInt<8>[2]
+        |    input wdata : UInt<8>
         |    mem m :
-        |      data-type => UInt<8>[2]
+        |      data-type => UInt<8>
         |      depth => 256
         |      read-latency => 1
         |      write-latency => 1
@@ -152,7 +152,7 @@ class RemoveBehavioralMemAccessIntegrationSpec extends FirrtlFlatSpec {
         |    node rd = m(rp)
         |    memaccess wp = addr, clk
         |    when wen:
-        |      m(wp) <= wdata
+        |      memwrite m(wp) <= wdata, UInt<1>(1)
         |""".stripMargin
     val check =
       """circuit test :
@@ -160,9 +160,9 @@ class RemoveBehavioralMemAccessIntegrationSpec extends FirrtlFlatSpec {
         |    input clk : Clock
         |    input addr : UInt<1>
         |    input wen : UInt<1>
-        |    input wdata : UInt<8>[2]
+        |    input wdata : UInt<8>
         |    mem m :
-        |      data-type => UInt<8>[2]
+        |      data-type => UInt<8>
         |      depth => 256
         |      read-latency => 1
         |      write-latency => 1
@@ -181,8 +181,7 @@ class RemoveBehavioralMemAccessIntegrationSpec extends FirrtlFlatSpec {
         |    when wen:
         |      m.wp.en <= UInt<1>(1)
         |      m.wp.data <= wdata
-        |      m.wp.mask[0] <= UInt<1>(1)
-        |      m.wp.mask[1] <= UInt<1>(1)
+        |      m.wp.mask <= UInt<1>(1)
         |""".stripMargin
 
     val result = lowerMems(input)
