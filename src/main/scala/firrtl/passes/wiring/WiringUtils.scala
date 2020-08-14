@@ -53,25 +53,31 @@ case class Lineage(
 
   override def toString: String = shortSerialize("")
 
-  def shortSerialize(tab: String): String = s"""
-                                               |$tab name: $name,
-                                               |$tab children: ${children.map(c => tab + "   " + c._2.shortSerialize(tab + "    "))}
-                                               |""".stripMargin
+  def shortSerialize(tab: String): String =
+    s"""
+       |$tab name: $name,
+       |$tab children: ${children.map(c =>
+      tab + "   " + c._2.shortSerialize(tab + "    ")
+    )}
+       |""".stripMargin
 
   def foldLeft[B](z: B)(op: (B, (String, Lineage)) => B): B =
     this.children.foldLeft(z)(op)
 
-  def serialize(tab: String): String = s"""
-                                          |$tab name: $name,
-                                          |$tab source: $source,
-                                          |$tab sink: $sink,
-                                          |$tab sourceParent: $sourceParent,
-                                          |$tab sinkParent: $sinkParent,
-                                          |$tab sharedParent: $sharedParent,
-                                          |$tab addPort: $addPort
-                                          |$tab cons: $cons
-                                          |$tab children: ${children.map(c => tab + "   " + c._2.serialize(tab + "    "))}
-                                          |""".stripMargin
+  def serialize(tab: String): String =
+    s"""
+       |$tab name: $name,
+       |$tab source: $source,
+       |$tab sink: $sink,
+       |$tab sourceParent: $sourceParent,
+       |$tab sinkParent: $sinkParent,
+       |$tab sharedParent: $sharedParent,
+       |$tab addPort: $addPort
+       |$tab cons: $cons
+       |$tab children: ${children.map(c =>
+      tab + "   " + c._2.serialize(tab + "    ")
+    )}
+       |""".stripMargin
 }
 
 object WiringUtils {
