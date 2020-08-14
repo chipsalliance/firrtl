@@ -17,18 +17,19 @@ import scala.collection.{immutable, mutable}
   */
 object RemoveReset extends Transform with DependencyAPIMigration {
 
-  override def prerequisites = firrtl.stage.Forms.MidForm ++
-    Seq( Dependency(passes.LowerTypes),
-         Dependency(passes.Legalize) )
+  override def prerequisites =
+    firrtl.stage.Forms.MidForm ++
+      Seq(Dependency(passes.LowerTypes), Dependency(passes.Legalize))
 
   override def optionalPrerequisites = Seq.empty
 
   override def optionalPrerequisiteOf = Seq.empty
 
-  override def invalidates(a: Transform): Boolean = a match {
-    case firrtl.passes.ResolveFlows => true
-    case _                          => false
-  }
+  override def invalidates(a: Transform): Boolean =
+    a match {
+      case firrtl.passes.ResolveFlows => true
+      case _                          => false
+    }
 
   private case class Reset(cond: Expression, value: Expression, info: Info)
 
@@ -38,11 +39,12 @@ object RemoveReset extends Transform with DependencyAPIMigration {
   private def computeInvalids(m: DefModule): immutable.Set[WrappedExpression] = {
     val invalids = mutable.HashSet.empty[WrappedExpression]
 
-    def onStmt(s: Statement): Unit = s match {
-      case IsInvalid(_, expr)                                 => invalids += we(expr)
-      case Connect(_, lhs, rhs) if invalids.contains(we(rhs)) => invalids += we(lhs)
-      case other                                              => other.foreach(onStmt)
-    }
+    def onStmt(s: Statement): Unit =
+      s match {
+        case IsInvalid(_, expr)                                 => invalids += we(expr)
+        case Connect(_, lhs, rhs) if invalids.contains(we(rhs)) => invalids += we(lhs)
+        case other                                              => other.foreach(onStmt)
+      }
 
     m.foreach(onStmt)
     invalids.toSet
@@ -58,7 +60,7 @@ object RemoveReset extends Transform with DependencyAPIMigration {
           reg.copy(reset = Utils.zero, init = WRef(reg))
         case reg @ DefRegister(_, rname, _, _, Utils.zero, _) =>
           reg.copy(init = WRef(reg)) // canonicalize
-        case reg @ DefRegister(info , rname, _, _, reset, init) if reset.tpe != AsyncResetType =>
+        case reg @ DefRegister(info, rname, _, _, reset, init) if reset.tpe != AsyncResetType =>
           // Add register reset to map
           resets(rname) = Reset(reset, init, info)
           reg.copy(reset = Utils.zero, init = WRef(reg))
@@ -68,7 +70,7 @@ object RemoveReset extends Transform with DependencyAPIMigration {
           // Use reg source locator for mux enable and true value since that's where they're defined
           val infox = MultiInfo(reset.info, reset.info, info)
           Connect(infox, ref, Mux(reset.cond, reset.value, expr, muxType))
-        case other => other map onStmt
+        case other => other.map(onStmt)
       }
     }
     m.map(onStmt)

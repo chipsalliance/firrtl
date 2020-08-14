@@ -24,7 +24,6 @@ class ConstraintSolver {
   type ConstraintMap = mutable.HashMap[String, (Constraint, Boolean)]
   private val solvedConstraintMap = new ConstraintMap()
 
-
   /** Clear all previously recorded/solved constraints */
   def clear(): Unit = {
     constraints.clear()
@@ -35,41 +34,45 @@ class ConstraintSolver {
     * @param big The larger constraint, must be either known or a variable
     * @param small The smaller constraint
     */
-  def addGeq(big: Constraint, small: Constraint, r1: String, r2: String): Unit = (big, small) match {
-    case (IsVar(name), other: Constraint) => add(GreaterOrEqual(name, other))
-    case _ => // Constraints on widths should never error, e.g. attach adds lots of unnecessary constraints
-  }
+  def addGeq(big: Constraint, small: Constraint, r1: String, r2: String): Unit =
+    (big, small) match {
+      case (IsVar(name), other: Constraint) => add(GreaterOrEqual(name, other))
+      case _ => // Constraints on widths should never error, e.g. attach adds lots of unnecessary constraints
+    }
 
   /** Updates internal list of inequalities with a new [[GreaterOrEqual]]
     * @param big The larger constraint, must be either known or a variable
     * @param small The smaller constraint
     */
-  def addGeq(big: Width, small: Width, r1: String, r2: String): Unit = (big, small) match {
-    case (IsVar(name), other: CalcWidth) => add(GreaterOrEqual(name, other.arg))
-    case (IsVar(name), other: IsVar) => add(GreaterOrEqual(name, other))
-    case (IsVar(name), other: IntWidth) => add(GreaterOrEqual(name, Implicits.width2constraint(other)))
-    case _ => // Constraints on widths should never error, e.g. attach adds lots of unnecessary constraints
-  }
+  def addGeq(big: Width, small: Width, r1: String, r2: String): Unit =
+    (big, small) match {
+      case (IsVar(name), other: CalcWidth) => add(GreaterOrEqual(name, other.arg))
+      case (IsVar(name), other: IsVar) => add(GreaterOrEqual(name, other))
+      case (IsVar(name), other: IntWidth) => add(GreaterOrEqual(name, Implicits.width2constraint(other)))
+      case _ => // Constraints on widths should never error, e.g. attach adds lots of unnecessary constraints
+    }
 
   /** Updates internal list of inequalities with a new [[LesserOrEqual]]
     * @param small The smaller constraint, must be either known or a variable
     * @param big The larger constraint
     */
-  def addLeq(small: Constraint, big: Constraint, r1: String, r2: String): Unit = (small, big) match {
-    case (IsVar(name), other: Constraint) => add(LesserOrEqual(name, other))
-    case _ => // Constraints on widths should never error, e.g. attach adds lots of unnecessary constraints
-  }
+  def addLeq(small: Constraint, big: Constraint, r1: String, r2: String): Unit =
+    (small, big) match {
+      case (IsVar(name), other: Constraint) => add(LesserOrEqual(name, other))
+      case _ => // Constraints on widths should never error, e.g. attach adds lots of unnecessary constraints
+    }
 
   /** Updates internal list of inequalities with a new [[LesserOrEqual]]
     * @param small The smaller constraint, must be either known or a variable
     * @param big The larger constraint
     */
-  def addLeq(small: Width, big: Width, r1: String, r2: String): Unit = (small, big) match {
-    case (IsVar(name), other: CalcWidth) => add(LesserOrEqual(name, other.arg))
-    case (IsVar(name), other: IsVar) => add(LesserOrEqual(name, other))
-    case (IsVar(name), other: IntWidth) => add(LesserOrEqual(name, Implicits.width2constraint(other)))
-    case _ => // Constraints on widths should never error, e.g. attach adds lots of unnecessary constraints
-  }
+  def addLeq(small: Width, big: Width, r1: String, r2: String): Unit =
+    (small, big) match {
+      case (IsVar(name), other: CalcWidth) => add(LesserOrEqual(name, other.arg))
+      case (IsVar(name), other: IsVar) => add(LesserOrEqual(name, other))
+      case (IsVar(name), other: IntWidth) => add(LesserOrEqual(name, Implicits.width2constraint(other)))
+      case _ => // Constraints on widths should never error, e.g. attach adds lots of unnecessary constraints
+    }
 
   /** Returns a solved constraint, if it exists and is solved
     * @param b
@@ -78,7 +81,7 @@ class ConstraintSolver {
   def get(b: Constraint): Option[IsKnown] = {
     val name = b match {
       case IsVar(name) => name
-      case x => ""
+      case x           => ""
     }
     solvedConstraintMap.get(name) match {
       case None => None
@@ -94,7 +97,7 @@ class ConstraintSolver {
   def get(b: Width): Option[IsKnown] = {
     val name = b match {
       case IsVar(name) => name
-      case x => ""
+      case x           => ""
     }
     solvedConstraintMap.get(name) match {
       case None => None
@@ -103,9 +106,7 @@ class ConstraintSolver {
     }
   }
 
-
   private def add(c: Inequality) = constraints += c
-
 
   /** Creates an Inequality given a variable name, constraint, and whether its >= or <=
     * @param left
@@ -113,23 +114,24 @@ class ConstraintSolver {
     * @param geq
     * @return
     */
-  private def genConst(left: String, right: Constraint, geq: Boolean): Inequality = geq match {
-    case true => GreaterOrEqual(left, right)
-    case false => LesserOrEqual(left, right)
-  }
+  private def genConst(left: String, right: Constraint, geq: Boolean): Inequality =
+    geq match {
+      case true  => GreaterOrEqual(left, right)
+      case false => LesserOrEqual(left, right)
+    }
 
   /** For debugging, can serialize the initial constraints */
   def serializeConstraints: String = constraints.mkString("\n")
 
   /** For debugging, can serialize the solved constraints */
-  def serializeSolutions: String = solvedConstraintMap.map{
-    case (k, (v, true))  => s"$k >= ${v.serialize}"
-    case (k, (v, false)) => s"$k <= ${v.serialize}"
-  }.mkString("\n")
+  def serializeSolutions: String =
+    solvedConstraintMap.map {
+      case (k, (v, true))  => s"$k >= ${v.serialize}"
+      case (k, (v, false)) => s"$k <= ${v.serialize}"
+    }.mkString("\n")
 
-
-
-  /************* Constraint Solver Engine ****************/
+  /** *********** Constraint Solver Engine ***************
+    */
 
   /** Merges constraints on the same variable
     *
@@ -148,16 +150,15 @@ class ConstraintSolver {
   private def mergeConstraints(constraints: Seq[Inequality]): Seq[Inequality] = {
     val mergedMap = mutable.HashMap[String, Inequality]()
     constraints.foreach {
-        case c if c.geq  && mergedMap.contains(c.left) =>
-          mergedMap(c.left) = genConst(c.left, IsMax(mergedMap(c.left).right, c.right), true)
-        case c if !c.geq && mergedMap.contains(c.left) =>
-          mergedMap(c.left) = genConst(c.left, IsMin(mergedMap(c.left).right, c.right), false)
-        case c =>
-          mergedMap(c.left) = c
+      case c if c.geq && mergedMap.contains(c.left) =>
+        mergedMap(c.left) = genConst(c.left, IsMax(mergedMap(c.left).right, c.right), true)
+      case c if !c.geq && mergedMap.contains(c.left) =>
+        mergedMap(c.left) = genConst(c.left, IsMin(mergedMap(c.left).right, c.right), false)
+      case c =>
+        mergedMap(c.left) = c
     }
     mergedMap.values.toList
   }
-
 
   /** Attempts to substitute variables with their corresponding forward-solved constraints
     * If no corresponding constraint has been visited yet, keep variable as is
@@ -167,15 +168,16 @@ class ConstraintSolver {
     * @return Forward solved constraint
     */
   private def forwardSubstitution(forwardSolved: ConstraintMap)(constraint: Constraint): Constraint = {
-    val x = constraint map forwardSubstitution(forwardSolved)
+    val x = constraint.map(forwardSubstitution(forwardSolved))
     x match {
-      case isVar: IsVar => forwardSolved get isVar.name match {
-        case None => isVar.asInstanceOf[Constraint]
-        case Some((p, geq)) =>
-          val newT = forwardSubstitution(forwardSolved)(p)
-          forwardSolved(isVar.name) = (newT, geq)
-          newT
-      }
+      case isVar: IsVar =>
+        forwardSolved.get(isVar.name) match {
+          case None => isVar.asInstanceOf[Constraint]
+          case Some((p, geq)) =>
+            val newT = forwardSubstitution(forwardSolved)(p)
+            forwardSolved(isVar.name) = (newT, geq)
+            newT
+        }
       case other => other
     }
   }
@@ -190,11 +192,12 @@ class ConstraintSolver {
     */
   private def backwardSubstitution(backwardSolved: ConstraintMap)(constraint: Constraint): Constraint = {
     constraint match {
-      case isVar: IsVar => backwardSolved.get(isVar.name) match {
-        case Some((p, geq)) => p
-        case _ => isVar
-      }
-      case other => other map backwardSubstitution(backwardSolved)
+      case isVar: IsVar =>
+        backwardSolved.get(isVar.name) match {
+          case Some((p, geq)) => p
+          case _              => isVar
+        }
+      case other => other.map(backwardSubstitution(backwardSolved))
     }
   }
 
@@ -211,65 +214,74 @@ class ConstraintSolver {
     * @return
     */
   private def removeCycle(name: String, geq: Boolean)(constraint: Constraint): Constraint =
-    if(geq) removeGeqCycle(name)(constraint) else removeLeqCycle(name)(constraint)
+    if (geq) removeGeqCycle(name)(constraint) else removeLeqCycle(name)(constraint)
 
   /** Removes solvable cycles of <= inequalities
     * @param name Name of the variable on left side of inequality
     * @param constraint Constraint expression
     * @return
     */
-  private def removeLeqCycle(name: String)(constraint: Constraint): Constraint = constraint match {
-    case x if greaterEqThan(name)(x) => VarCon(name)
-    case isMin: IsMin => IsMin(isMin.children.filter{ c => !greaterEqThan(name)(c)})
-    case x => x
-  }
+  private def removeLeqCycle(name: String)(constraint: Constraint): Constraint =
+    constraint match {
+      case x if greaterEqThan(name)(x) => VarCon(name)
+      case isMin: IsMin => IsMin(isMin.children.filter { c => !greaterEqThan(name)(c) })
+      case x => x
+    }
 
   /** Removes solvable cycles of >= inequalities
     * @param name Name of the variable on left side of inequality
     * @param constraint Constraint expression
     * @return
     */
-  private def removeGeqCycle(name: String)(constraint: Constraint): Constraint = constraint match {
-    case x if lessEqThan(name)(x) => VarCon(name)
-    case isMax: IsMax => IsMax(isMax.children.filter{c => !lessEqThan(name)(c)})
-    case x => x
-  }
+  private def removeGeqCycle(name: String)(constraint: Constraint): Constraint =
+    constraint match {
+      case x if lessEqThan(name)(x) => VarCon(name)
+      case isMax: IsMax => IsMax(isMax.children.filter { c => !lessEqThan(name)(c) })
+      case x => x
+    }
 
-  private def greaterEqThan(name: String)(constraint: Constraint): Boolean = constraint match {
-    case isMin: IsMin => isMin.children.map(greaterEqThan(name)).reduce(_ && _)
-    case isAdd: IsAdd => isAdd.children match {
-      case Seq(isVar: IsVar, isVal: IsKnown) if (isVar.name == name) && (isVal.value >= 0) => true
-      case Seq(isVal: IsKnown, isVar: IsVar) if (isVar.name == name) && (isVal.value >= 0) => true
-      case _ => false
-    }
-    case isMul: IsMul => isMul.children match {
-      case Seq(isVar: IsVar, isVal: IsKnown) if (isVar.name == name) && (isVal.value >= 0) => true
-      case Seq(isVal: IsKnown, isVar: IsVar) if (isVar.name == name) && (isVal.value >= 0) => true
-      case _ => false
-    }
-    case isVar: IsVar if isVar.name == name => true
-    case _ => false
-  }
-
-  private def lessEqThan(name: String)(constraint: Constraint): Boolean = constraint match {
-    case isMax: IsMax => isMax.children.map(lessEqThan(name)).reduce(_ && _)
-    case isAdd: IsAdd => isAdd.children match {
-      case Seq(isVar: IsVar, isVal: IsKnown) if (isVar.name == name) && (isVal.value <= 0) => true
-      case Seq(isVal: IsKnown, isVar: IsVar) if (isVar.name == name) && (isVal.value <= 0) => true
-      case _ => false
-    }
-    case isMul: IsMul => isMul.children match {
-      case Seq(isVar: IsVar, isVal: IsKnown) if (isVar.name == name) && (isVal.value <= 0) => true
-      case Seq(isVal: IsKnown, isVar: IsVar) if (isVar.name == name) && (isVal.value <= 0) => true
-      case _ => false
-    }
-    case isVar: IsVar if isVar.name == name => true
-    case isNeg: IsNeg => isNeg.child match {
+  private def greaterEqThan(name: String)(constraint: Constraint): Boolean =
+    constraint match {
+      case isMin: IsMin => isMin.children.map(greaterEqThan(name)).reduce(_ && _)
+      case isAdd: IsAdd =>
+        isAdd.children match {
+          case Seq(isVar: IsVar, isVal: IsKnown) if (isVar.name == name) && (isVal.value >= 0) => true
+          case Seq(isVal: IsKnown, isVar: IsVar) if (isVar.name == name) && (isVal.value >= 0) => true
+          case _ => false
+        }
+      case isMul: IsMul =>
+        isMul.children match {
+          case Seq(isVar: IsVar, isVal: IsKnown) if (isVar.name == name) && (isVal.value >= 0) => true
+          case Seq(isVal: IsKnown, isVar: IsVar) if (isVar.name == name) && (isVal.value >= 0) => true
+          case _ => false
+        }
       case isVar: IsVar if isVar.name == name => true
       case _ => false
     }
-    case _ => false
-  }
+
+  private def lessEqThan(name: String)(constraint: Constraint): Boolean =
+    constraint match {
+      case isMax: IsMax => isMax.children.map(lessEqThan(name)).reduce(_ && _)
+      case isAdd: IsAdd =>
+        isAdd.children match {
+          case Seq(isVar: IsVar, isVal: IsKnown) if (isVar.name == name) && (isVal.value <= 0) => true
+          case Seq(isVal: IsKnown, isVar: IsVar) if (isVar.name == name) && (isVal.value <= 0) => true
+          case _ => false
+        }
+      case isMul: IsMul =>
+        isMul.children match {
+          case Seq(isVar: IsVar, isVal: IsKnown) if (isVar.name == name) && (isVal.value <= 0) => true
+          case Seq(isVal: IsKnown, isVar: IsVar) if (isVar.name == name) && (isVal.value <= 0) => true
+          case _ => false
+        }
+      case isVar: IsVar if isVar.name == name => true
+      case isNeg: IsNeg =>
+        isNeg.child match {
+          case isVar: IsVar if isVar.name == name => true
+          case _ => false
+        }
+      case _ => false
+    }
 
   /** Whether a constraint contains the named variable
     * @param name Name of variable
@@ -283,7 +295,7 @@ class ConstraintSolver {
         case isVar: IsVar if isVar.name == name => has = true
         case _ =>
       }
-      constraint map rec
+      constraint.map(rec)
     }
     rec(constraint)
     has
@@ -300,7 +312,7 @@ class ConstraintSolver {
           checkMap(c.left) = c
           seq ++ Nil
         case Some(x) if x.geq != c.geq => seq ++ Seq(x, c)
-        case Some(x) => seq ++ Nil
+        case Some(x)                   => seq ++ Nil
       }
     }
   }

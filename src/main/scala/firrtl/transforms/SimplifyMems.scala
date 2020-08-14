@@ -31,14 +31,16 @@ class SimplifyMems extends Transform with DependencyAPIMigration {
     val memAdapters = new mutable.LinkedHashMap[String, DefWire]
     val mTarget = ModuleTarget(c.main, m.name)
 
-    def onExpr(e: Expression): Expression = e.map(onExpr) match {
-      case wr @ WRef(name, _, MemKind, _) if memAdapters.contains(name) => wr.copy(kind = WireKind)
-      case e => e
-    }
+    def onExpr(e: Expression): Expression =
+      e.map(onExpr) match {
+        case wr @ WRef(name, _, MemKind, _) if memAdapters.contains(name) => wr.copy(kind = WireKind)
+        case e                                                            => e
+      }
 
     def simplifyMem(mem: DefMemory): Statement = {
       val adapterDecl = DefWire(mem.info, mem.name, memType(mem))
-      val simpleMemDecl = mem.copy(name = moduleNS.newName(s"${mem.name}_flattened"), dataType = flattenType(mem.dataType))
+      val simpleMemDecl =
+        mem.copy(name = moduleNS.newName(s"${mem.name}_flattened"), dataType = flattenType(mem.dataType))
       val oldRT = mTarget.ref(mem.name)
       val adapterConnects = memType(simpleMemDecl).fields.flatMap {
         case Field(pName, Flip, pType: BundleType) =>
@@ -61,18 +63,23 @@ class SimplifyMems extends Transform with DependencyAPIMigration {
       Block(Seq(adapterDecl, simpleMemDecl) ++ adapterConnects)
     }
 
-    def canSimplify(mem: DefMemory) = mem.dataType match {
-      case at: AggregateType =>
-        val wMasks = mem.writers.map(w => getMaskBits(connects, memPortField(mem, w, "en"), memPortField(mem, w, "mask")))
-        val rwMasks = mem.readwriters.map(w => getMaskBits(connects, memPortField(mem, w, "wmode"), memPortField(mem, w, "wmask")))
-        (wMasks ++ rwMasks).flatten.isEmpty
-      case _ => false
-    }
+    def canSimplify(mem: DefMemory) =
+      mem.dataType match {
+        case at: AggregateType =>
+          val wMasks =
+            mem.writers.map(w => getMaskBits(connects, memPortField(mem, w, "en"), memPortField(mem, w, "mask")))
+          val rwMasks = mem.readwriters.map(w =>
+            getMaskBits(connects, memPortField(mem, w, "wmode"), memPortField(mem, w, "wmask"))
+          )
+          (wMasks ++ rwMasks).flatten.isEmpty
+        case _ => false
+      }
 
-    def onStmt(s: Statement): Statement = s match {
-      case mem: DefMemory if canSimplify(mem) => simplifyMem(mem)
-      case s => s.map(onStmt).map(onExpr)
-    }
+    def onStmt(s: Statement): Statement =
+      s match {
+        case mem: DefMemory if canSimplify(mem) => simplifyMem(mem)
+        case s => s.map(onStmt).map(onExpr)
+      }
 
     m.map(onStmt)
   }

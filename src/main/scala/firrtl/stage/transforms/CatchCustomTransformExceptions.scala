@@ -6,11 +6,13 @@ import firrtl.{CircuitState, CustomTransformException, Transform}
 
 class CatchCustomTransformExceptions(val underlying: Transform) extends Transform with WrappedTransform {
 
-  override def execute(c: CircuitState): CircuitState = try {
-    underlying.transform(c)
-  } catch {
-    case e: Exception if CatchCustomTransformExceptions.isCustomTransform(trueUnderlying) => throw CustomTransformException(e)
-  }
+  override def execute(c: CircuitState): CircuitState =
+    try {
+      underlying.transform(c)
+    } catch {
+      case e: Exception if CatchCustomTransformExceptions.isCustomTransform(trueUnderlying) =>
+        throw CustomTransformException(e)
+    }
 
 }
 

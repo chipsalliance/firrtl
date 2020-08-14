@@ -8,18 +8,19 @@ import firrtl.Mappers._
 import firrtl.PrimOps.Pad
 import firrtl.options.Dependency
 
-import firrtl.Utils.{isCast, isBitExtract, NodeMap}
+import firrtl.Utils.{isBitExtract, isCast, NodeMap}
 
 object InlineCastsTransform {
 
   // Checks if an Expression is made up of only casts terminated by a Literal or Reference
   // There must be at least one cast
   // Note that this can have false negatives but MUST NOT have false positives
-  private def isSimpleCast(castSeen: Boolean)(expr: Expression): Boolean = expr match {
-    case _: WRef | _: Literal | _: WSubField => castSeen
-    case DoPrim(op, args, _,_) if isCast(op) => args.forall(isSimpleCast(true))
-    case _ => false
-  }
+  private def isSimpleCast(castSeen: Boolean)(expr: Expression): Boolean =
+    expr match {
+      case _: WRef | _: Literal | _: WSubField => castSeen
+      case DoPrim(op, args, _, _) if isCast(op) => args.forall(isSimpleCast(true))
+      case _                                    => false
+    }
 
   /** Recursively replace [[WRef]]s with new [[firrtl.ir.Expression Expression]]s
     *
@@ -28,21 +29,25 @@ object InlineCastsTransform {
     * @param expr the Expression being transformed
     * @return Returns expr with [[WRef]]s replaced by values found in replace
     */
-  def onExpr(replace: NodeMap)(expr: Expression): Expression = expr match {
-    // Anything that may generate a part-select should not be inlined!
-    case DoPrim(op, _, _, _) if (isBitExtract(op) || op == Pad) => expr
-    case e => e.map(onExpr(replace)) match {
-      case e @ WRef(name, _,_,_) =>
-        replace.get(name)
-          .filter(isSimpleCast(castSeen=false))
-          .getOrElse(e)
-      case e @ DoPrim(op, Seq(WRef(name, _,_,_)), _,_) if isCast(op) =>
-        replace.get(name)
-          .map(value => e.copy(args = Seq(value)))
-          .getOrElse(e)
-      case other => other // Not a candidate
+  def onExpr(replace: NodeMap)(expr: Expression): Expression =
+    expr match {
+      // Anything that may generate a part-select should not be inlined!
+      case DoPrim(op, _, _, _) if (isBitExtract(op) || op == Pad) => expr
+      case e =>
+        e.map(onExpr(replace)) match {
+          case e @ WRef(name, _, _, _) =>
+            replace
+              .get(name)
+              .filter(isSimpleCast(castSeen = false))
+              .getOrElse(e)
+          case e @ DoPrim(op, Seq(WRef(name, _, _, _)), _, _) if isCast(op) =>
+            replace
+              .get(name)
+              .map(value => e.copy(args = Seq(value)))
+              .getOrElse(e)
+          case other => other // Not a candidate
+        }
     }
-  }
 
   /** Inline casts in a Statement
     *
@@ -68,21 +73,25 @@ object InlineCastsTransform {
 /** Inline nodes that are simple casts */
 class InlineCastsTransform extends Transform with DependencyAPIMigration {
 
-  override def prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
-    Seq( Dependency[BlackBoxSourceHelper],
-         Dependency[FixAddingNegativeLiterals],
-         Dependency[ReplaceTruncatingArithmetic],
-         Dependency[InlineBitExtractionsTransform],
-         Dependency[PropagatePresetAnnotations] )
+  override def prerequisites =
+    firrtl.stage.Forms.LowFormMinimumOptimized ++
+      Seq(
+        Dependency[BlackBoxSourceHelper],
+        Dependency[FixAddingNegativeLiterals],
+        Dependency[ReplaceTruncatingArithmetic],
+        Dependency[InlineBitExtractionsTransform],
+        Dependency[PropagatePresetAnnotations]
+      )
 
   override def optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
 
   override def optionalPrerequisiteOf = Seq.empty
 
-  override def invalidates(a: Transform): Boolean = a match {
-    case _: LegalizeClocksTransform => true
-    case _ => false
-  }
+  override def invalidates(a: Transform): Boolean =
+    a match {
+      case _: LegalizeClocksTransform => true
+      case _ => false
+    }
 
   def execute(state: CircuitState): CircuitState = {
     val modulesx = state.circuit.modules.map(InlineCastsTransform.onMod(_))

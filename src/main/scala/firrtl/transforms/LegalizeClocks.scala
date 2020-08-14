@@ -16,11 +16,12 @@ object LegalizeClocksTransform {
   // Checks if an Expression is illegal in use in a @(posedge <Expression>) construct
   // Legality is defined here by what standard lint tools accept
   // Currently only looks for literals nested within casts
-  private def illegalClockExpr(expr: Expression): Boolean = expr match {
-    case _: Literal => true
-    case DoPrim(op, args, _,_) if isCast(op) => args.exists(illegalClockExpr)
-    case _ => false
-  }
+  private def illegalClockExpr(expr: Expression): Boolean =
+    expr match {
+      case _: Literal => true
+      case DoPrim(op, args, _, _) if isCast(op) => args.exists(illegalClockExpr)
+      case _                                    => false
+    }
 
   /** Legalize Clocks in a Statement
     *
@@ -65,12 +66,15 @@ object LegalizeClocksTransform {
 /** Ensure Clocks to be emitted are legal Verilog */
 class LegalizeClocksTransform extends Transform with DependencyAPIMigration {
 
-  override def prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
-    Seq( Dependency[BlackBoxSourceHelper],
-         Dependency[FixAddingNegativeLiterals],
-         Dependency[ReplaceTruncatingArithmetic],
-         Dependency[InlineBitExtractionsTransform],
-         Dependency[InlineCastsTransform] )
+  override def prerequisites =
+    firrtl.stage.Forms.LowFormMinimumOptimized ++
+      Seq(
+        Dependency[BlackBoxSourceHelper],
+        Dependency[FixAddingNegativeLiterals],
+        Dependency[ReplaceTruncatingArithmetic],
+        Dependency[InlineBitExtractionsTransform],
+        Dependency[InlineCastsTransform]
+      )
 
   override def optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
 
