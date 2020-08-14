@@ -356,18 +356,6 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
     }
   }
 
-  /** Convenience method to get annotations relevant to this Transform
-    *
-    * @param state The [[CircuitState]] form which to extract annotations
-    * @return A collection of annotations
-    */
-  @deprecated("Just collect the actual Annotation types the transform wants", "1.1")
-  final def getMyAnnotations(state: CircuitState): Seq[Annotation] = {
-    val msg = "getMyAnnotations is deprecated, use collect and match on concrete types"
-    StageUtils.dramaticWarning(msg)
-    state.annotations.collect { case a: LegacyAnnotation if a.transform == this.getClass => a }
-  }
-
   /** Executes before any transform's execute method
     * @param state
     * @return
@@ -449,7 +437,7 @@ object CompilerUtils extends LazyLogging {
         case ChirrtlForm =>
           Seq(new ChirrtlToHighFirrtl) ++ getLoweringTransforms(HighForm, outputForm)
         case HighForm =>
-          Seq(new IRToWorkingIR, new ResolveAndCheck, new transforms.DedupModules, new HighFirrtlToMiddleFirrtl) ++
+          Seq(new IRToWorkingIR, new ResolveAndCheck, new firrtl.transforms.DedupModules, new HighFirrtlToMiddleFirrtl) ++
             getLoweringTransforms(MidForm, outputForm)
         case MidForm => Seq(new MiddleFirrtlToLowFirrtl) ++ getLoweringTransforms(LowForm, outputForm)
         case LowForm => throwInternalError("getLoweringTransforms - LowForm") // should be caught by if above
@@ -540,7 +528,10 @@ trait Compiler extends Transform with DependencyAPIMigration {
     * @param customTransforms Any custom [[Transform]]s that will be inserted
     *   into the compilation process by [[CompilerUtils.mergeTransforms]]
     */
-  @deprecated("Please use compileAndEmit or other compile method instead", "firrtl 1.0")
+  @deprecated(
+    "Migrate to '(new FirrtlStage).execute(args: Array[String], annotations: AnnotationSeq)'." +
+      "This will be removed in 1.4.",
+    "FIRRTL 1.0")
   def compile(state: CircuitState,
               writer: Writer,
               customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
@@ -561,6 +552,10 @@ trait Compiler extends Transform with DependencyAPIMigration {
     *   into the compilation process by [[CompilerUtils.mergeTransforms]]
     * @return result of compilation with emitted circuit annotated
     */
+  @deprecated(
+    "Migrate to '(new FirrtlStage).execute(args: Array[String], annotations: AnnotationSeq)'." +
+      "This will be removed in 1.4.",
+    "FIRRTL 1.3.3")
   def compileAndEmit(state: CircuitState,
                      customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
     val emitAnno = EmitCircuitAnnotation(emitter.getClass)
@@ -576,6 +571,10 @@ trait Compiler extends Transform with DependencyAPIMigration {
     *   process by [[CompilerUtils.mergeTransforms]]
     * @return result of compilation
     */
+  @deprecated(
+    "Migrate to '(new FirrtlStage).execute(args: Array[String], annotations: AnnotationSeq)'." +
+      "This will be removed in 1.4.",
+    "FIRRTL 1.3.3")
   def compile(state: CircuitState, customTransforms: Seq[Transform]): CircuitState = {
     val transformManager = new stage.transforms.Compiler (
       targets = (emitter +: customTransforms ++: transforms).map(Dependency.fromTransform),

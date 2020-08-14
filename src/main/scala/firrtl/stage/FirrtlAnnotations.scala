@@ -6,10 +6,10 @@ import firrtl._
 import firrtl.ir.Circuit
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
 import firrtl.options.{HasShellOptions, OptionsException, ShellOption, Unserializable}
-
-
 import java.io.FileNotFoundException
 import java.nio.file.NoSuchFileException
+
+import firrtl.stage.TransformManager.TransformDependency
 
 /** Indicates that this is an [[firrtl.annotations.Annotation Annotation]] directly used in the construction of a
   * [[FirrtlOptions]] view.
@@ -177,6 +177,9 @@ case class RunFirrtlTransformAnnotation(transform: Transform) extends NoTargetAn
 
 object RunFirrtlTransformAnnotation extends HasShellOptions {
 
+  def apply(transform: TransformDependency): RunFirrtlTransformAnnotation =
+    RunFirrtlTransformAnnotation(transform.getObject)
+
   val options = Seq(
     new ShellOption[Seq[String]](
       longOption = "custom-transforms",
@@ -218,4 +221,19 @@ case class FirrtlCircuitAnnotation(circuit: Circuit) extends NoTargetAnnotation 
    */
   override lazy val hashCode: Int = circuit.hashCode
 
+}
+
+/** Suppresses warning about Scala 2.11 deprecation
+  *
+  *  - set with `--Wno-scala-version-warning`
+  */
+case object SuppressScalaVersionWarning extends NoTargetAnnotation with FirrtlOption with HasShellOptions {
+  def longOption: String = "Wno-scala-version-warning"
+  val options = Seq(
+    new ShellOption[Unit](
+      longOption      = longOption,
+      toAnnotationSeq = { _ => Seq(this) },
+      helpText        = "Suppress Scala 2.11 deprecation warning (ignored in Scala 2.12+)"
+    )
+  )
 }
