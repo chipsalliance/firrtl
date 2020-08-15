@@ -31,6 +31,7 @@ object ResolveKinds extends Pass {
       case sx: DefRegister => kinds(sx.name) = RegKind
       case sx: WDefInstance => kinds(sx.name) = InstanceKind
       case sx: DefMemory => kinds(sx.name) = MemKind
+      case sx: DefMemAccess => kinds(sx.name) = MemKind
       case _ =>
     }
     s.map(resolve_stmt(kinds))

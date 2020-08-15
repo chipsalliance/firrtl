@@ -322,6 +322,13 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
         case "smem" =>
           val (tpe, size) = visitCMemType(ctx.`type`())
           CDefMemory(info, ctx.id(0).getText, tpe, size, seq = true, readUnderWrite = visitRuw(Option(ctx.ruw)))
+        case "memaccess" =>
+          if (ctx_exp.size == 3)
+            DefMemAccess(info, ctx.id(0).getText, visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), visitExp(ctx_exp(2)))
+          else
+            DefMemAccess(info, ctx.id(0).getText, visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), UIntLiteral(1))
+        case "memwrite" =>
+          MemMaskedWrite(info, visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), visitExp(ctx_exp(2)), visitExp(ctx_exp(3)))
         case "inst" => DefInstance(info, ctx.id(0).getText, ctx.id(1).getText)
         case "node" => DefNode(info, ctx.id(0).getText, visitExp(ctx_exp(0)))
 
@@ -377,6 +384,8 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
               new SubIndex(visitExp(ctx_exp(0)), string2Int(ctx.intLit(0).getText), UnknownType)
             else
               new SubAccess(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), UnknownType)
+          case "(" =>
+            ApplyMemAccess(visitExp(ctx_exp(0)), visitExp(ctx_exp(1)))
         }
       case _: PrimopContext =>
         DoPrim(visitPrimop(ctx.primop),

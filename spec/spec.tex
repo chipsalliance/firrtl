@@ -958,6 +958,65 @@ In such cases, the data that is read out of the read port is undefined.
 
 In all cases, if a memory location is written to by more than one port on the same cycle, the stored value is undefined.
 
+\subsection{Behavioral Memory Access Statements}
+
+In order to support behavioral accesses to memories (accessing contents without a structural connection to an explicitly declared port), FIRRTL includes two high-level statements.
+An inferred memory port is one that is not explicitly declared in the original definition of the memory.
+Extra memory ports can be inferred for any memory that is in scope with the `read mport` and `write mport` statements.
+For this section, we will consider the following memory with no explicitly-declared ports.
+
+\begin{lstlisting}
+mem syncmem :
+  data-type => UInt<32>
+  depth => 256
+  read-latency => 1
+  write-latency => 1
+  read-under-write => undefined
+\end{lstlisting}
+
+\subsubsection{Declare Memory Access}
+
+% TODO: describe syntax, operands, high-level overview
+(ADD BASICS HERE)
+
+Once a behavioral memory accessor is declared, write operations can also be performed using the connection statement.
+Intuitively, when the port is used on the left-hand side of an assignment, this corresponds to connecting the right-hand side of the assignment to the `data` field of an explicit write port and connecting the `enable` signal of the accessor to the write enable signal of the port.
+As with any connection, the connection (and therefore the write operation) is conditional on any \verb|when| conditions that appear between the declaration of the inferred write port and the connection statement.
+
+When the boolean expression used as the enable signal of a memory access is false, this can be viewed as preventing the initiation of any memory operation using that access.
+Any write operation that uses the access will not change the contents of the memory, and the address supplied to the memory by the access will be undefined.
+This will cause any expression viewing the result of the apply memory access operation to be undefined readLatency cycles after any cycle in which the enable is low.
+
+\subsubsection{Masked Memory Write}
+
+(ADD BASICS HERE)
+
+Since connections assigning to behavioral memory accessors have no concept of a mask, a separate construct is needed to perform a behavioral masked write.
+The masked memory write statement performs a memory write using the clock, address, and enable of the specified accessor, and it uses the provided mask.
+
+\begin{lstlisting}
+  memwrite m(accessor) <= wdata, wmask
+\end{lstlisting}
+
+\subsubsection{Collision Among Behavioral Accesses}
+
+Since multiple operations to the same memory with the same access will inherently collide, they can be viewed as if they were sharing the same port.
+When multiple writes are both conditionally executed with the same memory and access, the one appearing syntactically later in the module will always succeed.
+Given that using a given memory-access combination to perform a write will necessarily produce a read-write collision for synchronous-read behavioral memories, and taking into consideration that the read-under-write behavior of such memories is ‘undefined,’ the value of the apply memory access expression for that combination is undefined on the following cycle.
+As with the multiple-write scenario, this can be viewed as having the read and the write share the same port, though the output of any read port would always be undefined under a write collision.
+Collision behavior between operations that use different accesses or ports is governed by the standard rules for FIRRTL memories.
+
+\begin{lstlisting}
+memaccess port1 = syncmem[cmd.addr], clk
+when (cmd.wen) :
+  port1 <= cmd.wdata ; conditional write operation
+
+; last-connect semantics apply to inferred writes
+when (cmd.wen && cmd.isClear) :
+  port1 <= UInt<32>(``h00'') ; different condition
+\end{lstlisting}
+
+
 \subsection{Instances}\label{instances}
 FIRRTL modules are instantiated with the instance statement. The following example demonstrates creating an instance named \verb|myinstance| of the \verb|MyModule| module within the top level module \verb|Top|.
 
@@ -1934,6 +1993,8 @@ A FIRRTL circuit is defined to be a valid MidFIRRTL circuit if it obeys the foll
 \item All widths must be explicitly defined.
 \item The conditional statement is not used.
 \item The dynamic sub-access expression is not used.
+\item The behavioral memory statements are not used.
+\item The apply memory access expression is not used.
 \item All components are connected to exactly once.
 \end{itemize}
 
@@ -1943,12 +2004,14 @@ A FIRRTL circuit is defined to be a valid LoFIRRTL circuit if it obeys the follo
 \begin{itemize}
 \item All widths must be explicitly defined.
 \item The conditional statement is not used.
+\item The behavioral memory statements are not used.
+\item The apply memory access expression is not used.
 \item All components are connected to exactly once.
 \item All components must be declared with a ground type.
 \item The partial connect statement is not used.
 \end{itemize}
 
-The first three restrictions follow from the fact that any LoFIRRTL circuit is also a legal MidFIRRTL circuit. The additional restrictions give LoFIRRTL a direct correspondence to a circuit netlist.
+The first four restrictions follow from the fact that any LoFIRRTL circuit is also a legal MidFIRRTL circuit. The additional restrictions give LoFIRRTL a direct correspondence to a circuit netlist.
 
 Low level circuit transformations can be conveniently written by first lowering a circuit to its LoFIRRTL form, then operating on the restricted (and thus simpler) subset of constructs. Note that circuit transformations are still free to generate high level constructs as they can simply be lowered again.
 

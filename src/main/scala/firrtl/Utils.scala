@@ -586,6 +586,7 @@ object Utils extends LazyLogging {
     case ex: Mux => SourceFlow
     case ex: ValidIf => SourceFlow
     case WInvalid => SourceFlow
+    case ex: ApplyMemAccess => SourceFlow
     case ex => throwInternalError(s"flow: shouldn't be here - $e")
   }
   def get_flow(s: Statement): Flow = s match {

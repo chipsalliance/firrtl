@@ -67,6 +67,7 @@ object Serializer {
     case SubField(expr, name, _, _) => s(expr) ; b += '.' ; b ++= name
     case SubIndex(expr, value, _, _) => s(expr) ; b += '[' ; b ++= value.toString ; b += ']'
     case SubAccess(expr, index, _, _) => s(expr) ; b += '[' ; s(index) ; b += ']'
+    case ApplyMemAccess(mem, acc, _) => s(mem); b += '('; s(acc); b += ')' 
     case Mux(cond, tval, fval, _) =>
       b ++= "mux(" ; s(cond) ; b ++= ", " ; s(tval) ; b ++= ", " ; s(fval) ; b += ')'
     case ValidIf(cond, value, _) => b ++= "validif(" ; s(cond) ; b ++= ", " ; s(value) ; b += ')'
@@ -128,6 +129,12 @@ object Serializer {
     case Verification(op, info, clk, pred, en, msg) =>
       b ++= op.toString ; b += '(' ; s(List(clk, pred, en), ", ", false) ; b ++= msg.escape
       b += ')' ; s(info)
+
+    // Behavioral memory operations
+    case DefMemAccess(info, name, addr, clock, en) =>
+      b ++= "memaccess "; b ++= name; b ++= " = "; s(addr); b ++= ", "; s(clock); b ++= ", "; s(en)
+    case MemMaskedWrite(info, mem, memaccess, data, mask) =>
+      b ++= "memwrite "; s(mem); b ++= "("; s(memaccess); b ++= "), <= "; s(data); b ++= ", "; s(mask)
 
     // WIR
     case firrtl.CDefMemory(info, name, tpe, size, seq, readUnderWrite) =>

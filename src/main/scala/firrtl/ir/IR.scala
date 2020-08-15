@@ -436,6 +436,69 @@ case class DefMemory(
   def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f: Info => Unit): Unit = f(info)
 }
+
+case class DefMemAccess(
+  info: Info,
+  name: String,
+  addr: Expression,
+  clock: Expression,
+  en: Expression) extends Statement with IsDeclaration with UseSerializer {
+  def mapExpr(f: Expression => Expression): Statement = this.copy(addr = f(addr), clock = f(clock), en = f(en))
+  def mapStmt(f: Statement => Statement): Statement = this
+  def mapType(f: Type => Type): Statement = this
+  def mapString(f: String => String): Statement = this.copy(name = f(name))
+  def mapInfo(f: Info => Info): Statement = this.copy(f(info))
+  def foreachStmt(f: Statement => Unit): Unit = ()
+  def foreachExpr(f: Expression => Unit): Unit = {
+    f(addr)
+    f(clock)
+    f(en)
+  }
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = f(name)
+  def foreachInfo(f: Info => Unit): Unit = f(info)
+}
+
+case class ApplyMemAccess(
+  mem: Expression,
+  access: Expression,
+  tpe: Type = UnknownType) extends Expression with UseSerializer {
+  def mapExpr(f: Expression => Expression): Expression = this.copy(mem = f(mem), access = f(access))
+  def mapType(f: Type => Type): Expression = this.copy(tpe = f(tpe))
+  def mapWidth(f: Width => Width): Expression = this
+  def foreachExpr(f: Expression => Unit): Unit = {
+    f(mem)
+    f(access)
+  }
+  def foreachType(f: Type => Unit): Unit = f(tpe)
+  def foreachWidth(f: Width => Unit): Unit = ()
+}
+
+case class MemMaskedWrite(
+  info: Info,
+  mem: Expression,
+  memaccess: Expression,
+  data: Expression,
+  mask: Expression) extends Statement with HasInfo with UseSerializer {
+  def mapExpr(f: Expression => Expression): Statement = {
+    this.copy(mem = f(mem), memaccess = f(memaccess), data = f(data), mask = f(mask))
+  }
+  def mapStmt(f: Statement => Statement): Statement = this
+  def mapType(f: Type => Type): Statement = this
+  def mapString(f: String => String): Statement = this
+  def mapInfo(f: Info => Info): Statement = this.copy(f(info))
+  def foreachStmt(f: Statement => Unit): Unit = ()
+  def foreachExpr(f: Expression => Unit): Unit = {
+    f(mem)
+    f(memaccess)
+    f(data)
+    f(mask)
+  }
+  def foreachType(f: Type => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = ()
+  def foreachInfo(f: Info => Unit): Unit = f(info)
+}
+
 case class DefNode(info: Info, name: String, value: Expression) extends Statement with IsDeclaration with UseSerializer {
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement = DefNode(info, name, f(value))
@@ -896,6 +959,11 @@ case object UnknownType extends Type with UseSerializer {
   def mapWidth(f: Width => Width): Type = this
   def foreachType(f: Type => Unit): Unit = ()
   def foreachWidth(f: Width => Unit): Unit = ()
+}
+
+case class MemAccessType(tpe: Type) extends AggregateType with UseSerializer {
+  def mapType(f: Type => Type): Type = MemAccessType(f(tpe))
+  def foreachType(f: Type => Unit): Unit = f(tpe)
 }
 
 /** [[Port]] Direction */
