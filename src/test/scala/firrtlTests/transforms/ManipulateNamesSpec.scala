@@ -196,6 +196,31 @@ class ManipulateNamesSpec extends AnyFlatSpec with Matchers {
     expected.foreach(statex should containTree (_))
   }
 
+  it should "handle a chained rename" in new CircuitFixture {
+    override val input =
+      """|circuit Foo:
+         |  module Bar:
+         |    output a: UInt<1>
+         |    a <= UInt<1>(0)
+         |  module Foo:
+         |    output a: UInt<1>
+         |    inst bar of Bar
+         |    a <= bar.a
+         |""".stripMargin
+    val annotations = Seq(
+      ManipulateNamesAllowlistAnnotation(Seq(Seq(`~Foo`)), Dependency[AddPrefix]),
+      ManipulateNamesAllowlistAnnotation(Seq(Seq(`~Foo|Bar>a`)), Dependency[AddPrefix]),
+      ManipulateNamesAllowlistAnnotation(Seq(Seq(`~Foo|Foo/bar:Bar`)), Dependency[AddPrefix])
+    )
+    val addPrefix = new AddPrefix
+    override val tm = new firrtl.stage.transforms.Compiler(addPrefix.prerequisites)
+    val state = CircuitState(Parser.parse(input), annotations)
+    val statex = tm.execute(state)
+    addPrefix.execute(statex).renames match {
+      case Some(r) => r.get(`~Foo|Foo/bar:Bar`.ref("a")) should be (`~Foo|Foo`.instOf("prefix_bar", "Bar").ref("prefix_a"))
+    }
+  }
+
   behavior of "ManipulateNamesBlocklistAnnotation"
 
   it should "throw an exception if a non-local target is skipped" in new CircuitFixture {
