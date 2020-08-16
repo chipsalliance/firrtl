@@ -6,19 +6,20 @@ import firrtl._
 import firrtl.annotations.{JsonProtocol, NoTargetAnnotation}
 import firrtl.ir._
 import firrtl.options.Dependency
-import _root_.logger.{Logger, LogLevel, LogLevelAnnotation}
-import org.scalatest.{FlatSpec, Matchers}
+import _root_.logger.{LogLevel, LogLevelAnnotation, Logger}
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should._
 
 case class AnAnnotation(
-    info: Info,
-    cir: Circuit,
-    mod: DefModule,
-    port: Port,
-    statement: Statement,
-    expr: Expression,
-    tpe: Type,
-    groundType: GroundType
-) extends NoTargetAnnotation
+  info:       Info,
+  cir:        Circuit,
+  mod:        DefModule,
+  port:       Port,
+  statement:  Statement,
+  expr:       Expression,
+  tpe:        Type,
+  groundType: GroundType)
+    extends NoTargetAnnotation
 
 class AnnoInjector extends Transform with DependencyAPIMigration {
   override def optionalPrerequisiteOf = Dependency[ChirrtlEmitter] :: Nil
@@ -30,7 +31,7 @@ class AnnoInjector extends Transform with DependencyAPIMigration {
   }
 }
 
-class JsonProtocolSpec extends FlatSpec with Matchers {
+class JsonProtocolSpec extends AnyFlatSpec with Matchers {
   "JsonProtocol" should "serialize and deserialize FIRRTL types" in {
 
     val circuit =
@@ -50,16 +51,16 @@ class JsonProtocolSpec extends FlatSpec with Matchers {
     val inputAnnos = Seq(AnAnnotation(cir.info, cir, mod, port, stmt, expr, tpe, groundType))
     val annosString = JsonProtocol.serialize(inputAnnos)
     val outputAnnos = JsonProtocol.deserialize(annosString)
-    inputAnnos should be (outputAnnos)
+    inputAnnos should be(outputAnnos)
   }
 
   "Annotation serialization during logging" should "not throw an exception" in {
     val compiler = new firrtl.stage.transforms.Compiler(Seq(Dependency[AnnoInjector]))
     val circuit = Parser.parse("""
-      |circuit test :
-      |  module test :
-      |    output out : UInt<1>
-      |    out <= UInt(0)
+                                 |circuit test :
+                                 |  module test :
+                                 |    output out : UInt<1>
+                                 |    out <= UInt(0)
       """.stripMargin)
     Logger.makeScope(LogLevelAnnotation(LogLevel.Trace) :: Nil) {
       compiler.execute(CircuitState(circuit, Nil))

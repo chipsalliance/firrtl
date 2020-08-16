@@ -32,16 +32,17 @@ abstract class Stage extends Phase {
     */
   final def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val annotationsx =
-      Seq( new phases.GetIncludes,
-           new phases.ConvertLegacyAnnotations )
+      Seq(new phases.GetIncludes)
         .map(phases.DeletedWrapper(_))
         .foldLeft(annotations)((a, p) => p.transform(a))
 
     Logger.makeScope(annotationsx) {
-      Seq( new phases.AddDefaults,
-           new phases.Checks,
-           new Phase { def transform(a: AnnotationSeq) = run(a) },
-           new phases.WriteOutputAnnotations )
+      Seq(
+        new phases.AddDefaults,
+        new phases.Checks,
+        new Phase { def transform(a: AnnotationSeq) = run(a) },
+        new phases.WriteOutputAnnotations
+      )
         .map(phases.DeletedWrapper(_))
         .foldLeft(annotationsx)((a, p) => p.transform(a))
     }
@@ -62,6 +63,7 @@ abstract class Stage extends Phase {
   * @param stage the stage to run
   */
 class StageMain(val stage: Stage) {
+
   /** The main function that serves as this stage's command line interface.
     * @param args command line arguments
     */
