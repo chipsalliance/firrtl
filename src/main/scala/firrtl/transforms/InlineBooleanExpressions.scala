@@ -52,7 +52,7 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
   private def isArgN(outerExpr: DoPrim, subExpr: Expression, n: Int): Boolean = {
     outerExpr.args.lift(n) match {
       case Some(arg) => arg eq subExpr
-      case _ => false
+      case _         => false
     }
   }
 
@@ -62,11 +62,12 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
       case (FileInfo(fileLineRegex(file1, line1)), FileInfo(fileLineRegex(file2, line2))) =>
         (file1 == file2) && (line1 == line2)
       case (MultiInfo(infos1), MultiInfo(infos2)) if infos1.size == infos2.size =>
-        infos1.zip(infos2).forall { case (i1, i2) =>
-          sameFileAndLineInfo(i1, i2)
+        infos1.zip(infos2).forall {
+          case (i1, i2) =>
+            sameFileAndLineInfo(i1, i2)
         }
       case (NoInfo, NoInfo) => true
-      case _ => false
+      case _                => false
     }
   }
 
@@ -94,7 +95,9 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
           netlist.get(we(ref)) match {
             case Some((refExpr, refInfo)) if sameFileAndLineInfo(info, refInfo) =>
               val inlineNum = inlineCounts.getOrElse(refKey, 1)
-              if (!outerExpr.isDefined || (refExpr.tpe == Utils.BoolType) && ((inlineNum + inlineCount) <= maxInlineCount)) {
+              if (
+                !outerExpr.isDefined || (refExpr.tpe == Utils.BoolType) && ((inlineNum + inlineCount) <= maxInlineCount)
+              ) {
                 inlineCount += inlineNum
                 refExpr
               } else {
