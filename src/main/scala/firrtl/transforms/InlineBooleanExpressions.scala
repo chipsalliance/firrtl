@@ -81,6 +81,16 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
     val inlineCounts = mutable.Map.empty[Ref, Int]
     var inlineCount: Int = 1
 
+    /** Whether or not an can be inlined
+      * @param refExpr the expression to check for inlining
+      */
+    def canInline(refExpr: Expression): Boolean = {
+      refExpr match {
+        case _: Mux => false
+        case _ => refExpr.tpe == Utils.BoolType
+      }
+    }
+
     /** Inlines [[Wref]]s if they are Boolean, have matching file line numbers,
       * and would not raise inlineCounts past the maximum.
       *
@@ -96,7 +106,7 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
             case Some((refExpr, refInfo)) if sameFileAndLineInfo(info, refInfo) =>
               val inlineNum = inlineCounts.getOrElse(refKey, 1)
               if (
-                !outerExpr.isDefined || (refExpr.tpe == Utils.BoolType) && ((inlineNum + inlineCount) <= maxInlineCount)
+                !outerExpr.isDefined || canInline(refExpr) && ((inlineNum + inlineCount) <= maxInlineCount)
               ) {
                 inlineCount += inlineNum
                 refExpr
