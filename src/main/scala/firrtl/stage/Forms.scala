@@ -92,8 +92,7 @@ object Forms {
       Dependency[firrtl.transforms.ConstantPropagation],
       Dependency[firrtl.transforms.CombineCats],
       Dependency(passes.CommonSubexpressionElimination),
-      Dependency[firrtl.transforms.DeadCodeElimination],
-      Dependency[firrtl.transforms.InlineBooleanExpressions]
+      Dependency[firrtl.transforms.DeadCodeElimination]
     )
 
   val VerilogMinimumOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
@@ -111,7 +110,10 @@ object Forms {
       Dependency[firrtl.AddDescriptionNodes]
     )
 
-  val VerilogOptimized: Seq[TransformDependency] = LowFormOptimized ++ VerilogMinimumOptimized
+  val VerilogOptimized: Seq[TransformDependency] =
+    Seq(
+      Dependency[firrtl.transforms.InlineBooleanExpressions]
+    ) ++ LowFormOptimized ++ VerilogMinimumOptimized
 
   val AssertsRemoved: Seq[TransformDependency] =
     Seq(

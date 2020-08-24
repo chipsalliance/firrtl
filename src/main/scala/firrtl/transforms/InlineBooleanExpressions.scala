@@ -28,6 +28,8 @@ object InlineBooleanExpressions {
   *    points at the same file and line number. If it is a MultiInfo source
   *    locator, the set of file and line number pairs must be the same. Source
   *    locators may point to different column numbers.
+  * 4. [[InlineBooleanExpressionsMax]] has not been exceeded
+  * 5. is not a [[Mux]]
   */
 class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
 
