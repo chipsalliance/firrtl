@@ -31,31 +31,30 @@ trait GraphMLEdge {
     s"""<edge${id match {
       case Some(id) => s" $id "
       case None => " "
-    }}source="${source.id}" target="${target.id}">${attributes.map(_.toGraphML).mkString("\n  ")}</edge>"""
+    }}source="${source.gmId}" target="${target.gmId}">${attributes.map(_.toGraphML).mkString("\n  ")}</edge>"""
 }
 
 trait GraphMLVertex {
-  def id: String
+  def gmId: String
 
-  def attributes: Set[GraphAttribute]
+  def gmAttributes: Set[GraphAttribute]
 
-  def source = this
+  final def gmSource = this
 
-  def edge(target: GraphMLVertex): GraphMLEdge
+  def gmEdge(target: GraphMLVertex): GraphMLEdge
 
   def toGraphML =
-    s"""<node id="${id}">${attributes.map(_.toGraphML).mkString("\n  ")}</node>""".stripMargin
+    s"""<node id="${gmId}">${gmAttributes.map(_.toGraphML).mkString("\n  ")}</node>""".stripMargin
 }
 
 
 object GraphML {
-
   implicit class WithGraphML[T <: GraphMLVertex](diGraph: DiGraph[T]) {
     /* require ids to be unique. */
-    require(graphMLVertices.groupBy(_.id).values.forall(_.size == 1))
+    require(graphMLVertices.groupBy(_.gmId).values.forall(_.size == 1))
     lazy val graphMLVertices: Set[T] = diGraph.getVertices
-    lazy val graphMLEdges: Set[GraphMLEdge] = diGraph.getEdgeMap.flatMap { case (e, es) => es.map(e.edge(_)) }.toSet
-    lazy val graphMLAttributes: Set[GraphAttribute] = graphMLVertices.flatMap(_.attributes) ++ graphMLEdges.flatMap(_.attributes)
+    lazy val graphMLEdges: Set[GraphMLEdge] = diGraph.getEdgeMap.flatMap { case (e, es) => es.map(e.gmEdge(_)) }.toSet
+    lazy val graphMLAttributes: Set[GraphAttribute] = graphMLVertices.flatMap(_.gmAttributes) ++ graphMLEdges.flatMap(_.attributes)
     lazy val graphML =
       s"""<?xml version="1.0" encoding="UTF-8"?>
          |<graphml xmlns="http://graphml.graphdrawing.org/xmlns">

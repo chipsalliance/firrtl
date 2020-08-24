@@ -7,12 +7,12 @@ import firrtl.testutils._
 
 
 class GraphMLTests extends FirrtlFlatSpec {
-  case class SimpleNode(name: String, attributes: Set[GraphAttribute] = Set.empty) extends GraphMLVertex {
-    override def id: String = name
+  case class SimpleNode(name: String, gmAttributes: Set[GraphAttribute] = Set.empty) extends GraphMLVertex {
+    override def gmId: String = name
 
-    override def edge(target: GraphMLVertex): GraphMLEdge = SimpleEdge(this, target, {
-      if(source.id == "n1" & target.id == "n3") Set(WeightAttr("2.0"))
-      else if(source.id == "n5" & target.id == "n4") Set(WeightAttr("2.0"))
+    override def gmEdge(target: GraphMLVertex): GraphMLEdge = SimpleEdge(this, target, {
+      if(gmSource.gmId == "n1" & target.gmId == "n3") Set(WeightAttr("2.0"))
+      else if(gmSource.gmId == "n5" & target.gmId == "n4") Set(WeightAttr("2.0"))
       else Set.empty
     })
   }
