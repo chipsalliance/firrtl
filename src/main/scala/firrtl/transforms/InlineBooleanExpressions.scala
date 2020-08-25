@@ -29,7 +29,7 @@ object InlineBooleanExpressions {
   *    locator, the set of file and line number pairs must be the same. Source
   *    locators may point to different column numbers.
   * 4. [[InlineBooleanExpressionsMax]] has not been exceeded
-  * 5. is not a [[Mux]]
+  * 5. is not a [[firrtl.ir.Mux Mux]]
   */
 class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
 
