@@ -270,6 +270,8 @@ object VerilogEmitter {
 }
 
 class VerilogEmitter extends SeqTransform with Emitter {
+  import VerilogEmitter._
+
   def inputForm = LowForm
   def outputForm = LowForm
 
@@ -437,22 +439,33 @@ class VerilogEmitter extends SeqTransform with Emitter {
   // to ensure Verilog operations are signed.
   def op_stream(doprim: DoPrim): Seq[Any] = {
     def parenthesize(e: Expression, isFirst: Boolean): Any = doprim.op match {
+      // these PrimOps emit either {..., a0, ...} or a0 so they never need parentheses
       case Shl | Cat | Cvt | AsUInt | AsSInt | AsClock | AsAsyncReset => e
       case _ =>
         e match {
           case e: DoPrim =>
             op_stream(e) match {
+              /** DoPrims like AsUInt simply emit Seq(a0), so we need to
+                * recursively check whether a0 needs to be parenthesized
+                */
               case Seq(passthrough: Expression) => parenthesize(passthrough, isFirst)
+
+              /** If the expression is the first argument then it does not need
+                * parens if it's precedence is greather than or equal to the
+                * enclosing doprim, because verilog operators are left
+                * associative. All other args do not need parens only if the
+                * precedence is greater.
+                */
               case other =>
-                if (
-                  VerilogEmitter
-                    .precedenceGt(e.op, doprim.op) || (VerilogEmitter.precedenceGeq(e.op, doprim.op) && isFirst)
-                ) {
+                if (precedenceGt(e.op, doprim.op) || (precedenceGeq(e.op, doprim.op) && isFirst)) {
                   other
                 } else {
                   Seq("(", other, ")")
                 }
             }
+
+          /** Mux args should always have parens because Mux has the lowest precedence
+            */
           case _: Mux => Seq("(", e, ")")
           case _ => e
         }

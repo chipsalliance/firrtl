@@ -42,8 +42,6 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
     Dependency(SplitExpressions)
   )
 
-  override def optionalPrerequisiteOf = Seq.empty
-
   override def invalidates(a: Transform) = a match {
     case _: DeadCodeElimination => true // this transform does not remove nodes that are unused after inlining
     case _ => false
