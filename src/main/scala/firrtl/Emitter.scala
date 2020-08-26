@@ -235,7 +235,7 @@ object VerilogEmitter {
   private val unaryOps: Set[PrimOp] = Set(Andr, Orr, Xorr, Neg, Not)
 
   // To make uses more self-documenting
-  def isUnaryOp: PrimOp => Boolean = unaryOps
+  private val isUnaryOp: PrimOp => Boolean = unaryOps
 
   /** Maps a [[PrimOp]] to a precedence number, lower number means higher precedence
     *
