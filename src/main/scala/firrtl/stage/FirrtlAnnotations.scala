@@ -152,22 +152,23 @@ object FirrtlSourceAnnotation extends HasShellOptions {
   *  - If unset, a [[CompilerAnnotation]] with the default [[VerilogCompiler]]
   * @param compiler compiler name
   */
+@deprecated("Use a RunFirrtlTransformAnnotation targeting a specific Emitter.", "FIRRTL 1.4.0")
 case class CompilerAnnotation(compiler: Compiler = new VerilogCompiler()) extends NoTargetAnnotation with FirrtlOption
 
 object CompilerAnnotation extends HasShellOptions {
 
-  private[firrtl] def apply(compilerName: String): CompilerAnnotation = {
+  private[firrtl] def apply(compilerName: String): RunFirrtlTransformAnnotation = {
     val c = compilerName match {
-      case "none"     => new NoneCompiler()
-      case "high"     => new HighFirrtlCompiler()
-      case "low"      => new LowFirrtlCompiler()
-      case "middle"   => new MiddleFirrtlCompiler()
-      case "verilog"  => new VerilogCompiler()
-      case "mverilog" => new MinimumVerilogCompiler()
-      case "sverilog" => new SystemVerilogCompiler()
+      case "none"     => new ChirrtlEmitter
+      case "high"     => new HighFirrtlEmitter
+      case "low"      => new LowFirrtlEmitter
+      case "middle"   => new MiddleFirrtlEmitter
+      case "verilog"  => new VerilogEmitter
+      case "mverilog" => new MinimumVerilogEmitter
+      case "sverilog" => new SystemVerilogEmitter
       case _          => throw new OptionsException(s"Unknown compiler name '$compilerName'! (Did you misspell it?)")
     }
-    CompilerAnnotation(c)
+    RunFirrtlTransformAnnotation(c)
   }
 
   val options = Seq(
