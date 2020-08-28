@@ -35,6 +35,6 @@ class ConvertCompilerAnnotationsSpec extends AnyFlatSpec with Matchers {
     )
     intercept[OptionsException] {
       phase.transform(annotations)
-    }.getMessage should include("Zero or more deprecated CompilerAnnotation may be specified")
+    }.getMessage should include("Zero or one CompilerAnnotation may be specified")
   }
 }
