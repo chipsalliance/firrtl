@@ -6,11 +6,7 @@ import firrtl.AnnotationSeq
 import firrtl.options.{Dependency, OptionsException, Phase}
 import firrtl.stage.{CompilerAnnotation, RunFirrtlTransformAnnotation}
 
-@deprecated(
-  "This only exists to convert deprecated CompilerAnnotations to RunFirrtlTransformAnnotations.",
-  "FIRRTL 1.5.0"
-)
-class ConvertCompilerAnnotations extends Phase {
+private[firrtl] class ConvertCompilerAnnotations extends Phase {
 
   override def prerequisites = Seq.empty
   override def optionalPrerequisites = Seq.empty
@@ -22,9 +18,8 @@ class ConvertCompilerAnnotations extends Phase {
       case a: CompilerAnnotation => a
     } match {
       case a if a.size > 1 =>
-        val (msg, suggest) = (s"""found '${a.mkString(", ")}'""", "use multiple of")
         throw new OptionsException(
-          s"Zero or more deprecated CompilerAnnotation may be specified, but $msg.".stripMargin
+          s"Zero or one CompilerAnnotation may be specified, but found '${a.mkString(", ")}'.".stripMargin
         )
       case _ =>
     }

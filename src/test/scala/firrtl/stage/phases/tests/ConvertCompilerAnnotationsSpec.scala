@@ -1,6 +1,6 @@
 // See LICENSE for license details.
 
-package firrtlTests.stage.phases
+package firrtl.stage.phases.tests
 
 import firrtl.{HighFirrtlCompiler, HighFirrtlEmitter, LowFirrtlCompiler}
 import firrtl.options.{Dependency, OptionsException}
