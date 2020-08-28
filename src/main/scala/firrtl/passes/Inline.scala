@@ -358,10 +358,7 @@ class InlineInstances extends Transform with DependencyAPIMigration with Registe
         Some(m.map(onStmt(ModuleName(m.name, CircuitName(c.main)))))
     })
 
-    val renames = renamesSeq match {
-      case Nil        => None
-      case car :: cdr => Some(cdr.foldLeft(car)(_ andThen _))
-    }
+    val renames = renamesSeq.foldLeftOption(_ andThen _)
 
     CircuitState(flatCircuit, LowForm, annos, renames)
   }
