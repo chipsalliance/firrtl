@@ -8,7 +8,6 @@ import java.io.Writer
 import scala.collection.mutable
 import scala.util.Try
 import scala.util.control.NonFatal
-
 import firrtl.annotations._
 import firrtl.ir.Circuit
 import firrtl.Utils.throwInternalError
