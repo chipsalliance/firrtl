@@ -265,6 +265,7 @@ class InlineBooleanExpressionsSpec extends FirrtlFlatSpec {
         |    out[11] <= and(in[0], xor(in[1], in[2]))
         |    out[12] <= xor(in[0], or(in[1], in[2]))
     """.stripMargin
+    firrtlEquivalenceTest(input, Seq(new InlineBooleanExpressions))
   }
 
   it should "avoid inlining when it would create context-sensitivity bugs" in {
