@@ -11,20 +11,15 @@ import firrtl.Utils.isCast
 //   - don't emit "always @(posedge <literal>)"
 //     Hitting this case is rare, but legal FIRRTL
 // TODO This should be unified with all Verilog legalization transforms
-object LegalizeClocksAndAsyncResetsTransform {
+object LegalizeClocksTransform {
 
   // Checks if an Expression is illegal in use in a @(posedge <Expression>) construct
   // Legality is defined here by what standard lint tools accept
   // Currently only looks for literals nested within casts
   private def isLiteralExpression(expr: Expression): Boolean = expr match {
     case _: Literal => true
-<<<<<<< HEAD:src/main/scala/firrtl/transforms/LegalizeClocks.scala
-    case DoPrim(op, args, _,_) if isCast(op) => args.exists(illegalClockExpr)
-    case _ => false
-=======
     case DoPrim(op, args, _, _) if isCast(op) => args.exists(isLiteralExpression)
     case _                                    => false
->>>>>>> 72d3983b... Async reset tieoff bug (#1854):src/main/scala/firrtl/transforms/LegalizeClocksAndAsyncResets.scala
   }
 
   // Wraps the above function to check if a Rest is Async to avoid unneeded
@@ -65,13 +60,6 @@ object LegalizeClocksAndAsyncResetsTransform {
         val node = DefNode(s.info, namespace.newTemp, s.clk)
         val sx = s.copy(clk = WRef(node))
         Block(Seq(node, sx))
-<<<<<<< HEAD:src/main/scala/firrtl/transforms/LegalizeClocks.scala
-=======
-      case s: Verification if isLiteralExpression(s.clk) =>
-        val node = DefNode(s.info, namespace.newTemp, s.clk)
-        val sx = s.copy(clk = WRef(node))
-        Block(Seq(node, sx))
->>>>>>> 72d3983b... Async reset tieoff bug (#1854):src/main/scala/firrtl/transforms/LegalizeClocksAndAsyncResets.scala
       case other => other
     }
 
@@ -85,13 +73,8 @@ object LegalizeClocksAndAsyncResetsTransform {
   }
 }
 
-<<<<<<< HEAD:src/main/scala/firrtl/transforms/LegalizeClocks.scala
-/** Ensure Clocks to be emitted are legal Verilog */
-class LegalizeClocksTransform extends Transform with DependencyAPIMigration with PreservesAll[Transform] {
-=======
 /** Ensure Clocks and AsyncResets to be emitted are legal Verilog */
-class LegalizeClocksAndAsyncResetsTransform extends Transform with DependencyAPIMigration {
->>>>>>> 72d3983b... Async reset tieoff bug (#1854):src/main/scala/firrtl/transforms/LegalizeClocksAndAsyncResets.scala
+class LegalizeClocksTransform extends Transform with DependencyAPIMigration with PreservesAll[Transform] {
 
   override def prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
     Seq( Dependency[BlackBoxSourceHelper],
@@ -105,7 +88,7 @@ class LegalizeClocksAndAsyncResetsTransform extends Transform with DependencyAPI
   override def optionalPrerequisiteOf = Seq.empty
 
   def execute(state: CircuitState): CircuitState = {
-    val modulesx = state.circuit.modules.map(LegalizeClocksAndAsyncResetsTransform.onMod(_))
+    val modulesx = state.circuit.modules.map(LegalizeClocksTransform.onMod(_))
     state.copy(circuit = state.circuit.copy(modules = modulesx))
   }
 }

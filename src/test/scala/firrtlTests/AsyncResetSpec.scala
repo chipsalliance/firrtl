@@ -438,7 +438,6 @@ class AsyncResetSpec extends FirrtlFlatSpec {
       |""".stripMargin
     val annos = Seq(dontTouch("m.r")) // dontTouch prevents ConstantPropagation from fixing this problem
     val result = (new VerilogCompiler).compileAndEmit(CircuitState(parse(withDontTouch), ChirrtlForm, annos))
-<<<<<<< HEAD
     result should containLines (
        "always @(posedge clock or posedge reset) begin",
        "if (reset) begin",
@@ -449,17 +448,6 @@ class AsyncResetSpec extends FirrtlFlatSpec {
        "end"
      )
 
-=======
-    result should containLines(
-      "always @(posedge clock or posedge reset) begin",
-      "if (reset) begin",
-      "r <= 8'h7b;",
-      "end else begin",
-      "r <= 8'h7b;",
-      "end",
-      "end"
-    )
->>>>>>> 72d3983b... Async reset tieoff bug (#1854)
   }
 }
 
