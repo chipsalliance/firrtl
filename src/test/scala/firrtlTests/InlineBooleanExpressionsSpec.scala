@@ -265,6 +265,16 @@ class InlineBooleanExpressionsSpec extends FirrtlFlatSpec {
       |    out[11] <= and(in[0], xor(in[1], in[2]))
       |    out[12] <= xor(in[0], or(in[1], in[2]))
     """.stripMargin
+  }
+
+  it should "avoid inlining when it would create context-sensitivity bugs" in {
+    val input =
+      """circuit AddNot:
+        |  module AddNot:
+        |    input a: UInt<1>
+        |    input b: UInt<1>
+        |    output o: UInt<2>
+        |    o <= add(a, not(b))""".stripMargin
     firrtlEquivalenceTest(input, Seq(new InlineBooleanExpressions))
   }
 }
