@@ -11,16 +11,17 @@ import firrtl.transforms.NoCircuitDedupAnnotation
   */
 trait FirrtlCli { this: Shell =>
   parser.note("FIRRTL Compiler Options")
-  Seq( FirrtlFileAnnotation,
-       OutputFileAnnotation,
-       InfoModeAnnotation,
-       FirrtlSourceAnnotation,
-       CompilerAnnotation,
-       RunFirrtlTransformAnnotation,
-       firrtl.EmitCircuitAnnotation,
-       firrtl.EmitAllModulesAnnotation,
-       NoCircuitDedupAnnotation,
-       SuppressScalaVersionWarning)
+  Seq(
+    FirrtlFileAnnotation,
+    OutputFileAnnotation,
+    InfoModeAnnotation,
+    FirrtlSourceAnnotation,
+    RunFirrtlTransformAnnotation,
+    firrtl.EmitCircuitAnnotation,
+    firrtl.EmitAllModulesAnnotation,
+    NoCircuitDedupAnnotation,
+    SuppressScalaVersionWarning
+  )
     .map(_.addOptions(parser))
 
   phases.DriverCompatibility.TopNameAnnotation.addOptions(parser)

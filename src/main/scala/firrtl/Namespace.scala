@@ -3,6 +3,7 @@
 package firrtl
 
 import scala.collection.mutable
+import scala.annotation.tailrec
 import firrtl.ir._
 
 class Namespace private {
@@ -29,8 +30,7 @@ class Namespace private {
       do {
         str = s"${value}_$idx"
         idx += 1
-      }
-      while (!(tryName(str)))
+      } while (!(tryName(str)))
       indices(value) = idx
       str
     }
@@ -55,10 +55,10 @@ object Namespace {
     def buildNamespaceStmt(s: Statement): Seq[String] = s match {
       case s: IsDeclaration => Seq(s.name)
       case s: Conditionally => buildNamespaceStmt(s.conseq) ++ buildNamespaceStmt(s.alt)
-      case s: Block => s.stmts flatMap buildNamespaceStmt
+      case s: Block         => s.stmts.flatMap(buildNamespaceStmt)
       case _ => Nil
     }
-    namespace.namespace ++= m.ports map (_.name)
+    namespace.namespace ++= m.ports.map(_.name)
     m match {
       case in: Module =>
         namespace.namespace ++= buildNamespaceStmt(in.body)
@@ -71,14 +71,30 @@ object Namespace {
   /** Initializes a [[Namespace]] for [[ir.Module]] names in a [[ir.Circuit]] */
   def apply(c: Circuit): Namespace = {
     val namespace = new Namespace
-    namespace.namespace ++= c.modules map (_.name)
+    namespace.namespace ++= c.modules.map(_.name)
     namespace
   }
 
-  /** Initializes a [[Namespace]] from arbitrary strings **/
+  /** Initializes a [[Namespace]] from arbitrary strings * */
   def apply(names: Seq[String] = Nil): Namespace = {
     val namespace = new Namespace
     namespace.namespace ++= names
     namespace
+  }
+
+  /** Appends delim to prefix until no collisions of prefix + elts in names We don't add an _ in the collision check
+    * because elts could be Seq("") In this case, we're just really checking if prefix itself collides
+    */
+  def findValidPrefix(
+    prefix:    String,
+    elts:      Iterable[String],
+    namespace: String => Boolean
+  ): String = {
+    @tailrec
+    def rec(p: String): String = {
+      val found = elts.exists(elt => namespace(p + elt))
+      if (found) rec(p + "_") else p
+    }
+    rec(prefix)
   }
 }
