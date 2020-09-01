@@ -76,10 +76,13 @@ class InlineBooleanExpressionsSpec extends FirrtlFlatSpec {
         |    node _c = lt(x1, x2)
         |    node _y = mux(lt(x1, x2), _t, _f)
         |    out <= mux(lt(x1, x2), _t, _f)""".stripMargin
-    val result = exec(input, Seq(
-      DontTouchAnnotation(ReferenceTarget("Top", "Top", Seq.empty, "_t", Seq.empty)),
-      DontTouchAnnotation(ReferenceTarget("Top", "Top", Seq.empty, "_f", Seq.empty))
-    ))
+    val result = exec(
+      input,
+      Seq(
+        DontTouchAnnotation(ReferenceTarget("Top", "Top", Seq.empty, "_t", Seq.empty)),
+        DontTouchAnnotation(ReferenceTarget("Top", "Top", Seq.empty, "_f", Seq.empty))
+      )
+    )
     (result) should be(parse(check).serialize)
     firrtlEquivalenceTest(input, Seq(new InlineBooleanExpressions))
   }
