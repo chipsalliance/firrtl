@@ -171,7 +171,7 @@ class InlineBooleanExpressionsSpec extends FirrtlFlatSpec {
     (result) should be(parse(check).serialize)
   }
 
-  it should "inline if mux condition and dshl/dhslr shamt args" in {
+  it should "inline mux condition and dshl/dhslr shamt args" in {
     val input =
       """circuit inline_mux_dshl_dshlr_args :
         |  module inline_mux_dshl_dshlr_args :
