@@ -106,7 +106,7 @@ class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
               case m: Mux if m.cond eq ref => true
 
               // dshl/dshr second argument is self-determined
-              case DoPrim(Dshl | Dshr, Seq(_, shamt), _, _) if shamt eq ref => true
+              case DoPrim(Dshl | Dshlw | Dshr, Seq(_, shamt), _, _) if shamt eq ref => true
 
               case o =>
                 refExpr match {
