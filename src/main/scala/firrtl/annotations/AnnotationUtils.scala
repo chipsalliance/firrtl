@@ -14,12 +14,33 @@ import firrtl.ir._
 case class InvalidAnnotationFileException(file: File, cause: FirrtlUserException = null)
   extends FirrtlUserException(s"$file", cause)
 case class InvalidAnnotationJSONException(msg: String) extends FirrtlUserException(msg)
+<<<<<<< HEAD
 case class AnnotationFileNotFoundException(file: File) extends FirrtlUserException(
   s"Annotation file $file not found!"
 )
 case class AnnotationClassNotFoundException(className: String) extends FirrtlUserException(
   s"Annotation class $className not found! Please check spelling and classpath"
 )
+=======
+case class AnnotationFileNotFoundException(file: File)
+    extends FirrtlUserException(
+      s"Annotation file $file not found!"
+    )
+case class AnnotationClassNotFoundException(className: String)
+    extends FirrtlUserException(
+      s"Annotation class $className not found! Please check spelling and classpath"
+    )
+class UnserializableAnnotationException private (msg: String) extends FirrtlUserException(msg)
+object UnserializableAnnotationException {
+  private def toMessage(pair: (Annotation, Throwable)): String =
+    s"Failed to serialiaze annotation of type ${pair._1.getClass.getName} because '${pair._2.getMessage}'"
+  private[firrtl] def apply(badAnnos: Seq[(Annotation, Throwable)]) = {
+    require(badAnnos.nonEmpty)
+    val msg = badAnnos.map(toMessage).mkString("\n  ", "\n  ", "\n")
+    new UnserializableAnnotationException(msg)
+  }
+}
+>>>>>>> 47c81ee3... Better error messages for unserializable annotations (#1885)
 
 object AnnotationUtils {
   def toYaml(a: LegacyAnnotation): String = a.toYaml.prettyPrint
