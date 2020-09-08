@@ -1,0 +1,5 @@
+# This .wake file is used by the 'wake' build system.
+# Using this firrtlRoot definition, other components can find where
+# the the firrtl repository is located within a wake workspace.
+# 'here' resolves to the directory that this file resides.
+global def firrtlRoot = here
