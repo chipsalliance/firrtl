@@ -403,7 +403,7 @@ class InlineBooleanExpressionsSpec extends FirrtlFlatSpec {
         |
         |    node _T_1 = and(a, b)
         |    out <= and(_T_1, c)""".stripMargin
-    val result = exec(input, PrettyNoExprInlining :: Nil)
+    val result = exec(parse(input), PrettyNoExprInlining :: Nil)
     (result) should be(parse(input).serialize)
   }
 }
