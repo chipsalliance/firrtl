@@ -10,29 +10,24 @@ import firrtl.transforms.{DedupedResult, DontTouchAnnotation}
 import firrtl.testutils.{FirrtlMatchers, FirrtlPropSpec}
 
 object EliminateTargetPathsSpec {
-
-  case class DummyAnnotation(target: Target) extends SingleTargetAnnotation[Target] {
-    override def duplicate(n: Target): Annotation = DummyAnnotation(n)
+  case class DummyAnno(targets: Seq[Named]) extends Annotation {
+    def update(renames: RenameMap) = {
+      Seq(this.copy(targets.flatMap(renames.get(_).getOrElse(targets))))
+    }
   }
+
+  object DummyAnno {
+    def apply(target: Named): DummyAnno = DummyAnno(Seq(target))
+  }
+
   class DummyTransform() extends Transform with ResolvedAnnotationPaths {
     override def inputForm:  CircuitForm = LowForm
     override def outputForm: CircuitForm = LowForm
 
-    override val annotationClasses: Traversable[Class[_]] = Seq(classOf[DummyAnnotation])
+    override val annotationClasses: Traversable[Class[_]] = Seq(classOf[DummyAnno])
 
     override def execute(state: CircuitState): CircuitState = state
   }
-
-}
-
-case class DummyAnno(targets: Seq[Named]) extends Annotation {
-  def update(renames: RenameMap) = {
-    Seq(this.copy(targets.flatMap(renames.get(_).getOrElse(targets))))
-  }
-}
-
-object DummyAnno {
-  def apply(target: Named): DummyAnno = DummyAnno(Seq(target))
 }
 
 class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
@@ -212,7 +207,7 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
         |  module Middle___Top_m1 :
         |  module Middle____Top_m1 :""".stripMargin.split("\n")
     val Top_m1 = Top.instOf("m1", "Middle")
-    val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Top_m1)))
+    val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnno(Top_m1)))
     val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)
     val outputLines = outputState.circuit.serialize.split("\n")
     checks.foreach { line =>
@@ -251,7 +246,7 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
 
     val Top_m1 = Top.instOf("m1", "Middle")
     val Top_m2 = Top.instOf("m2", "Middle")
-    val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Top_m1), DummyAnnotation(Top_m2)))
+    val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnno(Top_m1), DummyAnno(Top_m2)))
     val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)
     val outputLines = outputState.circuit.serialize.split("\n")
 
@@ -286,14 +281,14 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       """.stripMargin
     val e1 = the[CustomTransformException] thrownBy {
       val Top_m1 = Top.instOf("m1", "MiddleX")
-      val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Top_m1)))
+      val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnno(Top_m1)))
       new LowFirrtlCompiler().compile(inputState, customTransforms)
     }
     e1.cause shouldBe a[NoSuchTargetException]
 
     val e2 = the[CustomTransformException] thrownBy {
       val Top_m2 = Top.instOf("x2", "Middle")
-      val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Top_m2)))
+      val inputState = CircuitState(parse(input), ChirrtlForm, Seq(DummyAnno(Top_m2)))
       new LowFirrtlCompiler().compile(inputState, customTransforms)
     }
     e2.cause shouldBe a[NoSuchTargetException]
@@ -338,7 +333,7 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
     val Middle_l1 = CircuitTarget("Top").module("Middle").instOf("_l", "Leaf")
     val Middle_l2 = CircuitTarget("Top").module("Middle_").instOf("l", "Leaf")
     val inputState =
-      CircuitState(parse(input), ChirrtlForm, Seq(DummyAnnotation(Middle_l1), DummyAnnotation(Middle_l2)))
+      CircuitState(parse(input), ChirrtlForm, Seq(DummyAnno(Middle_l1), DummyAnno(Middle_l2)))
     val outputState = new LowFirrtlCompiler().compile(inputState, customTransforms)
     val outputLines = outputState.circuit.serialize.split("\n")
     checks.foreach { line =>
@@ -617,9 +612,9 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
 
     val checkDontTouches =
       DummyAnno((1 to 4).map { i => ModuleTarget("Top", s"Core___System_core_$i") }) +:
-      (1 to 4).map { i =>
-        DummyAnno(ModuleTarget("Top", s"Core___System_core_$i"))
-      }
+        (1 to 4).map { i =>
+          DummyAnno(ModuleTarget("Top", s"Core___System_core_$i"))
+        }
     output.annotations.collect { case a: DummyAnno => a } should be(checkDontTouches)
   }
 
@@ -639,7 +634,7 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
          |""".stripMargin
     val absCoreInstances = Seq(
       ModuleTarget("Top", "Top").instOf("system1", "System").instOf(s"core_1", "Core"),
-      ModuleTarget("Top", "Top").instOf("system2", "System").instOf(s"core_1", "Core"),
+      ModuleTarget("Top", "Top").instOf("system2", "System").instOf(s"core_1", "Core")
     )
 
     // only paths touching Core_1 should be renamed
@@ -656,17 +651,19 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
     info(output.circuit.serialize)
 
     val checkDontTouches =
-      DummyAnno(Seq(
-        ModuleTarget("Top", s"Core___Top_system1_core_1"),
-        ModuleTarget("Top", s"Core___Top_system2_core_1"),
-      )) +:
-      (2 to 4).map { i =>
-        DummyAnno(ModuleTarget("Top", "System").instOf(s"core_$i", "Core"))
-      } ++:
-      Seq(
-        DummyAnno(ModuleTarget("Top", s"Core___Top_system1_core_1")),
-        DummyAnno(ModuleTarget("Top", s"Core___Top_system2_core_1")),
-      )
+      DummyAnno(
+        Seq(
+          ModuleTarget("Top", s"Core___Top_system1_core_1"),
+          ModuleTarget("Top", s"Core___Top_system2_core_1")
+        )
+      ) +:
+        (2 to 4).map { i =>
+          DummyAnno(ModuleTarget("Top", "System").instOf(s"core_$i", "Core"))
+        } ++:
+        Seq(
+          DummyAnno(ModuleTarget("Top", s"Core___Top_system1_core_1")),
+          DummyAnno(ModuleTarget("Top", s"Core___Top_system2_core_1"))
+        )
     val outputs = output.annotations.collect { case a: DummyAnno => a }
     outputs should be(checkDontTouches)
   }
@@ -686,12 +683,12 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
     val absCoreInstances = Seq(
       ModuleTarget("Top", "Top").instOf("system1", "System").instOf(s"core_1", "Core"),
       ModuleTarget("Top", "Top").instOf("system2", "System").instOf(s"core_1", "Core"),
-      ModuleTarget("Top", "Top").instOf("system3", "System").instOf(s"core_1", "Core"),
+      ModuleTarget("Top", "Top").instOf("system3", "System").instOf(s"core_1", "Core")
     )
 
     val systems = Seq(
       ModuleTarget("Top", "Top").instOf("system1", "System").instOf("core_1", "Core"),
-      ModuleTarget("Top", "Top").instOf("system2", "System").instOf("core_1", "Core"),
+      ModuleTarget("Top", "Top").instOf("system2", "System").instOf("core_1", "Core")
     )
 
     val coreModule = Seq(ModuleTarget("Top", "Core"), ModuleTarget("Top", "System"))
@@ -706,7 +703,7 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       Seq(
         DummyAnno(ModuleTarget("Top", "Core___Top_system1_core_1")),
         DummyAnno(ModuleTarget("Top", "Core___Top_system2_core_1")),
-        DummyAnno(ModuleTarget("Top", "Top").instOf("system3", "System").instOf(s"core_1", "Core")),
+        DummyAnno(ModuleTarget("Top", "Top").instOf("system3", "System").instOf(s"core_1", "Core"))
       )
     val outputs = output.annotations.collect { case a: DummyAnno => a }
     outputs should be(checkDontTouches)
@@ -729,12 +726,12 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
     val absCoreInstances = Seq(
       ModuleTarget("Top", "Top").instOf("top", "TopTop").instOf("system1", "System").instOf(s"core_1", "Core"),
       ModuleTarget("Top", "Top").instOf("top", "TopTop").instOf("system2", "System").instOf(s"core_1", "Core"),
-      ModuleTarget("Top", "Top").instOf("top", "TopTop").instOf("system3", "System").instOf(s"core_1", "Core"),
+      ModuleTarget("Top", "Top").instOf("top", "TopTop").instOf("system3", "System").instOf(s"core_1", "Core")
     )
 
     val systems = Seq(
       ModuleTarget("Top", "TopTop").instOf("system1", "System").instOf("core_1", "Core"),
-      ModuleTarget("Top", "TopTop").instOf("system2", "System").instOf("core_1", "Core"),
+      ModuleTarget("Top", "TopTop").instOf("system2", "System").instOf("core_1", "Core")
     )
 
     val coreModule = Seq(ModuleTarget("Top", "Core"), ModuleTarget("Top", "System"))
@@ -749,7 +746,9 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       Seq(
         DummyAnno(ModuleTarget("Top", "Core___TopTop_system1_core_1")),
         DummyAnno(ModuleTarget("Top", "Core___TopTop_system2_core_1")),
-        DummyAnno(ModuleTarget("Top", "Top").instOf("top", "TopTop").instOf("system3", "System").instOf(s"core_1", "Core")),
+        DummyAnno(
+          ModuleTarget("Top", "Top").instOf("top", "TopTop").instOf("system3", "System").instOf(s"core_1", "Core")
+        )
       )
     val outputs = output.annotations.collect { case a: DummyAnno => a }
     outputs should be(checkDontTouches)

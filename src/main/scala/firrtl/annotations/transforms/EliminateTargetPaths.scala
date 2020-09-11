@@ -190,6 +190,7 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration {
         newTs.toList match {
           case Seq(pathless) =>
             val mt = Target.referringModule(pathless)
+
             /** prepend current target with parent targets to make sure that all
               * possible relative paths to duplicated module are recorded
               */
@@ -246,7 +247,7 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration {
           anno match {
             case ResolvePaths(tss) =>
               val ts = tss.map {
-                case m: IsModule => m
+                case m: IsModule    => m
                 case c: IsComponent => c.pathTarget
               }
               (remainingAnnos, ts ++ targets, dedupedResult)
@@ -314,7 +315,7 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration {
               InstanceTarget(circuit, module, path, inst, ofMod)
             }
           val newTarget = t match {
-            case i: InstanceTarget  => newIsModule
+            case i: InstanceTarget => newIsModule
           }
           firstRenameMap.record(t, Seq(newTarget))
           newTarget +: acc
