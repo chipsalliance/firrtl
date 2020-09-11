@@ -668,47 +668,6 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
     outputs should be(checkDontTouches)
   }
 
-  property("It should not try to rename children of duplicated modules ljlkjljkljljlj") {
-    val input =
-      """|circuit Top:
-         |  module Core:
-         |    node clock = UInt<1>(0)
-         |  module System:
-         |    inst core_1 of Core
-         |  module Top:
-         |    inst system1 of System
-         |    inst system2 of System
-         |    inst system3 of System
-         |""".stripMargin
-    val absCoreInstances = Seq(
-      ModuleTarget("Top", "Top").instOf("system1", "System").instOf(s"core_1", "Core"),
-      ModuleTarget("Top", "Top").instOf("system2", "System").instOf(s"core_1", "Core"),
-      ModuleTarget("Top", "Top").instOf("system3", "System").instOf(s"core_1", "Core")
-    )
-
-    val systems = Seq(
-      ModuleTarget("Top", "Top").instOf("system1", "System").instOf("core_1", "Core"),
-      ModuleTarget("Top", "Top").instOf("system2", "System").instOf("core_1", "Core")
-    )
-
-    val coreModule = Seq(ModuleTarget("Top", "Core"), ModuleTarget("Top", "System"))
-    val annos = (absCoreInstances).map(DummyAnno(_))
-    val inputCircuit = Parser.parse(input)
-    val output = CircuitState(passes.ToWorkingIR.run(inputCircuit), UnknownForm, annos)
-      .resolvePaths(systems)
-
-    info(output.circuit.serialize)
-
-    val checkDontTouches =
-      Seq(
-        DummyAnno(ModuleTarget("Top", "Core___Top_system1_core_1")),
-        DummyAnno(ModuleTarget("Top", "Core___Top_system2_core_1")),
-        DummyAnno(ModuleTarget("Top", "Top").instOf("system3", "System").instOf(s"core_1", "Core"))
-      )
-    val outputs = output.annotations.collect { case a: DummyAnno => a }
-    outputs should be(checkDontTouches)
-  }
-
   property("It should not try to rename children of duplicated modules") {
     val input =
       """|circuit Top:
