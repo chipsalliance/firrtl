@@ -24,7 +24,7 @@ trait HasDontTouches { self: Annotation =>
   */
 trait DontTouchAllTargets extends HasDontTouches { self: Annotation =>
   def dontTouches: Iterable[ReferenceTarget] = getTargets.collect {
-    case rT: ReferenceTarget => rT
+    case rT: ReferenceTarget => rT.pathlessTarget
   }
 }
 

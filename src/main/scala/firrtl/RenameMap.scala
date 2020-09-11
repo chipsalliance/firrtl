@@ -38,9 +38,16 @@ object RenameMap {
   */
 // TODO This should probably be refactored into immutable and mutable versions
 final class RenameMap private (
-  val underlying: mutable.HashMap[CompleteTarget, Seq[CompleteTarget]] =
-    mutable.HashMap[CompleteTarget, Seq[CompleteTarget]](),
+  val underlying: mutable.LinkedHashMap[CompleteTarget, Seq[CompleteTarget]] =
+    mutable.LinkedHashMap[CompleteTarget, Seq[CompleteTarget]](),
   val chained: Option[RenameMap] = None) {
+
+  def pretty: String = {
+    chained.map(_.pretty + "\n============\n").getOrElse("") +
+    underlying.map {
+      case (from, tos) => s"$from ->\n${tos.mkString("\n")}\n"
+    }.mkString("\n")
+  }
 
   /** Chain a [[RenameMap]] with this [[RenameMap]]
     * @param next the map to chain with this map

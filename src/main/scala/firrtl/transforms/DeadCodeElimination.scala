@@ -373,7 +373,9 @@ class DeadCodeElimination
 
   def execute(state: CircuitState): CircuitState = {
     val dontTouches: Seq[LogicNode] = state.annotations.flatMap {
-      case anno: HasDontTouches => anno.dontTouches.filter(_.isLocal).map(LogicNode(_))
+      case anno: HasDontTouches =>
+        anno.dontTouches.foreach(println)
+        anno.dontTouches.filter(_.isLocal).map(LogicNode(_))
       case o => Nil
     }
     val doTouchExtMods: Seq[String] = state.annotations.collect {
