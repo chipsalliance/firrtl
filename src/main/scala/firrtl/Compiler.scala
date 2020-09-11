@@ -13,7 +13,7 @@ import firrtl.annotations._
 import firrtl.ir.Circuit
 import firrtl.Utils.throwInternalError
 import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
-import firrtl.options.{Dependency, DependencyAPI, StageUtils, TransformLike}
+import firrtl.options.{Dependency, DependencyAPI, StageUtils, TransformLike, Unserializable}
 import firrtl.stage.Forms
 
 /** Container of all annotations for a Firrtl compiler */
@@ -221,8 +221,13 @@ private[firrtl] object Transform {
     logger.info(s"Form: ${after.form}")
     logger.trace(s"Annotations:")
     logger.trace {
+      // Wrap annotations that can't be serialized so they can still be useful for debugging
+      val sanitizedAnnos = remappedAnnotations.view.map {
+        case unserializable: Unserializable => UnserializableAnnotationWrapper(unserializable)
+        case anno => anno
+      }
       JsonProtocol
-        .serializeTry(remappedAnnotations)
+        .serializeTry(sanitizedAnnos)
         .recoverWith {
           case NonFatal(e) =>
             val msg = s"Exception thrown during Annotation serialization:\n  " +

@@ -6,6 +6,7 @@ package annotations
 import java.io.File
 
 import firrtl.ir._
+import firrtl.options.Unserializable
 
 case class InvalidAnnotationFileException(file: File, cause: FirrtlUserException = null)
     extends FirrtlUserException(s"$file", cause)
@@ -26,6 +27,15 @@ object UnserializableAnnotationException {
     require(badAnnos.nonEmpty)
     val msg = badAnnos.map(toMessage).mkString("\n  ", "\n  ", "\n")
     new UnserializableAnnotationException(msg)
+  }
+}
+
+/** Wrapper for use in debugging annotations between transforms */
+case class UnserializableAnnotationWrapper(annotationClass: String, content: String) extends NoTargetAnnotation with Unserializable
+
+object UnserializableAnnotationWrapper {
+  def apply(anno: Annotation with Unserializable) = {
+    new UnserializableAnnotationWrapper(anno.getClass.getName, anno.toString)
   }
 }
 
