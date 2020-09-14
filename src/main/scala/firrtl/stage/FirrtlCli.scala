@@ -16,12 +16,12 @@ trait FirrtlCli { this: Shell =>
     OutputFileAnnotation,
     InfoModeAnnotation,
     FirrtlSourceAnnotation,
-    CompilerAnnotation,
     RunFirrtlTransformAnnotation,
     firrtl.EmitCircuitAnnotation,
     firrtl.EmitAllModulesAnnotation,
     NoCircuitDedupAnnotation,
-    SuppressScalaVersionWarning
+    WarnNoScalaVersionDeprecation,
+    PrettyNoExprInlining
   )
     .map(_.addOptions(parser))
 
