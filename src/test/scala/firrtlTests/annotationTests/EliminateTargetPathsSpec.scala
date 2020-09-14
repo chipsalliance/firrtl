@@ -642,7 +642,6 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       ModuleTarget("Top", "System").instOf(s"core_$i", "Core")
     }
 
-    val coreModule = Seq(ModuleTarget("Top", "Core"), ModuleTarget("Top", "System"))
     val annos = (relCoreInstances ++ absCoreInstances).map(DummyAnno(_))
     val inputCircuit = Parser.parse(input)
     val output = CircuitState(passes.ToWorkingIR.run(inputCircuit), UnknownForm, annos)
@@ -693,7 +692,6 @@ class EliminateTargetPathsSpec extends FirrtlPropSpec with FirrtlMatchers {
       ModuleTarget("Top", "TopTop").instOf("system2", "System").instOf("core_1", "Core")
     )
 
-    val coreModule = Seq(ModuleTarget("Top", "Core"), ModuleTarget("Top", "System"))
     val annos = (absCoreInstances).map(DummyAnno(_))
     val inputCircuit = Parser.parse(input)
     val output = CircuitState(passes.ToWorkingIR.run(inputCircuit), UnknownForm, annos)
