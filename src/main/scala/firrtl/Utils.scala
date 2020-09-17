@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl
 
@@ -707,6 +707,47 @@ object Utils extends LazyLogging {
         rootDecl
       case e => Utils.error(s"getDeclaration does not support Expressions of type ${e.getClass}")
     }
+  }
+
+  /** Creates a Bundle Type from a Stmt */
+  def stmtToType(s: Statement): BundleType = {
+    // Recursive helper
+    def recStmtToType(s: Statement): Seq[Field] = s match {
+      case sx: DefWire     => Seq(Field(sx.name, Default, sx.tpe))
+      case sx: DefRegister => Seq(Field(sx.name, Default, sx.tpe))
+      case sx: WDefInstance => Seq(Field(sx.name, Default, sx.tpe))
+      case sx: DefMemory =>
+        sx.dataType match {
+          case (_: UIntType | _: SIntType | _: FixedType) =>
+            Seq(Field(sx.name, Default, passes.MemPortUtils.memType(sx)))
+          case tpe: BundleType =>
+            val newFields = tpe.fields
+              .map(f =>
+                DefMemory(
+                  sx.info,
+                  f.name,
+                  f.tpe,
+                  sx.depth,
+                  sx.writeLatency,
+                  sx.readLatency,
+                  sx.readers,
+                  sx.writers,
+                  sx.readwriters
+                )
+              )
+              .flatMap(recStmtToType)
+            Seq(Field(sx.name, Default, BundleType(newFields)))
+          case tpe: VectorType =>
+            val newFields =
+              (0 until tpe.size).map(i => sx.copy(name = i.toString, dataType = tpe.tpe)).flatMap(recStmtToType)
+            Seq(Field(sx.name, Default, BundleType(newFields)))
+        }
+      case sx: DefNode       => Seq(Field(sx.name, Default, sx.value.tpe))
+      case sx: Conditionally => recStmtToType(sx.conseq) ++ recStmtToType(sx.alt)
+      case sx: Block         => (sx.stmts.map(recStmtToType)).flatten
+      case sx => Seq()
+    }
+    BundleType(recStmtToType(s))
   }
 
   // format: off

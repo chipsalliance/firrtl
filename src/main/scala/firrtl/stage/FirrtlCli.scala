@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.stage
 
@@ -16,12 +16,12 @@ trait FirrtlCli { this: Shell =>
     OutputFileAnnotation,
     InfoModeAnnotation,
     FirrtlSourceAnnotation,
-    CompilerAnnotation,
     RunFirrtlTransformAnnotation,
     firrtl.EmitCircuitAnnotation,
     firrtl.EmitAllModulesAnnotation,
     NoCircuitDedupAnnotation,
-    SuppressScalaVersionWarning
+    WarnNoScalaVersionDeprecation,
+    PrettyNoExprInlining
   )
     .map(_.addOptions(parser))
 

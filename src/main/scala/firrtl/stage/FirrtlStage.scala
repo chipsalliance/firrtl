@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.stage
 
@@ -7,7 +7,13 @@ import firrtl.options.{Dependency, Phase, PhaseManager, Shell, Stage, StageMain}
 import firrtl.options.phases.DeletedWrapper
 import firrtl.stage.phases.CatchExceptions
 
-class FirrtlPhase extends PhaseManager(targets = Seq(Dependency[firrtl.stage.phases.Compiler])) {
+class FirrtlPhase
+    extends PhaseManager(
+      targets = Seq(
+        Dependency[firrtl.stage.phases.Compiler],
+        Dependency[firrtl.stage.phases.ConvertCompilerAnnotations]
+      )
+    ) {
 
   override def invalidates(a: Phase) = false
 

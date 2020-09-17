@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtlTests
 
@@ -753,6 +753,24 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     // while firrtl allows for Unicode in the info field they should be escaped for Verilog
     result("test \uD83D\uDE0E") should containLine("  assign z = x; // @[test \\uD83D\\uDE0E]")
 
+  }
+
+  it should "emit repeated unary operators with parentheses" in {
+    val result1 = compileBody(
+      """input x : UInt<1>
+        |output z : UInt<1>
+        |z <= not(not(x))
+        |""".stripMargin
+    )
+    result1 should containLine("assign z = ~(~x);")
+
+    val result2 = compileBody(
+      """input x : UInt<8>
+        |output z : UInt<1>
+        |z <= not(andr(x))
+        |""".stripMargin
+    )
+    result2 should containLine("assign z = ~(&x);")
   }
 }
 

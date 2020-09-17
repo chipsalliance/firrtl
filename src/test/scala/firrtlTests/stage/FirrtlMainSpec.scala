@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtlTests.stage
 
@@ -10,7 +10,7 @@ import java.io.{File, PrintWriter}
 
 import firrtl.{BuildInfo, FileUtils}
 
-import firrtl.stage.{FirrtlMain, SuppressScalaVersionWarning}
+import firrtl.stage.{FirrtlMain, WarnNoScalaVersionDeprecation}
 import firrtl.stage.transforms.CheckScalaVersion
 import firrtl.util.BackendCompilationUtilities
 import org.scalatest.featurespec.AnyFeatureSpec
@@ -169,7 +169,7 @@ class FirrtlMainSpec
     */
   val defaultStdOut: Option[String] = BuildInfo.scalaVersion.split("\\.").toList match {
     case "2" :: v :: _ :: Nil if v.toInt <= 11 =>
-      Some(CheckScalaVersion.deprecationMessage("2.11", s"--${SuppressScalaVersionWarning.longOption}"))
+      Some(CheckScalaVersion.deprecationMessage("2.11", s"--${WarnNoScalaVersionDeprecation.longOption}"))
     case x =>
       None
   }
@@ -286,6 +286,12 @@ class FirrtlMainSpec
         args = Array("-X", "sverilog", "-E", "sverilog", "-o", "Foo"),
         stdout = defaultStdOut,
         files = Seq("Foo.sv")
+      ),
+      /* Test that an output is generated if no emitter is specified */
+      FirrtlMainTest(
+        args = Array("-X", "verilog", "-o", "Foo"),
+        stdout = defaultStdOut,
+        files = Seq("Foo.v")
       )
     )
       .foreach(runStageExpectFiles)

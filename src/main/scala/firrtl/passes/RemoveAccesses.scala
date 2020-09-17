@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.passes
 
@@ -25,8 +25,8 @@ object RemoveAccesses extends Pass {
     ) ++ firrtl.stage.Forms.Deduped
 
   override def invalidates(a: Transform): Boolean = a match {
-    case Uniquify | ResolveKinds | ResolveFlows => true
-    case _                                      => false
+    case ResolveKinds | ResolveFlows => true
+    case _                           => false
   }
 
   private def AND(e1: Expression, e2: Expression) =
