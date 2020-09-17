@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtlTests
 
@@ -528,6 +528,28 @@ circuit Top :
       val annos = Seq(ReplSeqMemAnnotation.parse("-c:Top:-o:" + confLoc))
       val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     }
+  }
+
+  "ReplSeqMem" should "not run a buggy Uniquify" in {
+    val input =
+      """circuit test :
+        |  extmodule foo :
+        |    input in : UInt<8>
+        |    output y : UInt<8>
+        |
+        |  module test :
+        |    input in : UInt<8>
+        |    output out : UInt<8>
+        |
+        |    inst f of foo
+        |    node f_in = and(in, UInt(123))
+        |    f.in <= f_in
+        |    out <= f.y""".stripMargin
+    val confLoc = "ReplSeqMemTests.confTEMP"
+    val annos = Seq(ReplSeqMemAnnotation.parse("-c:test:-o:" + confLoc))
+    // Just check that it doesn't crash
+    compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+    (new java.io.File(confLoc)).delete()
   }
 
 }

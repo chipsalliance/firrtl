@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtlTests
 
@@ -428,7 +428,6 @@ class AsyncResetSpec extends VerilogTransformSpec {
       "end",
       "end"
     )
-
   }
 }
 

@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl
 package passes
@@ -20,11 +20,35 @@ case class InlineAnnotation(target: Named) extends SingleTargetAnnotation[Named]
   def duplicate(n: Named) = InlineAnnotation(n)
 }
 
+object InlineInstances {
+
+  /** Enumerates all possible names for a given type. For example:
+    * {{{
+    * foo : { bar : { a, b }[2], c }
+    *   => foo, foo bar, foo bar 0, foo bar 1, foo bar 0 a, foo bar 0 b, foo bar 1 a, foo bar 1 b, foo c
+    * }}}
+    */
+  private def enumerateNames(tpe: Type): Seq[Seq[String]] = tpe match {
+    case t: BundleType =>
+      t.fields.flatMap { f =>
+        (enumerateNames(f.tpe).map(f.name +: _)) ++ Seq(Seq(f.name))
+      }
+    case t: VectorType =>
+      ((0 until t.size).map(i => Seq(i.toString))) ++
+        ((0 until t.size).flatMap { i =>
+          enumerateNames(t.tpe).map(i.toString +: _)
+        })
+    case _ => Seq()
+  }
+
+}
+
 /** Inline instances as indicated by existing [[InlineAnnotation]]s
   * @note Only use on legal Firrtl. Specifically, the restriction of instance loops must have been checked, or else this
   * pass can infinitely recurse.
   */
 class InlineInstances extends Transform with DependencyAPIMigration with RegisteredTransform {
+  import InlineInstances._
 
   override def prerequisites = Forms.LowForm
   override def optionalPrerequisites = Seq.empty
@@ -240,10 +264,15 @@ class InlineInstances extends Transform with DependencyAPIMigration with Registe
         }
       }
 
-      val maxIdx = indexMap.values.max
-      val resultSeq = Seq.fill(maxIdx + 1)(RenameMap())
-      val resultMap = indexMap.mapValues(idx => resultSeq(maxIdx - idx))
-      (resultMap, resultSeq)
+      indexMap match {
+        case a if a.isEmpty =>
+          (Map.empty[(OfModule, Instance), RenameMap], Seq.empty[RenameMap])
+        case a =>
+          val maxIdx = indexMap.values.max
+          val resultSeq = Seq.fill(maxIdx + 1)(RenameMap())
+          val resultMap = indexMap.mapValues(idx => resultSeq(maxIdx - idx))
+          (resultMap, resultSeq)
+      }
     }
 
     def fixupRefs(
@@ -296,16 +325,16 @@ class InlineInstances extends Transform with DependencyAPIMigration with Registe
             cache.getOrElseUpdate(module, Block(ports :+ toInline.body).map(onStmt(module)))
           }
 
-          val names = "" +: Uniquify
-            .enumerateNames(Uniquify.stmtToType(bodyx)(NoInfo, ""))
-            .map(_.mkString("_"))
+          val names = "" +:
+            enumerateNames(Utils.stmtToType(bodyx))
+              .map(_.mkString("_"))
 
           /** The returned prefix will not be "prefix unique". It may be the same as other existing prefixes in the namespace.
             * However, prepending this prefix to all inlined components is guaranteed to not conflict with this module's
             * namespace. To make it prefix unique, this requires expanding all names in the namespace to include their
             * prefixes before calling findValidPrefix.
             */
-          val safePrefix = Uniquify.findValidPrefix(instName + inlineDelim, names, ns.cloneUnderlying - instName)
+          val safePrefix = Namespace.findValidPrefix(instName + inlineDelim, names, ns.cloneUnderlying - instName)
 
           val prefixMap = mutable.HashMap.empty[String, String]
           val inlineTarget = currentModule.instOf(instName, modName)
@@ -329,8 +358,8 @@ class InlineInstances extends Transform with DependencyAPIMigration with Registe
         Some(m.map(onStmt(ModuleName(m.name, CircuitName(c.main)))))
     })
 
-    val renames = renamesSeq.tail.foldLeft(renamesSeq.head)(_ andThen _)
+    val renames = renamesSeq.reduceLeftOption(_ andThen _)
 
-    CircuitState(flatCircuit, LowForm, annos, Some(renames))
+    CircuitState(flatCircuit, LowForm, annos, renames)
   }
 }

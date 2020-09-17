@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtlTests
 
@@ -260,6 +260,8 @@ class LoweringCompilersSpec extends AnyFlatSpec with Matchers {
 
   it should "replicate the old order" in {
     val legacy = Seq(
+      new firrtl.transforms.InlineBooleanExpressions,
+      new firrtl.transforms.DeadCodeElimination,
       new firrtl.transforms.BlackBoxSourceHelper,
       new firrtl.transforms.FixAddingNegativeLiterals,
       new firrtl.transforms.ReplaceTruncatingArithmetic,

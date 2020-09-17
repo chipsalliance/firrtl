@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.testutils
 
@@ -101,19 +101,19 @@ trait FirrtlRunners extends BackendCompilationUtilities {
         InfoModeAnnotation("ignore") +:
         RenameTopAnnotation(topName) +:
         stage.FirrtlCircuitAnnotation(circuit) +:
-        stage.CompilerAnnotation("mverilog") +:
+        stage.RunFirrtlTransformAnnotation.stringToEmitter("mverilog") +:
         stage.OutputFileAnnotation(topName) +:
         toAnnos(baseTransforms)
     }
 
     val customName = s"${prefix}_custom"
-    val customAnnos = getBaseAnnos(customName) ++: toAnnos((new GetNamespace) +: customTransforms) ++: customAnnotations
+    val customAnnos = customAnnotations ++: toAnnos((new GetNamespace) +: customTransforms) ++: getBaseAnnos(customName)
 
     val customResult = (new firrtl.stage.FirrtlStage).execute(Array.empty, customAnnos)
     val nsAnno = customResult.collectFirst { case m: ModuleNamespaceAnnotation => m }.get
 
     val refSuggestedName = s"${prefix}_ref"
-    val refAnnos = getBaseAnnos(refSuggestedName) ++: Seq(RunFirrtlTransformAnnotation(new RenameModules), nsAnno)
+    val refAnnos = Seq(RunFirrtlTransformAnnotation(new RenameModules), nsAnno) ++: getBaseAnnos(refSuggestedName)
 
     val refResult = (new firrtl.stage.FirrtlStage).execute(Array.empty, refAnnos)
     val refName =
