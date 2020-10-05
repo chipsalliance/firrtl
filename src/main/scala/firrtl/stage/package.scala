@@ -43,7 +43,7 @@ package object stage {
       with LazyLogging {
 
     def view(options: AnnotationSeq): FirrtlExecutionResult = {
-      val emittedRes = options.collect { case a: EmittedAnnotation[_] => a.value.value }
+      val emittedRes = options.collect { case a: EmittedAnnotation[_, _] => a.value.value }
         .mkString("\n")
 
       val emitters = options.collect { case RunFirrtlTransformAnnotation(e: Emitter) => e }

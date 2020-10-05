@@ -6,6 +6,7 @@ import java.io.File
 
 import firrtl._
 
+import firrtl.annotations.CircuitTarget
 import firrtl.options.{Phase, TargetDirAnnotation}
 import firrtl.stage.OutputFileAnnotation
 import firrtl.stage.phases.WriteEmitted
@@ -15,7 +16,7 @@ import org.scalatest.matchers.should.Matchers
 class WriteEmittedSpec extends AnyFlatSpec with Matchers {
 
   def removeEmitted(a: AnnotationSeq): AnnotationSeq = a.flatMap {
-    case a: EmittedAnnotation[_] => None
+    case a: EmittedAnnotation[_, _] => None
     case a => Some(a)
   }
 
@@ -26,9 +27,9 @@ class WriteEmittedSpec extends AnyFlatSpec with Matchers {
   it should "write emitted circuits" in new Fixture {
     val annotations = Seq(
       TargetDirAnnotation("test_run_dir/WriteEmittedSpec"),
-      EmittedFirrtlCircuitAnnotation(EmittedFirrtlCircuit("foo", "", ".foocircuit")),
-      EmittedFirrtlCircuitAnnotation(EmittedFirrtlCircuit("bar", "", ".barcircuit")),
-      EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit("baz", "", ".bazcircuit"))
+      EmittedFirrtlCircuitAnnotation(EmittedFirrtlCircuit("foo", "", ".foocircuit"), CircuitTarget("foo")),
+      EmittedFirrtlCircuitAnnotation(EmittedFirrtlCircuit("bar", "", ".barcircuit"), CircuitTarget("bar")),
+      EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit("baz", "", ".bazcircuit"), CircuitTarget("baz"))
     )
     val expected = Seq("foo.foocircuit", "bar.barcircuit", "baz.bazcircuit")
       .map(a => new File(s"test_run_dir/WriteEmittedSpec/$a"))
@@ -47,7 +48,7 @@ class WriteEmittedSpec extends AnyFlatSpec with Matchers {
     val annotations = Seq(
       TargetDirAnnotation("test_run_dir/WriteEmittedSpec"),
       OutputFileAnnotation("quux"),
-      EmittedFirrtlCircuitAnnotation(EmittedFirrtlCircuit("qux", "", ".quxcircuit"))
+      EmittedFirrtlCircuitAnnotation(EmittedFirrtlCircuit("qux", "", ".quxcircuit"), CircuitTarget("qux"))
     )
     val expected = new File("test_run_dir/WriteEmittedSpec/quux.quxcircuit")
 
@@ -62,9 +63,9 @@ class WriteEmittedSpec extends AnyFlatSpec with Matchers {
   it should "write emitted modules" in new Fixture {
     val annotations = Seq(
       TargetDirAnnotation("test_run_dir/WriteEmittedSpec"),
-      EmittedFirrtlModuleAnnotation(EmittedFirrtlModule("foo", "", ".foomodule")),
-      EmittedFirrtlModuleAnnotation(EmittedFirrtlModule("bar", "", ".barmodule")),
-      EmittedVerilogModuleAnnotation(EmittedVerilogModule("baz", "", ".bazmodule"))
+      EmittedFirrtlModuleAnnotation(EmittedFirrtlModule("foo", "", ".foomodule"), CircuitTarget("foo").module("foo")),
+      EmittedFirrtlModuleAnnotation(EmittedFirrtlModule("bar", "", ".barmodule"), CircuitTarget("foo").module("bar")),
+      EmittedVerilogModuleAnnotation(EmittedVerilogModule("baz", "", ".bazmodule"), CircuitTarget("foo").module("baz"))
     )
     val expected = Seq("foo.foomodule", "bar.barmodule", "baz.bazmodule")
       .map(a => new File(s"test_run_dir/WriteEmittedSpec/$a"))
