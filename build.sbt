@@ -55,6 +55,11 @@ lazy val commonSettings = Seq(
   )
 )
 
+import com.typesafe.tools.mima.core._
+lazy val mimaSettings = Seq(
+  mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.4.0")
+)
+
 lazy val protobufSettings = Seq(
   sourceDirectory in ProtobufConfig := baseDirectory.value / "src" / "main" / "proto",
   protobufRunProtoc in ProtobufConfig := (args =>
@@ -184,6 +189,7 @@ lazy val firrtl = (project in file("."))
     buildInfoUsePackageAsPath := true,
     buildInfoKeys := Seq[BuildInfoKey](buildInfoPackage, version, scalaVersion, sbtVersion)
   )
+  .settings(mimaSettings)
 
 lazy val benchmark = (project in file("benchmark"))
   .dependsOn(firrtl)
