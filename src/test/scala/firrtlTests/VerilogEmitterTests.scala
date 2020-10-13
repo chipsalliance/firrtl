@@ -712,12 +712,8 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
         |""".stripMargin
     )
     result shouldNot containLine("assign z = $signed(x) + -2'sh2;")
-<<<<<<< HEAD
     result should    containLine("wire [2:0] _GEN_0 = $signed(x) - 3'sh2;")
     result should    containLine("assign z = _GEN_0[1:0];")
-=======
-    result should containLine("wire [2:0] _GEN_0 = $signed(x) - 3'sh2;")
-    result should containLine("assign z = _GEN_0[1:0];")
   }
 
   it should "correctly emit addition with a negative literal with width > 32" in {
@@ -776,7 +772,6 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
         |""".stripMargin
     )
     result2 should containLine("assign z = ~(&x);")
->>>>>>> a7a5030d... Fix "fix" for negative literals > 32 bits
   }
 }
 
