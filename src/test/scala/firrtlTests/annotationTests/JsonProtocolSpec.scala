@@ -5,7 +5,6 @@ package firrtlTests.annotationTests
 import firrtl._
 import firrtl.annotations.{JsonProtocol, NoTargetAnnotation}
 import firrtl.ir._
-import firrtl.options.Dependency
 import _root_.logger.{Logger, LogLevel, LogLevelAnnotation}
 import org.scalatest.{FlatSpec, Matchers}
 
@@ -20,9 +19,11 @@ case class AnAnnotation(
     groundType: GroundType
 ) extends NoTargetAnnotation
 
-class AnnoInjector extends Transform with DependencyAPIMigration {
-  override def optionalPrerequisiteOf = Dependency[ChirrtlEmitter] :: Nil
-  override def invalidates(a: Transform): Boolean = false
+class AnnoInjector extends Transform {
+
+  override def inputForm = ChirrtlForm
+  override def outputForm = ChirrtlForm
+
   def execute(state: CircuitState): CircuitState = {
     // Classes defined in method bodies can't be serialized by json4s
     case class MyAnno(x: Int) extends NoTargetAnnotation
@@ -54,15 +55,12 @@ class JsonProtocolSpec extends FlatSpec with Matchers {
   }
 
   "Annotation serialization during logging" should "not throw an exception" in {
-    val compiler = new firrtl.stage.transforms.Compiler(Seq(Dependency[AnnoInjector]))
     val circuit = Parser.parse("""
       |circuit test :
       |  module test :
       |    output out : UInt<1>
       |    out <= UInt(0)
       """.stripMargin)
-    Logger.makeScope(LogLevelAnnotation(LogLevel.Trace) :: Nil) {
-      compiler.execute(CircuitState(circuit, Nil))
-    }
+    (new AnnoInjector).transform(CircuitState(circuit, ChirrtlForm))
   }
 }

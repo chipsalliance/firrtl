@@ -6,12 +6,9 @@ import logger._
 import java.io.Writer
 
 import scala.collection.mutable
-<<<<<<< HEAD
-=======
 import scala.util.Try
 import scala.util.control.NonFatal
 
->>>>>>> db7928a4... Do not throw NonFatal exceptions in annotation logging
 import firrtl.annotations._
 import firrtl.ir.Circuit
 import firrtl.Utils.throwInternalError
@@ -300,28 +297,8 @@ abstract class Transform extends TransformLike[CircuitState] {
     * @return A transformed Firrtl AST
     */
   final def runTransform(state: CircuitState): CircuitState = {
-<<<<<<< HEAD
-    logger.info(s"======== Starting Transform $name ========")
-
-    val (timeMillis, result) = Utils.time { execute(prepare(state)) }
-
-    logger.info(s"""----------------------------${"-" * name.size}---------\n""")
-    logger.info(f"Time: $timeMillis%.1f ms")
-
-    val remappedAnnotations = propagateAnnotations(state.annotations, result.annotations, result.renames)
-
-    logger.info(s"Form: ${result.form}")
-    logger.debug(s"Annotations:")
-    remappedAnnotations.foreach { a =>
-      logger.debug(a.serialize)
-    }
-    logger.trace(s"Circuit:\n${result.circuit.serialize}")
-    logger.info(s"======== Finished Transform $name ========\n")
-    CircuitState(result.circuit, result.form, remappedAnnotations, None)
-=======
     val result = Transform.runTransform(name, execute(prepare(state)), logger)
     Transform.remapAnnotations(name, state, result, logger)
->>>>>>> 1930b7b0... DRY out transform running and annotation remapping
   }
 
 }
