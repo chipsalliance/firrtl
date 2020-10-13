@@ -10,11 +10,6 @@ import firrtl.analyses.InstanceKeyGraph
 import firrtl.annotations._
 import firrtl.passes.{InferTypes, MemPortUtils}
 import firrtl.Utils.{kind, splitRef, throwInternalError}
-<<<<<<< HEAD
-=======
-import firrtl.annotations.transforms.DupedResult
-import firrtl.annotations.TargetToken.{Instance, OfModule}
->>>>>>> 1b9f4ddf... Faster dedup instance graph (#1732)
 import firrtl.options.{HasShellOptions, ShellOption}
 
 import scala.annotation.tailrec
@@ -89,94 +84,11 @@ class DedupModules extends Transform {
     val cname = CircuitName(c.main)
     val map = dedupMap.map { case (from, to) =>
       logger.debug(s"[Dedup] $from -> ${to.name}")
-<<<<<<< HEAD
       ModuleName(from, cname) -> List(ModuleName(to.name, cname))
     }
     renameMap.recordAll(
       map.map {
         case (k: ModuleName, v: List[ModuleName]) => Target.convertNamed2Target(k) -> v.map(Target.convertNamed2Target)
-=======
-      ct.module(from).asInstanceOf[CompleteTarget] -> Seq(ct.module(to.name))
-    }
-    val moduleRenameMap = RenameMap()
-    moduleRenameMap.recordAll(map)
-
-    // Build instanceify renaming map
-    val instanceGraph = new InstanceKeyGraph(c)
-    val instanceify = RenameMap()
-    val moduleName2Index = c.modules.map(_.name).zipWithIndex.map { case (n, i) =>
-      {
-        c.modules.size match {
-          case 0 => (n, 0.0)
-          case 1 => (n, 1.0)
-          case d => (n, i.toDouble / (d - 1))
-        }
-      }
-    }.toMap
-
-    // get the ordered set of instances a module, includes new Deduped modules
-    val getChildrenInstances = {
-      val childrenMap = instanceGraph.getChildInstances.toMap
-      val newModsMap = dedupMap.map {
-        case (_, m: Module) =>
-          m.name -> InstanceKeyGraph.collectInstances(m)
-        case (_, m: DefModule) =>
-          m.name -> List()
-      }
-      (mod: String) => childrenMap.getOrElse(mod, newModsMap(mod))
-    }
-
-    val instanceNameMap: Map[OfModule, Map[Instance, Instance]] = {
-      dedupMap.map { case (oldName, dedupedMod) =>
-        val key = OfModule(oldName)
-        val value = getChildrenInstances(oldName).zip(getChildrenInstances(dedupedMod.name)).map {
-          case (oldInst, newInst) => Instance(oldInst.name) -> Instance(newInst.name)
-        }.toMap
-        key -> value
-      }.toMap
-    }
-    val dedupAnnotations = c.modules.map(_.name).map(ct.module).flatMap { case mt@ModuleTarget(c, m) if dedupCliques(m).size > 1 =>
-      dedupMap.get(m) match {
-        case None => Nil
-        case Some(module: DefModule) =>
-          val paths = instanceGraph.findInstancesInHierarchy(m)
-          // If dedupedAnnos is exactly annos, contains is because dedupedAnnos is type Option
-          val newTargets = paths.map { path =>
-            val root: IsModule = ct.module(c)
-            path.foldLeft(root -> root) { case ((oldRelPath, newRelPath), InstanceKeyGraph.InstanceKey(name, mod)) =>
-              if(mod == c) {
-                val mod = CircuitTarget(c).module(c)
-                mod -> mod
-              } else {
-                val enclosingMod = oldRelPath match {
-                  case i: InstanceTarget => i.ofModule
-                  case m: ModuleTarget => m.module
-                }
-                val instMap = instanceNameMap(OfModule(enclosingMod))
-                val newInstName = instMap(Instance(name)).value
-                val old = oldRelPath.instOf(name, mod)
-                old -> newRelPath.instOf(newInstName, mod)
-              }
-            }
-          }
-
-          // Add all relative paths to referredModule to map to new instances
-          def addRecord(from: IsMember, to: IsMember): Unit = from match {
-            case x: ModuleTarget =>
-              instanceify.record(x, to)
-            case x: IsComponent =>
-              instanceify.record(x, to)
-              addRecord(x.stripHierarchy(1), to)
-          }
-          // Instanceify deduped Modules!
-          if (dedupCliques(module.name).size > 1) {
-            newTargets.foreach { case (from, to) => addRecord(from, to) }
-          }
-          // Return Deduped Results
-          if (newTargets.size == 1) {
-            Seq(DedupedResult(mt, newTargets.headOption.map(_._1), moduleName2Index(m)))
-          } else Nil
->>>>>>> 1b9f4ddf... Faster dedup instance graph (#1732)
       }
     )
 
@@ -325,15 +237,9 @@ object DedupModules {
     // If black box, return it (it has no instances)
     if (module.isInstanceOf[ExtModule]) return module
 
-<<<<<<< HEAD
 
     // Get all instances to know what to rename in the module
-    val instances = mutable.Set[WDefInstance]()
-    InstanceGraph.collectInstances(instances)(module.asInstanceOf[Module].body)
-=======
-    // Get all instances to know what to rename in the module s
     val instances = InstanceKeyGraph.collectInstances(module)
->>>>>>> 1b9f4ddf... Faster dedup instance graph (#1732)
     val instanceModuleMap = instances.map(i => i.name -> i.module).toMap
 
     def getNewModule(old: String): DefModule = {

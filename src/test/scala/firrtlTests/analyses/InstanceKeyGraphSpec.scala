@@ -4,7 +4,7 @@ package firrtlTests.analyses
 
 import firrtl.analyses.InstanceKeyGraph
 import firrtl.analyses.InstanceKeyGraph.InstanceKey
-import firrtl.testutils.FirrtlFlatSpec
+import firrtlTests.FirrtlFlatSpec
 
 class InstanceKeyGraphSpec extends FirrtlFlatSpec {
   behavior of "InstanceKeyGraph"
