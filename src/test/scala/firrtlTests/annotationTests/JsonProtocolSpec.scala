@@ -6,16 +6,10 @@ import firrtl._
 import firrtl.annotations.{JsonProtocol, NoTargetAnnotation, UnserializableAnnotationException}
 import firrtl.ir._
 import firrtl.options.Dependency
-<<<<<<< HEAD
 import _root_.logger.{Logger, LogLevel, LogLevelAnnotation}
 import org.scalatest.{FlatSpec, Matchers}
-=======
 import scala.util.Failure
-import _root_.logger.{LogLevel, LogLevelAnnotation, Logger}
-import org.scalatest.flatspec.AnyFlatSpec
-import org.scalatest.matchers.should._
 import org.scalatest.Inside._
->>>>>>> 47c81ee3... Better error messages for unserializable annotations (#1885)
 
 case class AnAnnotation(
     info: Info,
