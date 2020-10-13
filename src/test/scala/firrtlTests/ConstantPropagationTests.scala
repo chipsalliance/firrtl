@@ -1390,6 +1390,29 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
     matchingArgs("gt",  "UInt<8>", "UInt<1>", """ UInt<1>("h0")  """ )
   }
 
+  it should "optimize bitwise operations of signed literals" in {
+    val input =
+      s"""|circuit Foo:
+          |  module Foo:
+          |    output out1: UInt<2>
+          |    output out2: UInt<2>
+          |    output out3: UInt<2>
+          |    out1 <= xor(SInt<2>(-1), SInt<2>(1))
+          |    out2 <= or(SInt<2>(-1), SInt<2>(1))
+          |    out3 <= and(SInt<2>(-1), SInt<2>(-2))
+          |""".stripMargin
+    val check =
+      s"""|circuit Foo:
+          |  module Foo:
+          |    output out1: UInt<2>
+          |    output out2: UInt<2>
+          |    output out3: UInt<2>
+          |    out1 <= UInt<2>(2)
+          |    out2 <= UInt<2>(3)
+          |    out3 <= UInt<2>(2)
+          |""".stripMargin
+    execute(input, check, Seq.empty)
+  }
 }
 
 
@@ -1484,6 +1507,26 @@ class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
          |    node temp = add(UInt<1>("h00"), UInt<5>("h017"))
          |    node head_temp = head(temp, 3)
          |    out <= head_temp""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+   "addition of negative literals" should "be propagated" in {
+     val input =
+       s"""circuit AddTester :
+          |  module AddTester :
+          |    output ref : SInt<2>
+          |    ref <= add(SInt<1>("h-1"), SInt<1>("h-1"))
+          |""".stripMargin
+     firrtlEquivalenceTest(input, transforms)
+   }
+
+  "propagation of signed expressions" should "have the correct signs" in {
+    val input =
+      s"""circuit SignTester :
+         |  module SignTester :
+         |    output ref : SInt<3>
+         |    ref <= mux(UInt<1>("h0"), SInt<3>("h0"), neg(UInt<2>("h3")))
+         |""".stripMargin
     firrtlEquivalenceTest(input, transforms)
   }
 }
