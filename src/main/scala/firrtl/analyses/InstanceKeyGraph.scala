@@ -75,7 +75,7 @@ object InstanceKeyGraph {
       val instances = mutable.ArrayBuffer[InstanceKey]()
       def onStmt(s: ir.Statement): Unit = s match {
         case firrtl.WDefInstance(_, name, module, _) => instances += InstanceKey(name, module)
-        case ir.DefInstance(_, name, module, _)  => instances += InstanceKey(name, module)
+        case ir.DefInstance(_, name, module)  => instances += InstanceKey(name, module)
         case _: firrtl.WDefInstanceConnector =>
           firrtl.Utils.throwInternalError("Expecting WDefInstance, found a WDefInstanceConnector!")
         case other => other.foreachStmt(onStmt)
