@@ -2,7 +2,6 @@
 
 package firrtlTests.passes
 
-import firrtl.ir.SubField
 import firrtl.options.Dependency
 import firrtl.stage.TransformManager
 import firrtl.{InstanceKind, MemKind, NodeKind, PortKind, RegKind, WireKind}
@@ -50,24 +49,24 @@ class InferTypesFlowsAndKindsSpec extends FlatSpec {
         |""".stripMargin), "m").body).toMap
 
     assert(node("na").tpe == ir.UIntType(ir.IntWidth(4)))
-    assert(node("na").asInstanceOf[ir.Reference].flow == SourceFlow)
-    assert(node("na").asInstanceOf[ir.Reference].kind == PortKind)
+    assert(node("na").asInstanceOf[firrtl.WRef].flow == SourceFlow)
+    assert(node("na").asInstanceOf[firrtl.WRef].kind == PortKind)
 
     assert(node("nb").tpe == ir.SIntType(ir.IntWidth(5)))
-    assert(node("nb").asInstanceOf[ir.Reference].flow == SourceFlow)
-    assert(node("nb").asInstanceOf[ir.Reference].kind == WireKind)
+    assert(node("nb").asInstanceOf[firrtl.WRef].flow == SourceFlow)
+    assert(node("nb").asInstanceOf[firrtl.WRef].kind == WireKind)
 
     assert(node("nc").tpe == ir.UIntType(ir.IntWidth(5)))
-    assert(node("nc").asInstanceOf[ir.Reference].flow == SourceFlow)
-    assert(node("nc").asInstanceOf[ir.Reference].kind == RegKind)
+    assert(node("nc").asInstanceOf[firrtl.WRef].flow == SourceFlow)
+    assert(node("nc").asInstanceOf[firrtl.WRef].kind == RegKind)
 
     assert(node("nna").tpe == ir.UIntType(ir.IntWidth(4)))
-    assert(node("nna").asInstanceOf[ir.Reference].flow == SourceFlow)
-    assert(node("nna").asInstanceOf[ir.Reference].kind == NodeKind)
+    assert(node("nna").asInstanceOf[firrtl.WRef].flow == SourceFlow)
+    assert(node("nna").asInstanceOf[firrtl.WRef].kind == NodeKind)
 
     assert(node("na2").tpe == ir.UIntType(ir.IntWidth(4)))
-    assert(node("na2").asInstanceOf[ir.Reference].flow == SourceFlow)
-    assert(node("na2").asInstanceOf[ir.Reference].kind == PortKind)
+    assert(node("na2").asInstanceOf[firrtl.WRef].flow == SourceFlow)
+    assert(node("na2").asInstanceOf[firrtl.WRef].kind == PortKind)
 
     // according to the spec, the result of add is max(we1, we2 ) + 1
     assert(node("a_plus_c").tpe == ir.UIntType(ir.IntWidth(6)))
@@ -94,11 +93,11 @@ class InferTypesFlowsAndKindsSpec extends FlatSpec {
     assert(node("i_x_y").tpe.isInstanceOf[ir.UIntType])
     // the type inference replaces all unknown widths with a variable
     assert(node("i_x_y").tpe.asInstanceOf[ir.UIntType].width.isInstanceOf[ir.VarWidth])
-    assert(node("i_x_y").asInstanceOf[ir.SubField].flow == SourceFlow)
+    assert(node("i_x_y").asInstanceOf[firrtl.WSubField].flow == SourceFlow)
 
 
     // node i_x = i.x
-    val x = node("i_x").asInstanceOf[ir.SubField]
+    val x = node("i_x").asInstanceOf[firrtl.WSubField]
     assert(x.tpe.isInstanceOf[ir.BundleType])
     assert(x.tpe.asInstanceOf[ir.BundleType].fields.head.name == "y")
     assert(x.tpe.asInstanceOf[ir.BundleType].fields.head.tpe == node("i_x_y").tpe)
@@ -106,24 +105,24 @@ class InferTypesFlowsAndKindsSpec extends FlatSpec {
     assert(x.tpe.asInstanceOf[ir.BundleType].fields.last.flip == ir.Flip)
     assert(x.flow == SourceFlow)
 
-    val i = x.expr.asInstanceOf[ir.Reference]
+    val i = x.expr.asInstanceOf[firrtl.WRef]
     assert(i.kind == InstanceKind)
     assert(i.flow == SourceFlow)
 
 
     // node i_x_y_2 = i_x.y
     assert(node("i_x_y").tpe == node("i_x_y_2").tpe)
-    assert(node("i_x_y").asInstanceOf[ir.SubField].flow == node("i_x_y_2").asInstanceOf[ir.SubField].flow)
+    assert(node("i_x_y").asInstanceOf[firrtl.WSubField].flow == node("i_x_y_2").asInstanceOf[firrtl.WSubField].flow)
 
 
     // i.x.z <= a
-    val (left, right) = (con.head.loc.asInstanceOf[ir.SubField], con.head.expr.asInstanceOf[ir.Reference])
+    val (left, right) = (con.head.loc.asInstanceOf[firrtl.WSubField], con.head.expr.asInstanceOf[firrtl.WRef])
 
     // flow propagates z -> x -> i
     assert(left.flow == SinkFlow)
-    val left_x = left.expr.asInstanceOf[SubField]
+    val left_x = left.expr.asInstanceOf[firrtl.WSubField]
     assert(left_x.flow == SourceFlow) // flip z
-    val left_i = left_x.expr.asInstanceOf[ir.Reference]
+    val left_i = left_x.expr.asInstanceOf[firrtl.WRef]
     assert(left_i.flow == SourceFlow)
 
     assert(left_i.kind == InstanceKind)
@@ -163,8 +162,8 @@ class InferTypesFlowsAndKindsSpec extends FlatSpec {
     assert(node("m_w_addr").tpe == addrTpe)
     assert(node("m_w_data").tpe == dataTpe)
 
-    val memory_ref = node("m_r_addr").asInstanceOf[ir.SubField].expr
-      .asInstanceOf[ir.SubField].expr.asInstanceOf[ir.Reference]
+    val memory_ref = node("m_r_addr").asInstanceOf[firrtl.WSubField].expr
+      .asInstanceOf[firrtl.WSubField].expr.asInstanceOf[firrtl.WRef]
     assert(memory_ref.kind == MemKind)
     val mem_ref_tpe = memory_ref.tpe.asInstanceOf[ir.BundleType]
     val r_tpe = mem_ref_tpe.fields.find(_.name == "r").get.tpe.asInstanceOf[ir.BundleType]
@@ -202,5 +201,4 @@ class InferTypesFlowsAndKindsSpec extends FlatSpec {
     assert(x_con.loc.tpe == tpe)
     assert(other.ports.head.tpe == tpe)
   }
-
 }
