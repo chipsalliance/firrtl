@@ -46,7 +46,7 @@ class CatchExceptions(val underlying: Phase) extends Phase {
       Utils.throwInternalError(exception = Some(e))}
   }
 
-  private[CatchExceptions] def dumpOnError(underlying: Phase, a: AnnotationSeq) = {
+  private def dumpOnError(underlying: Phase, a: AnnotationSeq) = {
     val sopts = Viewer[StageOptions].view(a)
 
     if (sopts.dumpOnCrash) {
