@@ -62,7 +62,7 @@ class Shell(val applicationName: String) {
 
   parser.note("Shell Options")
   ProgramArgsAnnotation.addOptions(parser)
-  Seq(TargetDirAnnotation, InputAnnotationFileAnnotation, OutputAnnotationFileAnnotation)
+  Seq(TargetDirAnnotation, InputAnnotationFileAnnotation, OutputAnnotationFileAnnotation, DumpOnCrashAnnotation)
     .foreach(_.addOptions(parser))
 
   parser

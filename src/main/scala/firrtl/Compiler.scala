@@ -19,6 +19,22 @@ import firrtl.stage.Forms
 /** Container of all annotations for a Firrtl compiler */
 class AnnotationSeq private (private[firrtl] val underlying: List[Annotation]) {
   def toSeq: Seq[Annotation] = underlying.toSeq
+
+  /** Raw serialization of Firrtl compiler annotations for offline debug
+    *
+    * @see [[firrtl.options.phases.WriteOutputAnnotations]] for the canonical mechanism
+    *     of writing [[firrtl.options.StageOptions.annotationFileOut]]
+    */
+  def serialize: String =
+    JsonProtocol
+      .serializeTry(this)
+      .recoverWith {
+        case NonFatal(e) =>
+          val msg = s"Exception thrown during Annotation serialization:\n  " +
+            e.toString.replaceAll("\n", "\n  ")
+          Try(msg)
+      }
+      .get
 }
 object AnnotationSeq {
   def apply(xs: Seq[Annotation]): AnnotationSeq = new AnnotationSeq(xs.toList)
@@ -220,17 +236,7 @@ private[firrtl] object Transform {
 
     logger.info(s"Form: ${after.form}")
     logger.trace(s"Annotations:")
-    logger.trace {
-      JsonProtocol
-        .serializeTry(remappedAnnotations)
-        .recoverWith {
-          case NonFatal(e) =>
-            val msg = s"Exception thrown during Annotation serialization:\n  " +
-              e.toString.replaceAll("\n", "\n  ")
-            Try(msg)
-        }
-        .get
-    }
+    logger.trace(after.annotations.serialize)
 
     logger.trace(s"Circuit:\n${after.circuit.serialize}")
     logger.info(s"======== Finished Transform $name ========\n")

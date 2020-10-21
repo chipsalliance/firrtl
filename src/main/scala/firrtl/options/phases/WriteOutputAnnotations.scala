@@ -22,7 +22,7 @@ class WriteOutputAnnotations extends Phase {
 
   override def invalidates(a: Phase) = false
 
-  /** Write the input [[AnnotationSeq]] to a fie. */
+  /** Write the input [[AnnotationSeq]] to a file. */
   def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val sopts = Viewer[StageOptions].view(annotations)
     val filesWritten = mutable.HashMap.empty[String, Annotation]

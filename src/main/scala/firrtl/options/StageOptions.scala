@@ -5,24 +5,27 @@ package firrtl.options
 import java.io.File
 
 /** Options that every stage shares
-  * @param targetDirName a target (build) directory
-  * @param an input annotation file
+  * @param targetDir a target (build) directory
+  * @param annotationFilesIn input annotation file
   * @param programArgs explicit program arguments
-  * @param outputAnnotationFileName an output annotation filename
+  * @param annotationFileOut an output annotation filename
+  * @param dumpOnCrash on error, dump raw AnnotationSeq to a file
   */
 class StageOptions private[firrtl] (
   val targetDir:         String = TargetDirAnnotation().directory,
   val annotationFilesIn: Seq[String] = Seq.empty,
   val annotationFileOut: Option[String] = None,
   val programArgs:       Seq[String] = Seq.empty,
-  val writeDeleted:      Boolean = false) {
+  val writeDeleted:      Boolean = false,
+  val dumpOnCrash:       Boolean = false) {
 
   private[options] def copy(
     targetDir:         String = targetDir,
     annotationFilesIn: Seq[String] = annotationFilesIn,
     annotationFileOut: Option[String] = annotationFileOut,
     programArgs:       Seq[String] = programArgs,
-    writeDeleted:      Boolean = writeDeleted
+    writeDeleted:      Boolean = writeDeleted,
+    dumpOnCrash:       Boolean = dumpOnCrash
   ): StageOptions = {
 
     new StageOptions(
@@ -30,7 +33,8 @@ class StageOptions private[firrtl] (
       annotationFilesIn = annotationFilesIn,
       annotationFileOut = annotationFileOut,
       programArgs = programArgs,
-      writeDeleted = writeDeleted
+      writeDeleted = writeDeleted,
+      dumpOnCrash = dumpOnCrash
     )
 
   }

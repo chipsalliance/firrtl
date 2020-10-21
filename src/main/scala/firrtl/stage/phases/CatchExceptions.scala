@@ -2,7 +2,10 @@
 
 package firrtl.stage.phases
 
-import firrtl.options.{DependencyManagerException, OptionsException, Phase, PhaseException}
+import java.io.PrintWriter
+import java.lang.AssertionError
+
+import firrtl.options.{DependencyManagerException, OptionsException, Phase, PhaseException, StageOptions, Viewer}
 import firrtl.{
   AnnotationSeq,
   CustomTransformException,
@@ -32,10 +35,27 @@ class CatchExceptions(val underlying: Phase) extends Phase {
     /* Rethrow the exceptions which are expected or due to the runtime environment (out of memory, stack overflow, etc.).
      * Any UNEXPECTED exceptions should be treated as internal errors. */
     case p @ (_: ControlThrowable | _: FIRRTLException | _: OptionsException | _: FirrtlUserException |
-        _: FirrtlInternalException | _: PhaseException | _: DependencyManagerException) =>
-      throw p
-    case CustomTransformException(cause) => throw cause
-    case e: Exception => Utils.throwInternalError(exception = Some(e))
+        _: FirrtlInternalException | _: PhaseException | _: DependencyManagerException | _: AssertionError) => {
+      dumpOnError(underlying, a)
+      throw p }
+    case CustomTransformException(cause) => {
+      dumpOnError(underlying, a)
+      throw cause }
+    case e: Exception => {
+      dumpOnError(underlying, a)
+      Utils.throwInternalError(exception = Some(e))}
+  }
+
+  private[CatchExceptions] def dumpOnError(underlying: Phase, a: AnnotationSeq) = {
+    val sopts = Viewer[StageOptions].view(a)
+
+    if (sopts.dumpOnCrash) {
+      val dumpfile = sopts.getBuildFileName("error", Some(".anno.json"))
+      println(s"Dumping AnnotationSeq to ${dumpfile}")
+      val pw = new PrintWriter(dumpfile)
+      pw.write(a.serialize)
+      pw.close()
+    }
   }
 
 }
