@@ -51,7 +51,7 @@ class CatchExceptions(val underlying: Phase) extends Phase {
 
     if (sopts.dumpOnCrash) {
       val dumpfile = sopts.getBuildFileName("error", Some(".anno.json"))
-      println(s"Dumping AnnotationSeq to ${dumpfile}")
+      logger.warn(s"Dumping annotations to ${dumpfile}")
       val pw = new PrintWriter(dumpfile)
       pw.write(a.serialize)
       pw.close()
