@@ -421,7 +421,7 @@ private class MemoryEncoding(makeRandom: (String, Int) => BVExpr) extends LazyLo
       val bothWrite = and(doWrite, w.doWrite)
       val sameAddress = BVEqual(addr, w.addr)
       if (bothWrite == True) { sameAddress }
-      else { and(doWrite, sameAddress) }
+      else { and(bothWrite, sameAddress) }
     }
     def writeTo(array: ArrayExpr): ArrayExpr = {
       val doUpdate = if (memory.fullAddressRange) doWrite else and(doWrite, memory.isValidAddress(addr))
