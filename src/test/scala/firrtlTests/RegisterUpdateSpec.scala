@@ -5,7 +5,7 @@ package firrtlTests
 import firrtl._
 import firrtl.ir._
 import firrtl.transforms.FlattenRegUpdate
-import firrtl.annotations.NoTargetAnnotation
+import firrtl.annotations.{CircuitTarget, NoTargetAnnotation}
 import firrtl.stage.transforms.Compiler
 import firrtl.options.Dependency
 import firrtl.testutils._
@@ -22,7 +22,8 @@ object RegisterUpdateSpec {
     override def invalidates(a: Transform): Boolean = false
     def execute(state: CircuitState): CircuitState = {
       val emittedAnno = EmittedFirrtlCircuitAnnotation(
-        EmittedFirrtlCircuit(state.circuit.main, state.circuit.serialize, ".fir")
+        EmittedFirrtlCircuit(state.circuit.main, state.circuit.serialize, ".fir"),
+        CircuitTarget(state.circuit.main)
       )
       val capturedState = state.copy(annotations = emittedAnno +: state.annotations)
       state.copy(annotations = CaptureStateAnno(capturedState) +: state.annotations)

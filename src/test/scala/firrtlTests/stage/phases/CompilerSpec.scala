@@ -126,7 +126,7 @@ class CompilerSpec extends AnyFlatSpec with Matchers {
     output.collect { case a: FirrtlCircuitAnnotation => a }.size should be(6)
 
     info("and all expected EmittedAnnotations should be generated")
-    output.collect { case a: EmittedAnnotation[_] => a }.size should be(20)
+    output.collect { case a: EmittedAnnotation[_, _] => a }.size should be(20)
   }
 
   it should "run transforms in sequential order" in new Fixture {

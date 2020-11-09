@@ -124,7 +124,9 @@ final case class EmittedFirrtlModule(name: String, value: String, outputSuffix: 
 final case class EmittedVerilogModule(name: String, value: String, outputSuffix: String) extends EmittedModule
 
 /** Traits for Annotations containing emitted components */
-sealed trait EmittedAnnotation[T <: EmittedComponent] extends NoTargetAnnotation with CustomFileEmission {
+sealed trait EmittedAnnotation[T <: EmittedComponent, U <: Named]
+    extends SingleTargetAnnotation[U]
+    with CustomFileEmission {
   val value: T
 
   override protected def baseFileName(annotations: AnnotationSeq): String = {
@@ -134,29 +136,43 @@ sealed trait EmittedAnnotation[T <: EmittedComponent] extends NoTargetAnnotation
   override protected val suffix: Option[String] = Some(value.outputSuffix)
 
 }
-sealed trait EmittedCircuitAnnotation[T <: EmittedCircuit] extends EmittedAnnotation[T] {
+sealed trait EmittedCircuitAnnotation[T <: EmittedCircuit] extends EmittedAnnotation[T, CircuitTarget] {
 
   override def getBytes = value.value.getBytes
 
 }
-sealed trait EmittedModuleAnnotation[T <: EmittedModule] extends EmittedAnnotation[T] {
+sealed trait EmittedModuleAnnotation[T <: EmittedModule] extends EmittedAnnotation[T, ModuleTarget] {
 
   override def getBytes = value.value.getBytes
 
 }
 
-case class EmittedFirrtlCircuitAnnotation(value: EmittedFirrtlCircuit)
+case class EmittedFirrtlCircuitAnnotation(value: EmittedFirrtlCircuit, target: CircuitTarget)
     extends EmittedCircuitAnnotation[EmittedFirrtlCircuit] {
 
   override def replacements(file: File): AnnotationSeq = Seq(FirrtlFileAnnotation(file.toString))
 
+  override def duplicate(targetx: CircuitTarget) = this.copy(value, targetx)
+
 }
-case class EmittedVerilogCircuitAnnotation(value: EmittedVerilogCircuit)
-    extends EmittedCircuitAnnotation[EmittedVerilogCircuit]
-case class EmittedFirrtlModuleAnnotation(value: EmittedFirrtlModule)
-    extends EmittedModuleAnnotation[EmittedFirrtlModule]
-case class EmittedVerilogModuleAnnotation(value: EmittedVerilogModule)
-    extends EmittedModuleAnnotation[EmittedVerilogModule]
+case class EmittedVerilogCircuitAnnotation(value: EmittedVerilogCircuit, target: CircuitTarget)
+    extends EmittedCircuitAnnotation[EmittedVerilogCircuit] {
+
+  override def duplicate(targetx: CircuitTarget) = this.copy(value, targetx)
+
+}
+case class EmittedFirrtlModuleAnnotation(value: EmittedFirrtlModule, target: ModuleTarget)
+    extends EmittedModuleAnnotation[EmittedFirrtlModule] {
+
+  override def duplicate(targetx: ModuleTarget) = this.copy(value, targetx)
+
+}
+case class EmittedVerilogModuleAnnotation(value: EmittedVerilogModule, target: ModuleTarget)
+    extends EmittedModuleAnnotation[EmittedVerilogModule] {
+
+  override def duplicate(targetx: ModuleTarget) = this.copy(value, targetx)
+
+}
 
 sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Emitter {
   def inputForm = form
@@ -193,15 +209,18 @@ sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Em
   }
 
   override def execute(state: CircuitState): CircuitState = {
+    val circuitTarget = CircuitTarget(state.circuit.main)
     val newAnnos = state.annotations.flatMap {
       case EmitCircuitAnnotation(a) if this.getClass == a =>
         Seq(
           EmittedFirrtlCircuitAnnotation(
-            EmittedFirrtlCircuit(state.circuit.main, state.circuit.serialize, outputSuffix)
+            EmittedFirrtlCircuit(state.circuit.main, state.circuit.serialize, outputSuffix),
+            circuitTarget
           )
         )
       case EmitAllModulesAnnotation(a) if this.getClass == a =>
-        emitAllModules(state.circuit).map(EmittedFirrtlModuleAnnotation(_))
+        emitAllModules(state.circuit)
+          .map(b => EmittedFirrtlModuleAnnotation(b, circuitTarget.module(b.name)))
       case _ => Seq()
     }
     state.copy(annotations = newAnnos ++ state.annotations)
@@ -1482,13 +1501,15 @@ class VerilogEmitter extends SeqTransform with Emitter {
     val writerToString =
       (writer: java.io.StringWriter) => writer.toString.replaceAll("""(?m) +$""", "") // trim trailing whitespace
 
+    val circuitTarget = CircuitTarget(state.circuit.main)
     val newAnnos = state.annotations.flatMap {
       case EmitCircuitAnnotation(a) if this.getClass == a =>
         val writer = new java.io.StringWriter
         emit(state, writer)
         Seq(
           EmittedVerilogCircuitAnnotation(
-            EmittedVerilogCircuit(state.circuit.main, writerToString(writer), outputSuffix)
+            EmittedVerilogCircuit(state.circuit.main, writerToString(writer), outputSuffix),
+            circuitTarget
           )
         )
 
@@ -1503,14 +1524,20 @@ class VerilogEmitter extends SeqTransform with Emitter {
             val renderer = new VerilogRender(d, pds, module, moduleMap, cs.circuit.main, emissionOptions)(writer)
             renderer.emit_verilog()
             Some(
-              EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writerToString(writer), outputSuffix))
+              EmittedVerilogModuleAnnotation(
+                EmittedVerilogModule(module.name, writerToString(writer), outputSuffix),
+                circuitTarget.module(module.name)
+              )
             )
           case module: Module =>
             val writer = new java.io.StringWriter
             val renderer = new VerilogRender(module, moduleMap, cs.circuit.main, emissionOptions)(writer)
             renderer.emit_verilog()
             Some(
-              EmittedVerilogModuleAnnotation(EmittedVerilogModule(module.name, writerToString(writer), outputSuffix))
+              EmittedVerilogModuleAnnotation(
+                EmittedVerilogModule(module.name, writerToString(writer), outputSuffix),
+                circuitTarget.module(module.name)
+              )
             )
           case _ => None
         }

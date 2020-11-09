@@ -54,7 +54,7 @@ case class CircuitState(
 
   /** Helper function for extracting emitted components from annotations */
   def emittedComponents: Seq[EmittedComponent] =
-    annotations.collect { case emitted: EmittedAnnotation[_] => emitted.value }
+    annotations.collect { case emitted: EmittedAnnotation[_, _] => emitted.value }
   def deletedAnnotations: Seq[Annotation] =
     annotations.collect { case anno: DeletedAnnotation => anno }
 
