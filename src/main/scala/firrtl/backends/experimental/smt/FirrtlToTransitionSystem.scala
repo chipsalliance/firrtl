@@ -567,6 +567,8 @@ private class ModuleScanner(makeRandom: (String, Int) => BVExpr) extends LazyLog
       if (op == ir.Formal.Cover) {
         logger.warn(s"WARN: Cover statement was ignored: ${s.serialize}")
       } else {
+        insertDummyAssignsForMemoryOutputs(pred)
+        insertDummyAssignsForMemoryOutputs(en)
         val name = namespace.newName(msgToName(op.toString, msg.string))
         val predicate = onExpression(pred, name + "_predicate")
         val enabled = onExpression(en, name + "_enabled")
