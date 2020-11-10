@@ -420,7 +420,7 @@ private class MemoryEncoding(makeRandom: (String, Int) => BVExpr) extends LazyLo
       val bothWrite = and(doWrite, w.doWrite)
       val sameAddress = BVEqual(addr, w.addr)
       if (bothWrite == True) { sameAddress }
-      else { and(doWrite, sameAddress) }
+      else { and(bothWrite, sameAddress) }
     }
     def writeTo(array: ArrayExpr): ArrayExpr = {
       val doUpdate = if (memory.fullAddressRange) doWrite else and(doWrite, memory.isValidAddress(addr))
@@ -558,7 +558,13 @@ private class ModuleScanner(makeRandom: (String, Int) => BVExpr) extends LazyLog
       if (op == ir.Formal.Cover) {
         logger.warn(s"WARN: Cover statement was ignored: ${s.serialize}")
       } else {
+<<<<<<< HEAD
         val name = msgToName(op.toString, msg.string)
+=======
+        insertDummyAssignsForMemoryOutputs(pred)
+        insertDummyAssignsForMemoryOutputs(en)
+        val name = namespace.newName(msgToName(op.toString, msg.string))
+>>>>>>> 4c6993bf... Fix SMT Memory Bug (#1942)
         val predicate = onExpression(pred, name + "_predicate")
         val enabled = onExpression(en, name + "_enabled")
         val e = BVImplies(enabled, predicate)
