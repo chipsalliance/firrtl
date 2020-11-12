@@ -19,12 +19,27 @@ object RemoveValidIf extends Pass {
     * @note Accepts [[firrtl.ir.Type Type]] but dyanmically expects [[firrtl.ir.GroundType GroundType]]
     */
   def getGroundZero(tpe: Type): Expression = tpe match {
+<<<<<<< HEAD
     case _: UIntType => UIntZero
     case _: SIntType => SIntZero
     case ClockType => ClockZero
     case _: FixedType => FixedZero
     case AsyncResetType => AsyncZero
     case other => throwInternalError(s"Unexpected type $other")
+=======
+    case g: GroundType => Utils.getGroundZero(g)
+    case other => throwInternalError(s"Unexpected type $other")
+  }
+
+  override def prerequisites = firrtl.stage.Forms.LowForm
+
+  override def optionalPrerequisiteOf =
+    Seq(Dependency[SystemVerilogEmitter], Dependency[VerilogEmitter])
+
+  override def invalidates(a: Transform): Boolean = a match {
+    case Legalize | _: firrtl.transforms.ConstantPropagation => true
+    case _ => false
+>>>>>>> c7bbb75b... Fix RemoveWires handling of invalidated non-UInt wires (#1949)
   }
 
   // Recursive. Removes ValidIfs
