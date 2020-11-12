@@ -24,4 +24,10 @@ addSbtPlugin("com.github.gseitz" % "sbt-protobuf" % "0.6.3")
 
 addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.9.7")
 
+<<<<<<< HEAD
 libraryDependencies += "com.github.os72" % "protoc-jar" % "3.5.1.1"
+=======
+addSbtPlugin("com.geirsson" % "sbt-ci-release" % "1.5.4")
+
+libraryDependencies += "com.github.os72" % "protoc-jar" % "3.11.4"
+>>>>>>> 06843bd9... Automatically publish SNAPSHOTs on pushes to master (#1955)

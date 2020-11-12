@@ -68,6 +68,7 @@ libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.8" % "test"
 
 libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.14.0" % "test"
 
+<<<<<<< HEAD
 libraryDependencies += "com.github.scopt" %% "scopt" % "3.7.1"
 
 libraryDependencies += "net.jcazevedo" %% "moultingyaml" % "0.4.1"
@@ -145,6 +146,33 @@ publishTo := {
 resolvers ++= Seq(
   Resolver.sonatypeRepo("snapshots"),
   Resolver.sonatypeRepo("releases")
+=======
+lazy val publishSettings = Seq(
+  // publishMavenStyle and publishTo handled by sbt-ci-release
+  publishArtifact in Test := false,
+  pomIncludeRepository := { x => false },
+  // Don't add 'scm' elements if we have a git.remoteRepo definition,
+  //  but since we don't (with the removal of ghpages), add them in below.
+  pomExtra := <url>http://chisel.eecs.berkeley.edu/</url>
+    <licenses>
+      <license>
+        <name>apache_v2</name>
+        <url>https://opensource.org/licenses/Apache-2.0</url>
+        <distribution>repo</distribution>
+      </license>
+    </licenses>
+    <scm>
+      <url>https://github.com/freechipsproject/firrtl.git</url>
+      <connection>scm:git:github.com/freechipsproject/firrtl.git</connection>
+    </scm>
+    <developers>
+      <developer>
+        <id>jackbackrack</id>
+        <name>Jonathan Bachrach</name>
+        <url>http://www.eecs.berkeley.edu/~jrb/</url>
+      </developer>
+    </developers>,
+>>>>>>> 06843bd9... Automatically publish SNAPSHOTs on pushes to master (#1955)
 )
 
 // MiMa
