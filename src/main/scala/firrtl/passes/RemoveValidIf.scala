@@ -21,11 +21,15 @@ object RemoveValidIf extends Pass {
     * @note Accepts [[firrtl.ir.Type Type]] but dyanmically expects [[firrtl.ir.GroundType GroundType]]
     */
   def getGroundZero(tpe: Type): Expression = tpe match {
+<<<<<<< HEAD
     case _: UIntType => UIntZero
     case _: SIntType => SIntZero
     case ClockType => ClockZero
     case _: FixedType => FixedZero
     case AsyncResetType => AsyncZero
+=======
+    case g: GroundType => Utils.getGroundZero(g)
+>>>>>>> c7bbb75b... Fix RemoveWires handling of invalidated non-UInt wires (#1949)
     case other => throwInternalError(s"Unexpected type $other")
   }
 

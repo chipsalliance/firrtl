@@ -8,8 +8,14 @@ import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedExpression._
+<<<<<<< HEAD
 import firrtl.graph.{MutableDiGraph, CyclicException}
 import firrtl.options.{Dependency, PreservesAll}
+=======
+import firrtl.graph.{CyclicException, MutableDiGraph}
+import firrtl.options.Dependency
+import firrtl.Utils.getGroundZero
+>>>>>>> c7bbb75b... Fix RemoveWires handling of invalidated non-UInt wires (#1949)
 
 import scala.collection.mutable
 import scala.util.{Try, Success, Failure}
@@ -118,8 +124,8 @@ class RemoveWires extends Transform with DependencyAPIMigration with PreservesAl
         case invalid @ IsInvalid(info, expr) =>
           kind(expr) match {
             case WireKind =>
-              val width = expr.tpe match { case GroundType(width) => width } // LowFirrtl
-              netlist(we(expr)) = (Seq(ValidIf(Utils.zero, UIntLiteral(BigInt(0), width), expr.tpe)), info)
+              val (tpe, width) = expr.tpe match { case g: GroundType => (g, g.width) } // LowFirrtl
+              netlist(we(expr)) = (Seq(ValidIf(Utils.zero, getGroundZero(tpe), tpe)), info)
             case _ => otherStmts += invalid
           }
         case other @ (_: Print | _: Stop | _: Attach) =>
