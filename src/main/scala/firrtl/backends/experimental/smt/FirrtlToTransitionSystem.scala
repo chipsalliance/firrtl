@@ -250,6 +250,8 @@ private class ModuleToTransitionSystem extends LazyLogging {
 
 private class MemoryEncoding(makeRandom: (String, Int) => BVExpr, namespace: Namespace) extends LazyLogging {
   type Connects = Iterable[(String, BVExpr)]
+  // for backward compatibility
+  def this(makeRandom: (String, Int) => BVExpr) = this(makeRandom, Namespace())
   def onMemory(
     defMem:    ir.DefMemory,
     connects:  Connects,
@@ -394,6 +396,8 @@ private class MemoryEncoding(makeRandom: (String, Int) => BVExpr, namespace: Nam
     val enIsTrue: Boolean = inputs(en.name) == True
     def makeRandomData(suffix: String): BVExpr =
       makeRandom(memory.name + "_" + name + suffix, memory.dataWidth)
+    // for backward compatibility
+    def readOld(): BVExpr = read(addr, en)
     def read(addr: BVSymbol = addr, en: BVSymbol = en): BVExpr = {
       val canBeOutOfRange = !memory.fullAddressRange
       val canBeDisabled = !enIsTrue
