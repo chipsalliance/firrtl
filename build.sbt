@@ -20,7 +20,7 @@ def javacOptionsVersion(scalaVersion: String): Seq[String] = {
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   name := "firrtl",
-  version := "1.4-SNAPSHOT",
+  version := "1.5-SNAPSHOT",
   scalaVersion := "2.12.12",
   crossScalaVersions := Seq("2.13.2", "2.12.12", "2.11.12"),
   addCompilerPlugin(scalafixSemanticdb),
@@ -90,7 +90,7 @@ lazy val antlrSettings = Seq(
 )
 
 lazy val publishSettings = Seq(
-  publishMavenStyle := true,
+  // publishMavenStyle and publishTo handled by sbt-ci-release
   publishArtifact in Test := false,
   pomIncludeRepository := { x => false },
   // Don't add 'scm' elements if we have a git.remoteRepo definition,
@@ -114,15 +114,6 @@ lazy val publishSettings = Seq(
         <url>http://www.eecs.berkeley.edu/~jrb/</url>
       </developer>
     </developers>,
-  publishTo := {
-    val v = version.value
-    val nexus = "https://oss.sonatype.org/"
-    if (v.trim.endsWith("SNAPSHOT")) {
-      Some("snapshots" at nexus + "content/repositories/snapshots")
-    } else {
-      Some("releases" at nexus + "service/local/staging/deploy/maven2")
-    }
-  }
 )
 
 
