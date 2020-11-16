@@ -94,7 +94,7 @@ trait MultiTargetAnnotation extends Annotation {
   /** Contains a sequence of [[firrtl.annotations.Target Target]].
     * When created, [[targets]] should be assigned by `Seq(Seq(TargetA), Seq(TargetB), Seq(TargetC))`
     */
-  val targets: Seq[Seq[Target]]
+  def targets: Seq[Seq[Target]]
 
   /** Create another instance of this Annotation */
   def duplicate(n: Seq[Seq[Target]]): Annotation
