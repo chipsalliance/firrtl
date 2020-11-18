@@ -23,7 +23,7 @@ class WriteOutputAnnotations extends Phase {
   override def invalidates(a: Phase) = false
 
   /** Write the input [[AnnotationSeq]] to a fie. */
-  def transform(annotations: AnnotationSeq): AnnotationSeq = {
+  def transform(annotations: AnnotationSeq): AnnotationSeq = { val (time_ms, a) = firrtl.Utils.time {
     val sopts = Viewer[StageOptions].view(annotations)
     val filesWritten = mutable.HashMap.empty[String, Annotation]
     val serializable: AnnotationSeq = annotations.toSeq.flatMap {
@@ -69,6 +69,9 @@ class WriteOutputAnnotations extends Phase {
     }
 
     annotations
+  }
+  logger.info(f"Serialization time (all annotations): $time_ms%.1f ms")
+  a
   }
 
 }
