@@ -3,8 +3,8 @@ set -e
 
 # Use appropriate branches.
 # Each stable branch of FIRRTL should have a fixed value for these branches.
-CHISEL_BRANCH="master"
-TREADLE_BRANCH="master"
+CHISEL_BRANCH="3.4.x"
+TREADLE_BRANCH="1.2.x"
 
 # Skip chisel tests if the commit message says to
 # Replace ... with .. in TRAVIS_COMMIT_RANGE, see https://github.com/travis-ci/travis-ci/issues/4596

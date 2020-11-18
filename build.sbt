@@ -55,6 +55,11 @@ lazy val commonSettings = Seq(
   )
 )
 
+import com.typesafe.tools.mima.core._
+lazy val mimaSettings = Seq(
+  mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.4.0")
+)
+
 lazy val protobufSettings = Seq(
   sourceDirectory in ProtobufConfig := baseDirectory.value / "src" / "main" / "proto",
   protobufRunProtoc in ProtobufConfig := (args =>
@@ -90,7 +95,7 @@ lazy val antlrSettings = Seq(
 )
 
 lazy val publishSettings = Seq(
-  publishMavenStyle := true,
+  // publishMavenStyle and publishTo handled by sbt-ci-release
   publishArtifact in Test := false,
   pomIncludeRepository := { x => false },
   // Don't add 'scm' elements if we have a git.remoteRepo definition,
@@ -114,15 +119,6 @@ lazy val publishSettings = Seq(
         <url>http://www.eecs.berkeley.edu/~jrb/</url>
       </developer>
     </developers>,
-  publishTo := {
-    val v = version.value
-    val nexus = "https://oss.sonatype.org/"
-    if (v.trim.endsWith("SNAPSHOT")) {
-      Some("snapshots" at nexus + "content/repositories/snapshots")
-    } else {
-      Some("releases" at nexus + "service/local/staging/deploy/maven2")
-    }
-  }
 )
 
 
@@ -184,6 +180,7 @@ lazy val firrtl = (project in file("."))
     buildInfoUsePackageAsPath := true,
     buildInfoKeys := Seq[BuildInfoKey](buildInfoPackage, version, scalaVersion, sbtVersion)
   )
+  .settings(mimaSettings)
 
 lazy val benchmark = (project in file("benchmark"))
   .dependsOn(firrtl)
