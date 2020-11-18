@@ -54,11 +54,15 @@ class AddCircuit extends Phase {
     * @throws $infoModeException
     */
   def transform(annotations: AnnotationSeq): AnnotationSeq = {
-    lazy val info = infoMode(annotations)
-    annotations.map {
-      case a: CircuitOption => a.toCircuit(info)
-      case a => a
+    val (time_ms, a) = firrtl.Utils.time {
+      lazy val info = infoMode(annotations)
+      annotations.map {
+        case a: CircuitOption => a.toCircuit(info)
+        case a => a
+      }
     }
+    logger.info(f"Parse time: $time_ms%.1f ms")
+    a
   }
 
 }
