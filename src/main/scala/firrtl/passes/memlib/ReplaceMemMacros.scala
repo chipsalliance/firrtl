@@ -273,8 +273,8 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform with DependencyAPIM
       case _                        => throwInternalError("Something went wrong")
     }
     val annos = pins.foldLeft(Seq[Annotation]()) { (seq, pin) =>
-      seq ++ memMods.collect {
-        case m: ExtModule => SinkAnnotation(ModuleName(m.name, CircuitName(c.main)), pin)
+      seq ++ memMods.collect { case m: ExtModule =>
+        SinkAnnotation(ModuleName(m.name, CircuitName(c.main)), pin)
       }
     } ++ state.annotations
     state.copy(circuit = c.copy(modules = modules ++ memMods), annotations = annos)

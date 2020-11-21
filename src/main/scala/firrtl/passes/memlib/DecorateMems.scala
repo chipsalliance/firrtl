@@ -19,9 +19,8 @@ class CreateMemoryAnnotations(reader: Option[YamlFileReader]) extends Transform 
       import CustomYAMLProtocol._
       val configs = r.parse[Config]
       val oldAnnos = state.annotations
-      val (as, pins) = configs.foldLeft((oldAnnos, Seq.empty[String])) {
-        case ((annos, pins), config) =>
-          (annos, pins :+ config.pin.name)
+      val (as, pins) = configs.foldLeft((oldAnnos, Seq.empty[String])) { case ((annos, pins), config) =>
+        (annos, pins :+ config.pin.name)
       }
       state.copy(annotations = PinAnnotation(pins.toSeq) +: as)
   }

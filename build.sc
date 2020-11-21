@@ -23,7 +23,7 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
 
   private def javacCrossOptions = majorVersion match {
     case i if i < 12 => Seq("-source", "1.7", "-target", "1.7")
-    case _ => Seq("-source", "1.8", "-target", "1.8")
+    case _           => Seq("-source", "1.8", "-target", "1.8")
   }
 
   override def scalacOptions = T {
@@ -58,7 +58,7 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
   object test extends Tests {
     private def ivyCrossDeps = majorVersion match {
       case i if i < 12 => Agg(ivy"junit:junit:4.13.1")
-      case _ => Agg()
+      case _           => Agg()
     }
 
     override def ivyDeps = T {
@@ -105,12 +105,18 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
   }
 
   def generatedAntlr4Source = T.sources {
-    os.proc("java",
-      "-jar", downloadAntlr4Jar().path.toString,
-      "-o", T.ctx.dest.toString,
-      "-lib", antlrSource().path.toString,
-      "-package", "firrtl.antlr",
-      "-no-listener", "-visitor",
+    os.proc(
+      "java",
+      "-jar",
+      downloadAntlr4Jar().path.toString,
+      "-o",
+      T.ctx.dest.toString,
+      "-lib",
+      antlrSource().path.toString,
+      "-package",
+      "firrtl.antlr",
+      "-no-listener",
+      "-visitor",
       antlrSource().path.toString
     ).call()
     T.ctx.dest
@@ -124,13 +130,18 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
   }
 
   def downloadProtocJar = T.persistent {
-    Util.download(s"https://repo.maven.apache.org/maven2/com/github/os72/protoc-jar/$protocVersion/protoc-jar-$protocVersion.jar")
+    Util.download(
+      s"https://repo.maven.apache.org/maven2/com/github/os72/protoc-jar/$protocVersion/protoc-jar-$protocVersion.jar"
+    )
   }
 
   def generatedProtoSources = T.sources {
-    os.proc("java",
-      "-jar", downloadProtocJar().path.toString,
-      "-I", protobufSource().path / os.up,
+    os.proc(
+      "java",
+      "-jar",
+      downloadProtocJar().path.toString,
+      "-I",
+      protobufSource().path / os.up,
       s"--java_out=${T.ctx.dest.toString}",
       protobufSource().path.toString()
     ).call()

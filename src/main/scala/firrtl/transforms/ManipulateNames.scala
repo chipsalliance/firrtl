@@ -123,8 +123,8 @@ case class ManipulateNamesAllowlistResultAnnotation[A <: ManipulateNames[_]](
   def toRenameMap: RenameMap = {
     val m = oldTargets
       .zip(targets)
-      .flatMap {
-        case (a, b) => a.map(_ -> b)
+      .flatMap { case (a, b) =>
+        a.map(_ -> b)
       }
       .toMap
       .asInstanceOf[Map[CompleteTarget, Seq[CompleteTarget]]]
@@ -462,21 +462,19 @@ abstract class ManipulateNames[A <: ManipulateNames[_]: ClassTag] extends Transf
   /** Return a circuit state with all sensitive names manipulated */
   def execute(state: CircuitState): CircuitState = {
 
-    val block = state.annotations.collect {
-      case ManipulateNamesBlocklistAnnotation(targetSeq, t) =>
+    val block = state.annotations.collect { case ManipulateNamesBlocklistAnnotation(targetSeq, t) =>
+      t.getObject match {
+        case _: A => targetSeq
+        case _ => Nil
+      }
+    }.flatten.flatten.toSet
+
+    val allow = {
+      val allowx = state.annotations.collect { case ManipulateNamesAllowlistAnnotation(targetSeq, t) =>
         t.getObject match {
           case _: A => targetSeq
           case _ => Nil
         }
-    }.flatten.flatten.toSet
-
-    val allow = {
-      val allowx = state.annotations.collect {
-        case ManipulateNamesAllowlistAnnotation(targetSeq, t) =>
-          t.getObject match {
-            case _: A => targetSeq
-            case _ => Nil
-          }
       }.flatten.flatten
 
       allowx match {

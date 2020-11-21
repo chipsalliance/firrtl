@@ -4,8 +4,7 @@ package firrtl.annotations
 
 import firrtl.{MemoryArrayInit, MemoryEmissionOption, MemoryInitValue, MemoryRandomInit, MemoryScalarInit}
 
-/**
-  * Represents the initial value of the annotated memory.
+/** Represents the initial value of the annotated memory.
   * While not supported on normal ASIC flows, it can be useful for simulation and FPGA flows.
   * This annotation is consumed by the verilog emitter.
   */

@@ -64,8 +64,7 @@ object ZeroWidth extends Transform with DependencyAPIMigration {
     }
   }
 
-  /**
-    * Replace zero width mems before running the rest of the ZeroWidth transform.
+  /** Replace zero width mems before running the rest of the ZeroWidth transform.
     * Dealing with mems is a bit tricky because the address, en, clk ports
     * of the memory are not width zero even if data is.
     *
@@ -116,8 +115,8 @@ object ZeroWidth extends Transform with DependencyAPIMigration {
   private[passes] def removeZero(t: Type): Option[Type] = t match {
     case GroundType(IntWidth(ZERO)) => None
     case BundleType(fields) =>
-      fields.map(f => (f, removeZero(f.tpe))).collect {
-        case (Field(name, flip, _), Some(t)) => Field(name, flip, t)
+      fields.map(f => (f, removeZero(f.tpe))).collect { case (Field(name, flip, _), Some(t)) =>
+        Field(name, flip, t)
       } match {
         case Nil => None
         case seq => Some(BundleType(seq))

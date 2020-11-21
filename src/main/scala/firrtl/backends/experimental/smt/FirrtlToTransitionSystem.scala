@@ -141,16 +141,15 @@ private class ModuleToTransitionSystem extends LazyLogging {
     val constraints = scan.assumes.toSet
     val bad = scan.asserts.toSet
     val isSignal = (scan.wires ++ scan.nodes ++ scan.memSignals).toSet ++ outputs ++ constraints ++ bad
-    val signals = scan.connects.filter { case (name, _) => isSignal.contains(name) }.map {
-      case (name, expr) => Signal(name, expr)
+    val signals = scan.connects.filter { case (name, _) => isSignal.contains(name) }.map { case (name, expr) =>
+      Signal(name, expr)
     }
 
     // turn registers and memories into states
     val registers = scan.registers.map(r => r._1 -> r).toMap
-    val regStates = scan.connects.filter(s => registers.contains(s._1)).map {
-      case (name, nextExpr) =>
-        val (_, width, resetExpr, initExpr) = registers(name)
-        onRegister(name, width, resetExpr, initExpr, nextExpr, presetRegs)
+    val regStates = scan.connects.filter(s => registers.contains(s._1)).map { case (name, nextExpr) =>
+      val (_, width, resetExpr, initExpr) = registers(name)
+      onRegister(name, width, resetExpr, initExpr, nextExpr, presetRegs)
     }
     // turn memories into state
     val memoryEncoding = new MemoryEncoding(makeRandom, scan.namespace)
@@ -173,12 +172,11 @@ private class ModuleToTransitionSystem extends LazyLogging {
 
     // generate comments from infos
     val comments = mutable.HashMap[String, String]()
-    scan.infos.foreach {
-      case (name, info) =>
-        serializeInfo(info).foreach { infoString =>
-          if (comments.contains(name)) { comments(name) += InfoSeparator + infoString }
-          else { comments(name) = InfoPrefix + infoString }
-        }
+    scan.infos.foreach { case (name, info) =>
+      serializeInfo(info).foreach { infoString =>
+        if (comments.contains(name)) { comments(name) += InfoSeparator + infoString }
+        else { comments(name) = InfoPrefix + infoString }
+      }
     }
 
     // inputs are original module inputs and any "random" signal we need for modelling
@@ -359,9 +357,8 @@ private class MemoryEncoding(makeRandom: (String, Int) => BVExpr, namespace: Nam
       val base = ArrayConstant(BVLiteral(baseValue, m.dataWidth), m.indexWidth)
       values.zipWithIndex
         .filterNot(_._1 == baseValue)
-        .foldLeft[ArrayExpr](base) {
-          case (array, (value, index)) =>
-            ArrayStore(array, BVLiteral(index, m.indexWidth), BVLiteral(value, m.dataWidth))
+        .foldLeft[ArrayExpr](base) { case (array, (value, index)) =>
+          ArrayStore(array, BVLiteral(index, m.indexWidth), BVLiteral(value, m.dataWidth))
         }
     case other => throw new RuntimeException(s"Unsupported memory init option: $other")
   }
@@ -626,9 +623,8 @@ private class ModuleScanner(makeRandom: (String, Int) => BVExpr) extends LazyLog
     findUnusedMemoryOutputUse(next)
     if (uses.nonEmpty) {
       val useSet = uses.toSet
-      unusedMemOutputs.foreach {
-        case (name, width) =>
-          if (useSet.contains(name)) connects.append(name -> BVSymbol(name, width))
+      unusedMemOutputs.foreach { case (name, width) =>
+        if (useSet.contains(name)) connects.append(name -> BVSymbol(name, width))
       }
       useSet.foreach(name => unusedMemOutputs.remove(name))
     }
@@ -686,15 +682,14 @@ private object TopologicalSort {
     val known = new mutable.HashSet[String]() ++ globalSignals
     var needsReordering = false
     val digraph = new MutableDiGraph[String]
-    signals.foreach {
-      case (name, expr) =>
-        digraph.addVertex(name)
-        val uniqueDependencies = mutable.LinkedHashSet[String]() ++ findDependencies(expr)
-        uniqueDependencies.foreach { d =>
-          if (!known.contains(d)) { needsReordering = true }
-          digraph.addPairWithEdge(name, d)
-        }
-        known.add(name)
+    signals.foreach { case (name, expr) =>
+      digraph.addVertex(name)
+      val uniqueDependencies = mutable.LinkedHashSet[String]() ++ findDependencies(expr)
+      uniqueDependencies.foreach { d =>
+        if (!known.contains(d)) { needsReordering = true }
+        digraph.addPairWithEdge(name, d)
+      }
+      known.add(name)
     }
     if (needsReordering) {
       Some(digraph.linearize.reverse)

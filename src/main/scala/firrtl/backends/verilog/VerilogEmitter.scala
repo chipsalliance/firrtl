@@ -41,8 +41,8 @@ object VerilogEmitter {
       Set(Xor),
       Set(Or)
     )
-    precedenceSeq.zipWithIndex.foldLeft(Map.empty[PrimOp, Int]) {
-      case (map, (ops, idx)) => map ++ ops.map(_ -> idx)
+    precedenceSeq.zipWithIndex.foldLeft(Map.empty[PrimOp, Int]) { case (map, (ops, idx)) =>
+      map ++ ops.map(_ -> idx)
     }
   }
 
@@ -193,8 +193,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
             colNum
         }
       case (s: Seq[Any]) =>
-        val nextColNum = s.foldLeft(colNum) {
-          case (colNum, e) => emitCol(e, top + 1, tabs, colNum)
+        val nextColNum = s.foldLeft(colNum) { case (colNum, e) =>
+          emitCol(e, top + 1, tabs, colNum)
         }
         if (top == 0) {
           w.write("\n")
@@ -374,8 +374,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     }
   }
 
-  /**
-    * Gets a reference to a verilog renderer. This is used by the current standard verilog emission process
+  /** Gets a reference to a verilog renderer. This is used by the current standard verilog emission process
     * but allows access to individual portions, in particular, this function can be used to generate
     * the header for a verilog file without generating anything else.
     *
@@ -388,8 +387,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     new VerilogRender(m, moduleMap)(writer)
   }
 
-  /**
-    * Gets a reference to a verilog renderer. This is used by the current standard verilog emission process
+  /** Gets a reference to a verilog renderer. This is used by the current standard verilog emission process
     * but allows access to individual portions, in particular, this function can be used to generate
     * the header for a verilog file without generating anything else.
     *
@@ -429,8 +427,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     )
   }
 
-  /**
-    * Store Emission option per Target
+  /** Store Emission option per Target
     * Guarantee only one emission option per Target
     */
   private[firrtl] class EmissionOptionMap[V <: EmissionOption](val df: V) {
@@ -505,8 +502,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     }
   }
 
-  /**
-    * Used by getRenderer, it has machinery to produce verilog from IR.
+  /** Used by getRenderer, it has machinery to produce verilog from IR.
     * Making this a class allows access to particular parts of the verilog emission.
     *
     * @param description      a description of the start module
@@ -815,11 +811,10 @@ class VerilogEmitter extends SeqTransform with Emitter {
               s"Memory ${s.name} of depth ${s.depth} cannot be initialized with an array of length ${values.length}!"
             )
           val memName = LowerTypes.loweredName(wref(s.name, s.dataType))
-          values.zipWithIndex.foreach {
-            case (value, addr) =>
-              checkValueRange(value, s"${s.name}[$addr]")
-              val access = s"$memName[${bigIntToVLit(addr)}]"
-              memoryInitials += Seq(access, " = ", bigIntToVLit(value), ";")
+          values.zipWithIndex.foreach { case (value, addr) =>
+            checkValueRange(value, s"${s.name}[$addr]")
+            val access = s"$memName[${bigIntToVLit(addr)}]"
+            memoryInitials += Seq(access, " = ", bigIntToVLit(value), ";")
           }
         case MemoryScalarInit(value) =>
           checkValueRange(value, s.name)
@@ -913,13 +908,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
       }
 
       // Turn directions into strings (and AnalogType into inout)
-      val dirs = m.ports.map {
-        case Port(_, name, dir, tpe) =>
-          (dir, tpe) match {
-            case (_, AnalogType(_)) => "inout " // padded to length of output
-            case (Input, _)         => "input "
-            case (Output, _)        => "output"
-          }
+      val dirs = m.ports.map { case Port(_, name, dir, tpe) =>
+        (dir, tpe) match {
+          case (_, AnalogType(_)) => "inout " // padded to length of output
+          case (Input, _)         => "input "
+          case (Output, _)        => "output"
+        }
       }
       // Turn types into strings, all ports must be GroundTypes
       val tpes = m.ports.map {
@@ -930,10 +924,9 @@ class VerilogEmitter extends SeqTransform with Emitter {
       // dirs are already padded
       (dirs, padToMax(tpes), m.ports).zipped.toSeq.zipWithIndex.foreach {
         case ((dir, tpe, Port(info, name, _, _)), i) =>
-          portDescriptions.get(name).map {
-            case d =>
-              portdefs += Seq("")
-              portdefs ++= build_description(d)
+          portDescriptions.get(name).map { case d =>
+            portdefs += Seq("")
+            portdefs ++= build_description(d)
           }
 
           if (i != m.ports.size - 1) {
@@ -1091,11 +1084,10 @@ class VerilogEmitter extends SeqTransform with Emitter {
       for (x <- portdefs) emit(Seq(tab, x))
       emit(Seq(");"))
 
-      ifdefDeclares.toSeq.sortWith(_._1 < _._1).foreach {
-        case (ifdef, declares) =>
-          emit(Seq("`ifdef " + ifdef))
-          for (x <- declares) emit(Seq(tab, x))
-          emit(Seq("`endif // " + ifdef))
+      ifdefDeclares.toSeq.sortWith(_._1 < _._1).foreach { case (ifdef, declares) =>
+        emit(Seq("`ifdef " + ifdef))
+        for (x <- declares) emit(Seq(tab, x))
+        emit(Seq("`endif // " + ifdef))
       }
       for (x <- declares) emit(Seq(tab, x))
       for (x <- instdeclares) emit(Seq(tab, x))
@@ -1178,11 +1170,10 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("        #0.002 begin end"))
         emit(Seq("      `endif"))
         emit(Seq("    `endif"))
-        ifdefInitials.toSeq.sortWith(_._1 < _._1).foreach {
-          case (ifdef, initials) =>
-            emit(Seq("`ifdef " + ifdef))
-            for (x <- initials) emit(Seq(tab, x))
-            emit(Seq("`endif // " + ifdef))
+        ifdefInitials.toSeq.sortWith(_._1 < _._1).foreach { case (ifdef, initials) =>
+          emit(Seq("`ifdef " + ifdef))
+          for (x <- initials) emit(Seq(tab, x))
+          emit(Seq("`endif // " + ifdef))
         }
         for (x <- initials) emit(Seq(tab, x))
         for (x <- asyncInitials) emit(Seq(tab, x))
@@ -1207,8 +1198,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       emit(Seq("endmodule"))
     }
 
-    /**
-      * The standard verilog emitter, wraps up everything into the
+    /** The standard verilog emitter, wraps up everything into the
       * verilog
       * @return
       */
@@ -1221,8 +1211,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       m
     }
 
-    /**
-      * This emits a verilog module that can be bound to a module defined in chisel.
+    /** This emits a verilog module that can be bound to a module defined in chisel.
       * It uses the same machinery as the general emitter in order to insure that
       * parameters signature is exactly the same as the module being bound to
       * @param overrideName Override the module name

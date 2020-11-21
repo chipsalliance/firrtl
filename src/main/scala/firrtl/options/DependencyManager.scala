@@ -150,10 +150,9 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
         .map { a => a -> prerequisiteGraph.getVertices.filter(a._optionalPrerequisiteOf(_)) }
       x.values
         .reduce(_ ++ _)
-        .foldLeft(x) {
-          case (xx, y) =>
-            if (xx.contains(y)) { xx }
-            else { xx ++ Map(y -> Set.empty[B]) }
+        .foldLeft(x) { case (xx, y) =>
+          if (xx.contains(y)) { xx }
+          else { xx ++ Map(y -> Set.empty[B]) }
         }
     }
     DiGraph(edges).reverse
@@ -211,8 +210,8 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
         /* A comparison function that will sort vertices based on the topological sort of the invalidation graph */
         val cmp =
           (l: B, r: B) =>
-            v.foldLeft((Map.empty[B, Dependency[B] => Boolean], Set.empty[Dependency[B]])) {
-              case ((m, s), r) => (m + (r -> ((a: Dependency[B]) => !s(a))), s + r)
+            v.foldLeft((Map.empty[B, Dependency[B] => Boolean], Set.empty[Dependency[B]])) { case ((m, s), r) =>
+              (m + (r -> ((a: Dependency[B]) => !s(a))), s + r)
             }._1(l)(r)
         new LinkedHashMap() ++
           v.map(vv => vv -> (new LinkedHashSet() ++ (dependencyGraph.getEdges(vv).toSeq.sortWith(cmp))))
@@ -225,17 +224,16 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
     }
 
     /* [todo] Seq is inefficient here, but Array has ClassTag problems. Use something else? */
-    val (s, l) = sorted.foldLeft((_currentState, Seq[B]())) {
-      case ((state, out), in) =>
-        val prereqs = in._prerequisites ++
-          dependencyGraph.getEdges(in).toSeq.map(oToD) ++
-          otherPrerequisites.getEdges(in).toSeq.map(oToD)
-        val preprocessing: Option[B] = {
-          if ((prereqs -- state).nonEmpty) { Some(this.copy(prereqs.toSeq, state.toSeq)) }
-          else { None }
-        }
-        /* "in" is added *after* invalidation because a transform my not invalidate itself! */
-        ((state ++ prereqs).map(dToO).filterNot(in.invalidates).map(oToD) + in, out ++ preprocessing :+ in)
+    val (s, l) = sorted.foldLeft((_currentState, Seq[B]())) { case ((state, out), in) =>
+      val prereqs = in._prerequisites ++
+        dependencyGraph.getEdges(in).toSeq.map(oToD) ++
+        otherPrerequisites.getEdges(in).toSeq.map(oToD)
+      val preprocessing: Option[B] = {
+        if ((prereqs -- state).nonEmpty) { Some(this.copy(prereqs.toSeq, state.toSeq)) }
+        else { None }
+      }
+      /* "in" is added *after* invalidation because a transform my not invalidate itself! */
+      ((state ++ prereqs).map(dToO).filterNot(in.invalidates).map(oToD) + in, out ++ preprocessing :+ in)
     }
     val postprocessing: Option[B] = {
       if ((_targets -- s).nonEmpty) { Some(this.copy(_targets.toSeq, s.toSeq)) }
@@ -266,16 +264,15 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
       val w = wrappers.foldLeft(t) { case (tx, wrapper) => wrapper(tx) }
       wrapperToClass += (w -> t)
       w
-    }.foldLeft((annotations, _currentState)) {
-      case ((a, state), t) =>
-        if (!t.prerequisites.toSet.subsetOf(state)) {
-          throw new DependencyManagerException(
-            s"""|Tried to execute '$t' for which run-time prerequisites were not satisfied:
-                |  state: ${state.mkString("\n    -", "\n    -", "")}
-                |  prerequisites: ${prerequisites.mkString("\n    -", "\n    -", "")}""".stripMargin
-          )
-        }
-        (t.transform(a), ((state + wrapperToClass(t)).map(dToO).filterNot(t.invalidates).map(oToD)))
+    }.foldLeft((annotations, _currentState)) { case ((a, state), t) =>
+      if (!t.prerequisites.toSet.subsetOf(state)) {
+        throw new DependencyManagerException(
+          s"""|Tried to execute '$t' for which run-time prerequisites were not satisfied:
+              |  state: ${state.mkString("\n    -", "\n    -", "")}
+              |  prerequisites: ${prerequisites.mkString("\n    -", "\n    -", "")}""".stripMargin
+        )
+      }
+      (t.transform(a), ((state + wrapperToClass(t)).map(dToO).filterNot(t.invalidates).map(oToD)))
     }._1
   }
 
@@ -293,9 +290,8 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
 
     def toGraphviz(digraph: DiGraph[B], attributes: String = "", tab: String = "    "): Option[String] = {
       val edges =
-        digraph.getEdgeMap.collect { case (v, edges) if edges.nonEmpty => (v -> edges) }.map {
-          case (v, edges) =>
-            s"""${transformName(v)} -> ${edges.map(e => transformName(e)).mkString("{ ", " ", " }")}"""
+        digraph.getEdgeMap.collect { case (v, edges) if edges.nonEmpty => (v -> edges) }.map { case (v, edges) =>
+          s"""${transformName(v)} -> ${edges.map(e => transformName(e)).mkString("{ ", " ", " }")}"""
         }
 
       if (edges.isEmpty) { None }

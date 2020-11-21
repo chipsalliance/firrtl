@@ -70,12 +70,11 @@ object RemoveAccesses extends Pass {
       val ls = getLocations(e.expr)
       val stride = get_size(e.tpe)
       val wrap = e.expr.tpe.asInstanceOf[VectorType].size
-      ls.zipWithIndex.map {
-        case (l, i) =>
-          val c = (i / stride) % wrap
-          val basex = l.base
-          val guardx = AND(l.guard, EQV(UIntLiteral(c), e.index))
-          Location(basex, guardx)
+      ls.zipWithIndex.map { case (l, i) =>
+        val c = (i / stride) % wrap
+        val basex = l.base
+        val guardx = AND(l.guard, EQV(UIntLiteral(c), e.index))
+        Location(basex, guardx)
       }
   }
 

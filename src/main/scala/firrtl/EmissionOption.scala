@@ -2,8 +2,7 @@
 
 package firrtl
 
-/**
-  * Base type for emission customization options
+/** Base type for emission customization options
   * NOTE: all the following traits must be mixed with SingleTargetAnnotation[T <: Named]
   *       in order to be taken into account in the Emitter
   */
