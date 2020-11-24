@@ -79,15 +79,6 @@ trait SingleTargetAnnotation[T <: Named] extends Annotation {
 
 /** [[MultiTargetAnnotation]] keeps the renamed targets grouped within a single annotation. */
 trait MultiTargetAnnotation extends Annotation {
-<<<<<<< HEAD
-  /** Contains a sequence of [[firrtl.annotations.Target Target]].
-    * When created, [[targets]] should be assigned by `Seq(Seq(TargetA), Seq(TargetB), Seq(TargetC))`
-    * */
-  val targets: Seq[Seq[Target]]
-
-  /** Create another instance of this Annotation*/
-=======
-
   /** Contains a nested sequence of [[firrtl.annotations.Target Target]]
     *
     * Each inner Seq should contain a single element. For example:
@@ -101,7 +92,6 @@ trait MultiTargetAnnotation extends Annotation {
     *
     * The inner Seqs correspond to the renames of the inner Seqs of targets
     */
->>>>>>> cd845bdb... Make MultiTargetAnnotation.targets a def (#1969)
   def duplicate(n: Seq[Seq[Target]]): Annotation
 
   /** Assume [[RenameMap]] is `Map(TargetA -> Seq(TargetA1, TargetA2, TargetA3), TargetB -> Seq(TargetB1, TargetB2))`
