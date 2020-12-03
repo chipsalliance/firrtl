@@ -107,7 +107,7 @@ antlr4Version in Antlr4 := "4.7.1"
 
 javaSource in Antlr4 := (sourceManaged in Compile).value
 
-// publishMavenStyle and publishTo handled by sbt-ci-release
+publishMavenStyle := true
 publishArtifact in Test := false
 pomIncludeRepository := { x => false }
 // Don't add 'scm' elements if we have a git.remoteRepo definition,
@@ -132,12 +132,21 @@ pomExtra := <url>http://chisel.eecs.berkeley.edu/</url>
     </developer>
   </developers>
 
+publishTo := {
+  val v = version.value
+  val nexus = "https://oss.sonatype.org/"
+  if (v.trim.endsWith("SNAPSHOT")) {
+    Some("snapshots" at nexus + "content/repositories/snapshots")
+  } else {
+    Some("releases" at nexus + "service/local/staging/deploy/maven2")
+  }
+}
+
 resolvers ++= Seq(
   Resolver.sonatypeRepo("snapshots"),
   Resolver.sonatypeRepo("releases")
 )
 
-<<<<<<< HEAD
 // MiMa
 // All changes must be binary compatible with prior 1.2 minor releases
 import com.typesafe.tools.mima.core._
@@ -146,42 +155,6 @@ mimaBinaryIssueFilters ++= Seq(
   // Removed private inner classes, see https://github.com/lightbend/mima/issues/54
   ProblemFilters.exclude[MissingClassProblem]("firrtl.transforms.CheckCombLoops$LogicNode$"),
   ProblemFilters.exclude[MissingClassProblem]("firrtl.transforms.CheckCombLoops$LogicNode")
-=======
-lazy val publishSettings = Seq(
-  publishMavenStyle := true,
-  publishArtifact in Test := false,
-  pomIncludeRepository := { x => false },
-  // Don't add 'scm' elements if we have a git.remoteRepo definition,
-  //  but since we don't (with the removal of ghpages), add them in below.
-  pomExtra := <url>http://chisel.eecs.berkeley.edu/</url>
-    <licenses>
-      <license>
-        <name>apache_v2</name>
-        <url>https://opensource.org/licenses/Apache-2.0</url>
-        <distribution>repo</distribution>
-      </license>
-    </licenses>
-    <scm>
-      <url>https://github.com/freechipsproject/firrtl.git</url>
-      <connection>scm:git:github.com/freechipsproject/firrtl.git</connection>
-    </scm>
-    <developers>
-      <developer>
-        <id>jackbackrack</id>
-        <name>Jonathan Bachrach</name>
-        <url>http://www.eecs.berkeley.edu/~jrb/</url>
-      </developer>
-    </developers>,
-  publishTo := {
-    val v = version.value
-    val nexus = "https://oss.sonatype.org/"
-    if (v.trim.endsWith("SNAPSHOT")) {
-      Some("snapshots" at nexus + "content/repositories/snapshots")
-    } else {
-      Some("releases" at nexus + "service/local/staging/deploy/maven2")
-    }
-  }
->>>>>>> 594f783b... Restore publish settings to before sbt-ci-release (#1999)
 )
 
 
