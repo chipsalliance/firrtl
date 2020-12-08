@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.stage
 
@@ -35,7 +35,7 @@ class FirrtlStage extends Stage {
 
   val shell: Shell = new Shell("firrtl") with FirrtlCli
 
-  def run(annotations: AnnotationSeq): AnnotationSeq = phase.transform(annotations)
+  override protected def run(annotations: AnnotationSeq): AnnotationSeq = phase.transform(annotations)
 
 }
 

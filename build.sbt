@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 enablePlugins(SiteScaladocPlugin)
 
@@ -20,7 +20,7 @@ def javacOptionsVersion(scalaVersion: String): Seq[String] = {
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   name := "firrtl",
-  version := "1.4-SNAPSHOT",
+  version := "1.5-SNAPSHOT",
   scalaVersion := "2.12.12",
   crossScalaVersions := Seq("2.13.2", "2.12.12", "2.11.12"),
   addCompilerPlugin(scalafixSemanticdb),
@@ -85,7 +85,7 @@ lazy val antlrSettings = Seq(
   antlr4GenVisitor in Antlr4 := true,
   antlr4GenListener in Antlr4 := false,
   antlr4PackageName in Antlr4 := Option("firrtl.antlr"),
-  antlr4Version in Antlr4 := "4.7.1",
+  antlr4Version in Antlr4 := "4.8",
   javaSource in Antlr4 := (sourceManaged in Compile).value
 )
 
@@ -93,20 +93,15 @@ lazy val publishSettings = Seq(
   publishMavenStyle := true,
   publishArtifact in Test := false,
   pomIncludeRepository := { x => false },
-  // Don't add 'scm' elements if we have a git.remoteRepo definition,
-  //  but since we don't (with the removal of ghpages), add them in below.
+  // scm is set by sbt-ci-release
   pomExtra := <url>http://chisel.eecs.berkeley.edu/</url>
     <licenses>
       <license>
-        <name>BSD-style</name>
-        <url>http://www.opensource.org/licenses/bsd-license.php</url>
+        <name>apache_v2</name>
+        <url>https://opensource.org/licenses/Apache-2.0</url>
         <distribution>repo</distribution>
       </license>
     </licenses>
-    <scm>
-      <url>https://github.com/freechipsproject/firrtl.git</url>
-      <connection>scm:git:github.com/freechipsproject/firrtl.git</connection>
-    </scm>
     <developers>
       <developer>
         <id>jackbackrack</id>

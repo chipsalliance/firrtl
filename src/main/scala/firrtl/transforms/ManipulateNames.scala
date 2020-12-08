@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.transforms
 
@@ -185,7 +185,7 @@ abstract class ManipulateNames[A <: ManipulateNames[_]: ClassTag] extends Transf
   override def optionalPrerequisites:  Seq[TransformDependency] = Seq.empty
   override def optionalPrerequisiteOf: Seq[TransformDependency] = Forms.LowEmitters
   override def invalidates(a: Transform) = a match {
-    case _: analyses.GetNamespace => true
+    case passes.InferTypes | _: analyses.GetNamespace => true
     case _ => false
   }
 

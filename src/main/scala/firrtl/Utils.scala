@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl
 
@@ -250,6 +250,24 @@ object Utils extends LazyLogging {
   val one = UIntLiteral(1)
   val zero = UIntLiteral(0)
 
+  private val ClockZero = DoPrim(PrimOps.AsClock, Seq(zero), Seq.empty, ClockType)
+  private val AsyncZero = DoPrim(PrimOps.AsAsyncReset, Seq(zero), Nil, AsyncResetType)
+
+  /** Returns an [[firrtl.ir.Expression Expression]] equal to zero for a given [[firrtl.ir.GroundType GroundType]]
+    * @note Does not support [[firrtl.ir.AnalogType AnalogType]] nor [[firrtl.ir.IntervalType IntervalType]]
+    */
+  def getGroundZero(tpe: GroundType): Expression = tpe match {
+    case u: UIntType  => UIntLiteral(0, u.width)
+    case s: SIntType  => SIntLiteral(0, s.width)
+    case f: FixedType => FixedLiteral(0, f.width, f.point)
+    // Default reset type is Bool
+    case ResetType      => Utils.zero
+    case ClockType      => ClockZero
+    case AsyncResetType => AsyncZero
+    // TODO Support IntervalType
+    case other => throwInternalError(s"Unexpected type $other")
+  }
+
   def create_exps(n: String, t: Type): Seq[Expression] =
     create_exps(WRef(n, t, ExpKind, UnknownFlow))
   def create_exps(e: Expression): Seq[Expression] = e match {
@@ -307,7 +325,7 @@ object Utils extends LazyLogging {
     onExp(expression)
     ReferenceTarget(main, module, Nil, ref, tokens.toSeq)
   }
-  @deprecated("get_flip is fundamentally slow, use to_flip(flow(expr))", "1.2")
+  @deprecated("get_flip is fundamentally slow, use to_flip(flow(expr))", "FIRRTL 1.2")
   def get_flip(t: Type, i: Int, f: Orientation): Orientation = {
     if (i >= get_size(t)) throwInternalError(s"get_flip: shouldn't be here - $i >= get_size($t)")
     t match {
@@ -801,7 +819,7 @@ object Utils extends LazyLogging {
 
     "scalared", "sequence", "shortint", "shortreal", "showcancelled",
     "signed", "small", "solve", "specify", "specparam", "static",
-    "strength", "string", "strong0", "strong1", "struct", "super",
+    "strength", "string", "strong", "strong0", "strong1", "struct", "super",
     "supply0", "supply1",
 
     "table", "tagged", "task", "this", "throughout", "time", "timeprecision",
@@ -812,7 +830,7 @@ object Utils extends LazyLogging {
 
     "var", "vectored", "virtual", "void",
 
-    "wait", "wait_order", "wand", "weak0", "weak1", "while",
+    "wait", "wait_order", "wand", "weak", "weak0", "weak1", "while",
     "wildcard", "wire", "with", "within", "wor",
 
     "xnor", "xor",

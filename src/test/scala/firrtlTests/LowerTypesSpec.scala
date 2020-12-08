@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtlTests
 
@@ -451,6 +451,23 @@ class LowerTypesUniquifySpec extends FirrtlFlatSpec {
       """.stripMargin
     val expected = Seq(
       "a_0_b <= mux(a___0_c_1_e, or(_a_or_b, xorr(a___0_c_1_e)), orr(cat(a__0_c__0_e, a___1_c_1_e)))"
+    )
+
+    executeTest(input, expected)
+  }
+
+  it should "remove index express in SubAccess" in {
+    val input =
+      s"""circuit Bug :
+         |  module Bug :
+         |    input in0 : UInt<1> [2][2]
+         |    input in1 : UInt<1> [2]
+         |    input in2 : UInt<1> [2]
+         |    output out : UInt<1>
+         |    out <= in0[in1[in2[0]]][in1[in2[1]]]
+         |""".stripMargin
+    val expected = Seq(
+      "out <= _in0_in1_in1_in2_1"
     )
 
     executeTest(input, expected)

@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package logger
 
@@ -58,7 +58,7 @@ private class LoggerState {
   val classLevels = new scala.collection.mutable.HashMap[String, LogLevel.Value]
   val classToLevelCache = new scala.collection.mutable.HashMap[String, LogLevel.Value]
   var logClassNames = false
-  var stream:             PrintStream = System.out
+  var stream:             PrintStream = Console.out
   var fromInvoke:         Boolean = false // this is used to not have invokes re-create run-state
   var stringBufferOption: Option[Logger.OutputCaptor] = None
 
@@ -122,7 +122,7 @@ object Logger {
     * @tparam A       The return type of codeBlock
     * @return         Whatever block returns
     */
-  @deprecated("Use makeScope(opts: FirrtlOptions)", "1.2")
+  @deprecated("Use makeScope(opts: FirrtlOptions)", "FIRRTL 1.2")
   def makeScope[A](manager: ExecutionOptionsManager)(codeBlock: => A): A =
     makeScope(manager.commonOptions.toAnnotations)(codeBlock)
 
@@ -134,7 +134,7 @@ object Logger {
     * @tparam A   return type of codeBlock
     * @return
     */
-  @deprecated("Use makescope(opts: FirrtlOptions)", "1.2")
+  @deprecated("Use makescope(opts: FirrtlOptions)", "FIRRTL 1.2")
   def makeScope[A](args: Array[String] = Array.empty)(codeBlock: => A): A = {
     val executionOptionsManager = new ExecutionOptionsManager("logger")
     if (executionOptionsManager.parse(args)) {
@@ -353,7 +353,7 @@ object Logger {
     * from the command line via an options manager
     * @param optionsManager manager
     */
-  @deprecated("Use setOptions(annotations: AnnotationSeq)", "1.2")
+  @deprecated("Use setOptions(annotations: AnnotationSeq)", "FIRRTL 1.2")
   def setOptions(optionsManager: ExecutionOptionsManager): Unit =
     setOptions(optionsManager.commonOptions.toAnnotations)
 

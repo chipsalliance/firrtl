@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.util
 
@@ -247,7 +247,7 @@ object BackendCompilationUtilities extends LazyLogging {
   }
 }
 
-@deprecated("use object BackendCompilationUtilities", "1.3")
+@deprecated("use object BackendCompilationUtilities", "FIRRTL 1.3")
 trait BackendCompilationUtilities extends LazyLogging {
   lazy val TestDirectory = BackendCompilationUtilities.TestDirectory
   def timeStamp:            String = BackendCompilationUtilities.timeStamp
