@@ -660,7 +660,7 @@ object Utils extends LazyLogging {
     *   Given:   SubField(SubIndex(Ref("b"), 2), "c")
     *   Returns: (Ref("b"), SubField(SubIndex(EmptyExpression, 2), "c"))
     *   b[2].c -> (b, EMPTY[2].c)
-    * @note This function only supports WRef, WSubField, and WSubIndex
+    * @note This function only supports WRef, WSubField, WSubIndex, and SubAccess
     */
   def splitRef(e: Expression): (WRef, Expression) = e match {
     case e: WRef => (e, EmptyExpression)
@@ -673,6 +673,9 @@ object Utils extends LazyLogging {
         case EmptyExpression => (root, WRef(e.name, e.tpe, root.kind, e.flow))
         case exp             => (root, WSubField(tail, e.name, e.tpe, e.flow))
       }
+    case e: SubAccess =>
+      val (root, tail) = splitRef(e.expr)
+      (root, SubAccess(tail, e.index, e.tpe, e.flow))
   }
 
   /** Adds a root reference to some SubField/SubIndex chain */
