@@ -22,7 +22,8 @@ object Forms {
       Dependency(passes.CInferTypes),
       Dependency(passes.CInferMDir),
       Dependency(passes.RemoveCHIRRTL),
-      Dependency[annotations.transforms.CleanupNamedTargets]
+      Dependency[annotations.transforms.CleanupNamedTargets],
+      Dependency(firrtl.transforms.ExpandChiselRValues)
     )
 
   val WorkingIR: Seq[TransformDependency] = MinimalHighForm :+ Dependency(passes.ToWorkingIR)
