@@ -64,14 +64,8 @@ object CheckFlows extends Pass {
     def check_flow(info: Info, mname: String, flows: FlowMap, desired: Flow)(e: Expression): Unit = {
       val flow = get_flow(e, flows)
       (flow, desired) match {
-        case (SourceFlow, SinkFlow) =>
+        case (SourceFlow, SinkFlow) | (SinkFlow, SourceFlow) =>
           errors.append(new WrongFlow(info, mname, e.serialize, desired, flow))
-        case (SinkFlow, SourceFlow) =>
-          kind(e) match {
-            case PortKind | InstanceKind if !flip_q(e.tpe) => // OK!
-            case _ =>
-              errors.append(new WrongFlow(info, mname, e.serialize, desired, flow))
-          }
         case _ =>
       }
     }
