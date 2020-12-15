@@ -17,6 +17,7 @@ import firrtl.{
   Utils,
   WrappedExpression
 }
+import firrtl.analyses.InstanceKeyGraph
 import firrtl.annotations.{
   CircuitTarget,
   ModuleTarget,
@@ -29,7 +30,10 @@ import firrtl.traversals.Foreachers._
 import firrtl.Mappers._
 
 import scala.annotation.tailrec
-import scala.collection.mutable
+import scala.collection.{
+  immutable,
+  mutable
+}
 
 /** Expands right-hand-side usages of module outputs, instance inputs, and memory inputs into a synthetic wire. This
   * avoids using sink flow as a source.
@@ -96,47 +100,92 @@ object ExpandChiselRValues extends Transform with DependencyAPIMigration {
 
   }
 
-  /** Determine if an expression is a sink port */
+  /** Determine if an expression is a sink port. Returns None if this is a non-sink instance reference indicating that
+    * this should not be recursively explored. Returns Some if this is a reference that is or is not a sink, but may
+    * contain sub-expressions that should be explored.
+    */
   private def isSink(
     rhs: ir.Expression,
-    portMap: Map[String, ir.Orientation]
-  ): Boolean = rhs match {
-    case _: ir.Literal => false
-    case _ => portMap.get(Utils.splitRef(rhs)._1.name) match {
-      /* The RHS is not a port. No modification necessary. */
-      case None => false
-      /* The RHS is a port. This is a sink if it is resolved as a SinkFlow.
-       *
-       * This uses flow resolution from the ResolveFlows pass, but seeded with the orientation of port.
-       */
-      case Some(orientation) =>
-        (Utils.to_dir(_: ir.Orientation))
-          .andThen(Utils.to_flow)
-          .andThen(ResolveFlows.resolve_e(_)(rhs))
-          .andThen{
-            _ match {
-              case b: ir.RefLikeExpression => b.flow == SinkFlow
-              case _ => ???
+    portMap: scala.collection.Map[String, ir.Orientation],
+    modulePortMap: scala.collection.Map[String, immutable.Map[String, ir.Orientation]],
+    instanceMap: scala.collection.Map[String, String]
+  ): Option[Boolean] = rhs match {
+    case _: ir.Literal => Some(false)
+    case _ =>
+      val (car, cdr) = Utils.splitRef(rhs)
+
+      car match {
+        /* This is a reference to a module port */
+        case _ if portMap.contains(car.name) =>
+          val orientation = portMap(car.name)
+          val sinkFlag =
+            (Utils.to_dir(_: ir.Orientation))
+              .andThen(Utils.to_flow)
+              .andThen(ResolveFlows.resolve_e(_)(rhs))
+              .andThen{
+                _ match {
+                  case b: ir.RefLikeExpression => b.flow == SinkFlow
+                  case _ => ???
+                }
+              }.apply(orientation)
+          Some(sinkFlag)
+        /* This is a reference to an instance port */
+        case _ if instanceMap.contains(car.name) =>
+          println(car.serialize, cdr.serialize)
+          val orientation = modulePortMap(instanceMap(car.name))(Utils.splitRef(cdr)._1.name)
+          (Utils.to_dir(_: ir.Orientation))
+            .andThen(Utils.swap)
+            .andThen(Utils.to_flow)
+            .andThen(ResolveFlows.resolve_e(_)(rhs))
+            .andThen{
+              _ match {
+                case b: ir.RefLikeExpression => b.flow == SinkFlow
+                case _ => ???
+              }
+            }.apply(orientation) match {
+              case false => None
+              case true => Some(true)
             }
-          }.apply(orientation)
+
+        case _ => Some(false)
+      }
+  }
+
+  private def analyzeExpression(
+    expression: ir.Expression,
+    portMap: scala.collection.Map[String, ir.Orientation],
+    modulePortMap: scala.collection.Map[String, immutable.Map[String, ir.Orientation]],
+    instanceMap: scala.collection.Map[String, String],
+    rhsSinks: mutable.Set[ir.RefLikeExpression]
+  ): Unit = {
+
+    expression match {
+      case e: ir.RefLikeExpression => isSink(e, portMap, modulePortMap, instanceMap) match {
+        case None        =>  e
+        case Some(true)  => rhsSinks += e
+        case Some(false) => e.foreach(analyzeExpression(_, portMap, modulePortMap, instanceMap, rhsSinks))
+      }
+      case e => e.foreach(analyzeExpression(_, portMap, modulePortMap, instanceMap, rhsSinks))
     }
+
   }
 
   private def analyzeStatement(
     statement: ir.Statement,
-    portMap: Map[String, ir.Orientation],
-    rhsSinks: scala.collection.mutable.Set[ir.RefLikeExpression]
+    portMap: scala.collection.Map[String, ir.Orientation],
+    rhsSinks: mutable.Set[ir.RefLikeExpression],
+    modulePortMap: scala.collection.Map[String, immutable.Map[String, ir.Orientation]],
+    instanceMap: mutable.Map[String, String]
   ): Unit = {
     statement match {
-      case a: ir.DefInstance =>
-        println(Utils.stmtToType(a))
-          ???
-      case a@ ir.Connect(_, _, rhs: ir.RefLikeExpression) if isSink(rhs, portMap)  =>
-        rhsSinks += rhs
-      case a@ ir.PartialConnect(_, _, rhs: ir.RefLikeExpression) if isSink(rhs, portMap) =>
-        rhsSinks += rhs
+      case a@ ir.DefInstance(_, instance, module, tpe) =>
+        instanceMap(instance) = module
+      case ir.Connect(_, _, rhs) =>
+        analyzeExpression(rhs, portMap, modulePortMap, instanceMap, rhsSinks)
+      case ir.PartialConnect(_, _, rhs: ir.RefLikeExpression) =>
+        analyzeExpression(rhs, portMap, modulePortMap, instanceMap, rhsSinks)
       case a =>
-        a.foreach(analyzeStatement(_, portMap, rhsSinks))
+        a.foreach(analyzeStatement(_, portMap, rhsSinks, modulePortMap, instanceMap))
     }
   }
 
@@ -175,7 +224,9 @@ object ExpandChiselRValues extends Transform with DependencyAPIMigration {
         println(s"  - $a")
         false
       } => ???
-      /* Connect the synthetic wire to the RHS */
+      /* Handle connections. Replace RHS usages with the synthetic wire. Add statements that replicate assignments as
+       * assignments to the synthetic wire.
+       */
       case a@ ir.Connect(info, lhs: ir.RefLikeExpression, rhs) =>
         lazy val rhsExps = Utils.create_exps(rhs)
         lazy val refs = Utils.expandRef(ir.Reference(syntheticWire)).map(WrappedExpression(_))
@@ -200,11 +251,6 @@ object ExpandChiselRValues extends Transform with DependencyAPIMigration {
             .map{ case (i, _) => exps(i) }
             .map( b =>  ir.IsInvalid(info, b.e1) )
         )
-      /* Replace connections to original wires */
-      case a@ ir.Connect(_, _, rhs) if ??? =>
-        ???
-      case a@ ir.PartialConnect(_, _, rhs) if ??? =>
-        ???
       /* Skip other statements */
       case a =>
         println(s"  Skipping '${a.serialize}'")
@@ -212,51 +258,77 @@ object ExpandChiselRValues extends Transform with DependencyAPIMigration {
     }
   }
 
-  private def onModule(module: ir.DefModule, circuitTarget: CircuitTarget): ir.DefModule = module match {
-    case a: ir.ExtModule => a
-    case a: ir.Module =>
-      val portMap: Map[String, ir.Orientation] =
-        Utils
-          .module_type(module)
-          .fields
-          .map { case ir.Field(name, flip, _) => name -> flip }
-          .toMap
-      val rhsSinks = mutable.LinkedHashSet.empty[ir.RefLikeExpression]
-      a.body.foreach(analyzeStatement(_, portMap, rhsSinks))
-      rhsSinks.map(_.serialize).foreach(println)
-      println("----------------------------------------")
-      rhsSinks.foreach(println)
-      println("----------------------------------------")
-      /* This is the synthetic wire that we will assign everything to. */
-      val synthetic: Option[ir.BundleType] = rhsSinks
-        .map(_.toBundle) match {
-          case b if b.isEmpty => None
-          case b              => Some(b.reduce(_ ++ _)) // This is an insertion sort...
-        }
-      println("----------------------------------------")
-      synthetic match {
-        case None => module
-        case Some(tpe) =>
-          val syntheticWire = ir.DefWire(ir.NoInfo, Namespace(a).newName("_synthetic_output"), tpe)
-          println("Synthetic wire: ")
-          println(s"  - ${syntheticWire.serialize}")
-          println(s"  - $syntheticWire")
-          val renames = mutable.HashMap.empty[WrappedExpression, ir.Expression]
-          val moduleTarget = circuitTarget.module(module.name)
-          val exps = Utils.create_exps(ir.Reference(syntheticWire)).map(WrappedExpression(_))
-          println(exps.mkString("Exprssions:\n  - ", "\n  - ", ""))
-          val bodyx = a.body.map(onStatement(_, syntheticWire, exps)) match {
-            case ir.Block(stmts) => ir.Block(syntheticWire +: stmts)
-            case stmt => ir.Block(Seq(syntheticWire, stmt))
+  private def onModule(
+    module: ir.DefModule,
+    circuitTarget: CircuitTarget,
+    modulePortMap: mutable.Map[String, immutable.Map[String, ir.Orientation]]
+  ): ir.DefModule = {
+
+    println(s"onModule: ${module.name}")
+
+    val portMap: Map[String, ir.Orientation] =
+      Utils
+        .module_type(module)
+        .fields
+        .map { case ir.Field(name, flip, _) => name -> flip }
+        .toMap
+
+    modulePortMap(module.name) = portMap
+
+    module match {
+      case a: ir.ExtModule => a
+      case a: ir.Module =>
+        modulePortMap(module.name)
+        val instanceMap = mutable.HashMap.empty[String, String]
+        val rhsSinks = mutable.LinkedHashSet.empty[ir.RefLikeExpression]
+        a.body.foreach(analyzeStatement(_, portMap, rhsSinks, modulePortMap, instanceMap))
+        rhsSinks.map(_.serialize).foreach(println)
+        println("----------------------------------------")
+        rhsSinks.foreach(println)
+        println("----------------------------------------")
+        /* This is the synthetic wire that we will assign everything to. */
+        val synthetic: Option[ir.BundleType] = rhsSinks
+          .map(_.toBundle) match {
+            case b if b.isEmpty => None
+            case b              => Some(b.reduce(_ ++ _)) // This is an insertion sort...
           }
-          println(renames)
-          a.copy(body = bodyx)
-      }
+        println("----------------------------------------")
+        synthetic match {
+          case None => module
+          case Some(tpe) =>
+            val syntheticWire = ir.DefWire(ir.NoInfo, Namespace(a).newName("_synthetic_output"), tpe)
+            println("Synthetic wire: ")
+            println(s"  - ${syntheticWire.serialize}")
+            println(s"  - $syntheticWire")
+            val renames = mutable.HashMap.empty[WrappedExpression, ir.Expression]
+            val moduleTarget = circuitTarget.module(module.name)
+            val exps = Utils.create_exps(ir.Reference(syntheticWire)).map(WrappedExpression(_))
+            println(exps.mkString("Exprssions:\n  - ", "\n  - ", ""))
+            val bodyx = a.body.map(onStatement(_, syntheticWire, exps)) match {
+              case ir.Block(stmts) => ir.Block(syntheticWire +: stmts)
+              case stmt => ir.Block(Seq(syntheticWire, stmt))
+            }
+            println(renames)
+            a.copy(body = bodyx)
+        }
+    }
   }
 
   override def execute(state: CircuitState) = {
     val circuitTarget = CircuitTarget(state.circuit.main)
-    val circuitx = state.circuit.map(onModule(_, circuitTarget))
+    val modulePortMap = mutable.HashMap.empty[String, immutable.Map[String, ir.Orientation]]
+
+    /* Update all modules in reverse topological order. This ensures that modules are declared before instantiation. */
+    val modulesx: immutable.Map[String, ir.DefModule] =
+      InstanceKeyGraph(state.circuit)
+        .moduleOrder
+        .reverse
+        .map(onModule(_, circuitTarget, modulePortMap))
+        .groupBy(_.name)
+        .mapValues(_.head)
+
+    val circuitx = state.circuit.map((module: ir.DefModule) => modulesx(module.name))
+
     state.copy(circuit = circuitx)
   }
 

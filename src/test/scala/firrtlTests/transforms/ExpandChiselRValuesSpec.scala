@@ -16,6 +16,8 @@ import org.scalatest.matchers.should._
 
 object ExpandChiselRValuesSpec {
 
+  def syntheticName = "_synthetic_output"
+
   def moduleCircuit = {
     Parser.parse(
       """|circuit Foo :
@@ -80,7 +82,7 @@ class ExpandChiselRValuesSpec extends FirrtlFlatSpec {
 
   import ExpandChiselRValuesSpec._
 
-  behavior of "firrtl.transforms.ExpandChiselRValues"
+  behavior of "firrtl.transforms.ExpandChiselRValues with module outputs used as sources"
 
   it should "replace a RHS usage of an element that was invalidated" in new Fixture {
      val output = """|circuit Foo:
@@ -96,9 +98,9 @@ class ExpandChiselRValuesSpec extends FirrtlFlatSpec {
        .circuit
        .serialize
 
-    output should include ("wire _synthetic_output : { a : UInt<1>}")
-    output should include ("_synthetic_output.a is invalid")
-    output should include ("b <= _synthetic_output.a")
+    output should include (s"wire $syntheticName : { a : UInt<1>}")
+    output should include (s"$syntheticName.a is invalid")
+    output should include (s"b <= $syntheticName.a")
 
   }
 
@@ -117,9 +119,9 @@ class ExpandChiselRValuesSpec extends FirrtlFlatSpec {
         .circuit
         .serialize
 
-    output should include ("wire _synthetic_output : { a : UInt<1>}")
-    output should include ("_synthetic_output.a <= UInt<1>(\"h0\")")
-    output should include ("b <= _synthetic_output.a")
+    output should include (s"wire $syntheticName : { a : UInt<1>}")
+    output should include (s"""$syntheticName.a <= UInt<1>("h0")""")
+    output should include (s"b <= $syntheticName.a")
 
   }
 
@@ -139,9 +141,9 @@ class ExpandChiselRValuesSpec extends FirrtlFlatSpec {
         .circuit
         .serialize
 
-    output should include ("wire _synthetic_output : { a : UInt<1>}")
-    output should include ("_synthetic_output.a <= c")
-    output should include ("b <- _synthetic_output.a")
+    output should include (s"wire $syntheticName : { a : UInt<1>}")
+    output should include (s"$syntheticName.a <= c")
+    output should include (s"b <- $syntheticName.a")
   }
 
   it should "replace a RHS usage of an aggregate that was invalidated" in new Fixture {
@@ -159,9 +161,9 @@ class ExpandChiselRValuesSpec extends FirrtlFlatSpec {
         .circuit
         .serialize
 
-    output should include ("wire _synthetic_output : { a : { b : UInt<1>}}")
-    output should include ("_synthetic_output.a.b is invalid")
-    output should include ("b <= _synthetic_output.a.b")
+    output should include (s"wire $syntheticName : { a : { b : UInt<1>}}")
+    output should include (s"$syntheticName.a.b is invalid")
+    output should include (s"b <= $syntheticName.a.b")
 
   }
 
@@ -182,9 +184,9 @@ class ExpandChiselRValuesSpec extends FirrtlFlatSpec {
       .circuit
       .serialize
 
-    output should include ("wire _synthetic_output : { b : { b : UInt<1>}}")
-    output should include ("_synthetic_output.b.b <= a.b")
-    output should include ("c <= _synthetic_output.b.b")
+    output should include (s"wire $syntheticName : { b : { b : UInt<1>}}")
+    output should include (s"$syntheticName.b.b <= a.b")
+    output should include (s"c <= $syntheticName.b.b")
 
   }
 
@@ -211,10 +213,33 @@ class ExpandChiselRValuesSpec extends FirrtlFlatSpec {
         .circuit
         .serialize
 
-    output should include ("wire _synthetic_output : { a : UInt<1>}")
-    output should include ("_synthetic_output.a <= UInt<1>(\"h0\")")
-    output should include ("_synthetic_output.a <= UInt<1>(\"h1\")")
-    output should include ("b <= _synthetic_output.a")
+    output should include (s"wire $syntheticName : { a : UInt<1>}")
+    output should include (s"""$syntheticName.a <= UInt<1>("h0")""")
+    output should include (s"""$syntheticName.a <= UInt<1>("h1")""")
+    output should include (s"b <= $syntheticName.a")
+
+  }
+
+  it should "replace a RHS subaccess" in new Fixture {
+
+    val output =
+      """|circuit Foo:
+         |  module Foo:
+         |    input a: UInt<2>
+         |    output b: UInt<1>
+         |    output c: UInt<1>
+         |    b is invalid
+         |    c <= a[b]
+         |"""
+        .stripMargin
+        .parse
+        .compile
+        .circuit
+        .serialize
+
+    output should include (s"wire $syntheticName : { b : UInt<1>}")
+    output should include (s"c <= a[$syntheticName.b]")
+
   }
 
   it should "replace a RHS usage of a module output" in {
@@ -234,7 +259,31 @@ class ExpandChiselRValuesSpec extends FirrtlFlatSpec {
       }
   }
 
-  it should "replace a RHS usage of an instance input" in (pending)
+  behavior of "firrtl.transforms.ExpandChiselRValues with instance inputs used as sources"
+
+  it should "replace a RHS usage of an instance input" in new Fixture {
+
+    val output =
+      """|circuit Foo:
+         |  module Bar:
+         |    input a: UInt<1>
+         |  module Foo:
+         |    output a: UInt<1>
+         |    inst bar of Bar
+         |    bar.a is invalid
+         |    a <= bar.a
+         |"""
+        .stripMargin
+        .parse
+        .compile
+        .circuit
+        .serialize
+
+    output should include (s"wire $syntheticName : { bar : { a : UInt<1>}}")
+    output should include (s"$syntheticName.bar.a is invalid")
+    output should include (s"a <= $syntheticName.bar.a")
+
+  }
 
   it should "replace a RHS usage of a memory input (addr, etc.)" in (pending)
 
