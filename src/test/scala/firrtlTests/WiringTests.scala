@@ -88,9 +88,9 @@ class WiringTests extends FirrtlFlatSpec {
          |    x.clock <= clock
          |    inst d of D
          |    d.clock <= clock
-         |    d.r <= r
-         |    r <= b.r
          |    x.pin <= r
+         |    r <= b.r
+         |    d.r <= r
          |  module B :
          |    input clock: Clock
          |    output r: UInt<5>
@@ -174,9 +174,9 @@ class WiringTests extends FirrtlFlatSpec {
          |    x.clock <= clock
          |    inst d of D
          |    d.clock <= clock
-         |    d.r <= r
-         |    r <= b.r
          |    x.pin <= r
+         |    r <= b.r
+         |    d.r <= r
          |  module B :
          |    input clock: Clock
          |    output r: UInt<5>
@@ -261,9 +261,9 @@ class WiringTests extends FirrtlFlatSpec {
          |    x.clock <= clock
          |    inst d of D
          |    d.clock <= clock
-         |    d.r <= r
-         |    r <= b.r
          |    x.pin <= r
+         |    r <= b.r
+         |    d.r <= r
          |  module B :
          |    input clock: Clock
          |    output r: UInt<5>

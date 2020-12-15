@@ -270,7 +270,7 @@ class AsyncResetSpec extends FirrtlFlatSpec {
         |z <= r""".stripMargin
       )
     fixedResult should containLine ("always @(posedge clock or posedge reset) begin")
-    fixedResult should containLine ("r <= -2'sh2;")
+    fixedResult should containLine ("r <= 2'sh2;")
   }
 
   "CheckResets" should "NOT raise StackOverflow Exception on Combinational Loops (should be caught by firrtl.transforms.CheckCombLoops)" in {

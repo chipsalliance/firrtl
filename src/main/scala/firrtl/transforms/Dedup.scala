@@ -6,7 +6,7 @@ package transforms
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
-import firrtl.analyses.InstanceGraph
+import firrtl.analyses.InstanceKeyGraph
 import firrtl.annotations._
 import firrtl.passes.{InferTypes, MemPortUtils}
 import firrtl.Utils.{kind, splitRef, throwInternalError}
@@ -239,8 +239,7 @@ object DedupModules {
 
 
     // Get all instances to know what to rename in the module
-    val instances = mutable.Set[WDefInstance]()
-    InstanceGraph.collectInstances(instances)(module.asInstanceOf[Module].body)
+    val instances = InstanceKeyGraph.collectInstances(module)
     val instanceModuleMap = instances.map(i => i.name -> i.module).toMap
 
     def getNewModule(old: String): DefModule = {
@@ -446,7 +445,7 @@ object DedupModules {
                   renameMap: RenameMap): Map[String, DefModule] = {
 
     val (moduleMap, moduleLinearization) = {
-      val iGraph = new InstanceGraph(circuit)
+      val iGraph = new InstanceKeyGraph(circuit)
       (iGraph.moduleMap, iGraph.moduleOrder.reverse)
     }
     val main = circuit.main
