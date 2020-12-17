@@ -57,7 +57,11 @@ lazy val commonSettings = Seq(
 
 import com.typesafe.tools.mima.core._
 lazy val mimaSettings = Seq(
-  mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.4.0")
+  mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.4.1"),
+  // Public method on private object
+  mimaBinaryIssueFilters ++= Seq(
+    ProblemFilters.exclude[IncompatibleMethTypeProblem]("firrtl.passes.DestructTypes.destructInstance")
+  )
 )
 
 lazy val protobufSettings = Seq(
