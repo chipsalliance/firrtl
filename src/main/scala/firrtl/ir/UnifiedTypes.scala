@@ -3,6 +3,12 @@
 package firrtl.ir
 
 import firrtl.{ir => fir}
+import firrtl.{
+  DuplexFlow,
+  Flow,
+  SinkFlow,
+  SourceFlow
+}
 
 import scala.collection.mutable
 
@@ -18,6 +24,8 @@ object UnifiedTypes {
     protected def canonicalize: Type
 
     protected def flip: Type
+
+    def flow: Flow
   }
 
   case class Flip(wrapped: Type) extends Type {
@@ -33,6 +41,10 @@ object UnifiedTypes {
 
     override protected def flip = wrapped
 
+    override def flow = wrapped.passive match {
+      case true => SourceFlow
+      case false => DuplexFlow
+    }
   }
 
   object Flip {
@@ -49,6 +61,8 @@ object UnifiedTypes {
     override protected def canonicalize = this
 
     override protected def flip = Flip(this)
+
+    override def flow = SinkFlow
   }
 
   case class Bundle(elements: scala.collection.Map[String, Type]) extends Type {
@@ -66,6 +80,11 @@ object UnifiedTypes {
     }
 
     override protected def flip = Flip(Bundle(elements.mapValues(Flip.get(_))))
+
+    override def flow = passive match {
+      case true => SinkFlow
+      case false => DuplexFlow
+    }
   }
 
   object Bundle {

@@ -688,6 +688,8 @@ object Utils extends LazyLogging {
       WSubIndex(mergeRef(root, e.expr), e.value, e.tpe, e.flow)
     case e: WSubField =>
       WSubField(mergeRef(root, e.expr), e.name, e.tpe, e.flow)
+    case e: SubAccess =>
+      SubAccess(mergeRef(root, e.expr), e.index, e.tpe, e.flow)
     case EmptyExpression => root
   }
 
