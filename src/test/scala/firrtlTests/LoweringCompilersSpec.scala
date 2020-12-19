@@ -146,7 +146,8 @@ class LoweringCompilersSpec extends AnyFlatSpec with Matchers {
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.MinimalHighForm, Forms.ChirrtlForm)
     val patches = Seq(
-      Add(5, Seq(Dependency[firrtl.annotations.transforms.CleanupNamedTargets]))
+      Add(5, Seq(Dependency[firrtl.annotations.transforms.CleanupNamedTargets],
+                 Dependency(firrtl.transforms.ExpandChiselRValues)))
     )
     compare(legacyTransforms(new firrtl.ChirrtlToHighFirrtl), tm, patches)
   }

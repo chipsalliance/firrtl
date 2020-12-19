@@ -10,7 +10,7 @@ import firrtl.transforms.formal.RemoveVerificationStatements
 class RemoveVerificationStatementsSpec extends FirrtlFlatSpec {
   behavior.of("RemoveVerificationStatements")
 
-  val transforms = new TransformManager(Forms.HighForm, Forms.MinimalHighForm).flattenedTransformOrder ++ Seq(
+  val transforms = new TransformManager(Forms.ChirrtlForm, Forms.MinimalHighForm).flattenedTransformOrder ++ Seq(
     new RemoveVerificationStatements
   )
 

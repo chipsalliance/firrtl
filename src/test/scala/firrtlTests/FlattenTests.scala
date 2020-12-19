@@ -105,13 +105,13 @@ class FlattenTests extends LowTransformSpec {
         |    output b : UInt<32>
         |    inst i of Inline2
         |    i.a <= a
-        |    b <= i.a
+        |    b <= i.b
         |  module Inline1 :
         |    input a : UInt<32>
         |    output b : UInt<32>
         |    inst i of Inline2
         |    i.a <= a
-        |    b <= i.a
+        |    b <= i.b
         |  module Inline2 :
         |    input a : UInt<32>
         |    output b : UInt<32>
@@ -128,7 +128,7 @@ class FlattenTests extends LowTransformSpec {
         |    wire i_i_a : UInt<32>
         |    wire i_i_b : UInt<32>
         |    i_i_b <= i_i_a
-        |    i_b <= i_i_a
+        |    i_b <= i_i_b
         |    i_i_a <= i_a
         |    inst ni of NotInline1
         |    b <= i_b
@@ -139,13 +139,13 @@ class FlattenTests extends LowTransformSpec {
         |    input a : UInt<32>
         |    output b : UInt<32>
         |    inst i of Inline2
-        |    b <= i.a
+        |    b <= i.b
         |    i.a <= a
         |  module Inline1 :
         |    input a : UInt<32>
         |    output b : UInt<32>
         |    inst i of Inline2
-        |    b <= i.a
+        |    b <= i.b
         |    i.a <= a
         |  module Inline2 :
         |    input a : UInt<32>
@@ -172,13 +172,13 @@ class FlattenTests extends LowTransformSpec {
         |    output b : UInt<32>
         |    inst i of Inline2
         |    i.a <= a
-        |    b <= i.a
+        |    b <= i.b
         |  module Inline1 :
         |    input a : UInt<32>
         |    output b : UInt<32>
         |    inst i of Inline2
         |    i.a <= a
-        |    b <= i.a
+        |    b <= i.b
         |  module Inline2 :
         |    input a : UInt<32>
         |    output b : UInt<32>
@@ -200,7 +200,7 @@ class FlattenTests extends LowTransformSpec {
         |    input a : UInt<32>
         |    output b : UInt<32>
         |    inst i of Inline2
-        |    b <= i.a
+        |    b <= i.b
         |    i.a <= a
         |  module Inline1 :
         |    input a : UInt<32>
@@ -208,7 +208,7 @@ class FlattenTests extends LowTransformSpec {
         |    wire i_a : UInt<32>
         |    wire i_b : UInt<32>
         |    i_b <= i_a
-        |    b <= i_a
+        |    b <= i_b
         |    i_a <= a
         |  module Inline2 :
         |    input a : UInt<32>
