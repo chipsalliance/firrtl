@@ -120,10 +120,6 @@ pomExtra := <url>http://chisel.eecs.berkeley.edu/</url>
       <distribution>repo</distribution>
     </license>
   </licenses>
-  <scm>
-    <url>https://github.com/freechipsproject/firrtl.git</url>
-    <connection>scm:git:github.com/freechipsproject/firrtl.git</connection>
-  </scm>
   <developers>
     <developer>
       <id>jackbackrack</id>
