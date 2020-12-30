@@ -65,8 +65,7 @@ lazy val protobufSettings = Seq(
   sourceDirectory in ProtobufConfig := baseDirectory.value / "src" / "main" / "proto",
   protobufRunProtoc in ProtobufConfig := (args =>
     com.github.os72.protocjar.Protoc.runProtoc("-v351" +: args.toArray)
-  ),
-  javaSource in ProtobufConfig := (sourceManaged in Compile).value
+  )
 )
 
 lazy val assemblySettings = Seq(
@@ -98,7 +97,7 @@ lazy val antlrSettings = Seq(
 
 import com.typesafe.tools.mima.core._
 lazy val mimaSettings = Seq(
-  mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.3.1"),
+  mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.3.2"),
   mimaBinaryIssueFilters ++= Seq(
     // Removed packaged private method (https://github.com/lightbend/mima/issues/53)
     ProblemFilters.exclude[DirectMissingMethodProblem]("firrtl.stage.transforms.UpdateAnnotations.propagateAnnotations")
@@ -109,8 +108,7 @@ lazy val publishSettings = Seq(
   publishMavenStyle := true,
   publishArtifact in Test := false,
   pomIncludeRepository := { x => false },
-  // Don't add 'scm' elements if we have a git.remoteRepo definition,
-  //  but since we don't (with the removal of ghpages), add them in below.
+  // scm is set by sbt-ci-release
   pomExtra := <url>http://chisel.eecs.berkeley.edu/</url>
     <licenses>
       <license>
@@ -119,10 +117,6 @@ lazy val publishSettings = Seq(
         <distribution>repo</distribution>
       </license>
     </licenses>
-    <scm>
-      <url>https://github.com/freechipsproject/firrtl.git</url>
-      <connection>scm:git:github.com/freechipsproject/firrtl.git</connection>
-    </scm>
     <developers>
       <developer>
         <id>jackbackrack</id>

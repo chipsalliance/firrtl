@@ -82,7 +82,7 @@ class firrtlCrossModule(crossVersion: String) extends ScalaModule with SbtModule
     millSourcePath / 'src / 'main / 'antlr4 / "FIRRTL.g4"
   }
 
-  def downloadAntlr4Jar = T {
+  def downloadAntlr4Jar = T.persistent {
     Util.download(s"https://www.antlr.org/download/antlr-$antlr4Version-complete.jar")
   }
 
@@ -104,7 +104,7 @@ class firrtlCrossModule(crossVersion: String) extends ScalaModule with SbtModule
     millSourcePath / 'src / 'main / 'proto / "firrtl.proto"
   }
 
-  def downloadProtocJar = T {
+  def downloadProtocJar = T.persistent {
     Util.download(s"https://repo.maven.apache.org/maven2/com/github/os72/protoc-jar/$protocVersion/protoc-jar-$protocVersion.jar")
   }
 

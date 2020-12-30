@@ -51,7 +51,7 @@ class RemoveIntervals extends Pass with PreservesAll[Transform] {
     val wiredCircuit = alignedCircuit map makeWireModule
     val replacedCircuit = wiredCircuit map replaceModuleInterval(errors)
     errors.trigger()
-    InferTypes.run(replacedCircuit)
+    ResolveKinds.run(InferTypes.run(replacedCircuit))
   }
 
   /* Replace interval types */
