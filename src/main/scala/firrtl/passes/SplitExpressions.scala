@@ -49,14 +49,24 @@ object SplitExpressions extends Pass {
         case _ => e
       }
 
-      // Recursive. Splits compound nodes
-      def onExp(e: Expression): Expression =
-        e.map(onExp) match {
-          case ex: DoPrim => ex.map(split)
+      /* Split expressions consisting of compound nodes. Do not split the outer expression if it is the RHS of an assignment
+       * (node or connect).  This prevents generating unnecessary nodes and also makes this transform idempotent.
+       */
+      def onExp(e: Expression, isAssign: Boolean): Expression =
+        e.map(onExp(_, false)) match {
+          case ex: DoPrim =>
+            val exx = ex.map(split)
+            isAssign match {
+              case true  => exx
+              case false => split(exx)
+            }
           case ex => ex
         }
 
-      s.map(onExp) match {
+      (s match {
+        case _: DefNode | _: Connect => s.map(onExp(_, true))
+        case _                       => s.map(onExp(_, false))
+      }) match {
         case x: Block => x.map(onStmt)
         case EmptyStmt => EmptyStmt
         case x =>
