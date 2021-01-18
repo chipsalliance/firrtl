@@ -31,9 +31,8 @@ jobs:
           java-version: adopt@1.8
       - name: Cache Scala
         uses: coursier/cache-action@v5
-      - name: Documentation (Scala 2.12 only)
-        if: matrix.scala == '2.12.12'
-        run: sbt ++${{ matrix.scala }} docs/mdoc
+      - name: Unidoc builds (no warnings)
+        run: sbt ++${{ matrix.scala }} unidoc
       - name: Sanity check benchmarking scripts (Scala 2.12 only)
         if: matrix.scala == '2.12.12'
         run: |
