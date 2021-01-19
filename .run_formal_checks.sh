@@ -11,12 +11,13 @@ fi
 
 DUT=$1
 
-# Run formal check only for PRs
-if [ $GITHUB_WORKFLOW = "pull_request" ]; then
-    # See https://docs.github.com/en/actions/reference/environment-variables
-    # for info about these variables
-    # Travis does a shallow clone, checkout PR target so that we have it
-    # THen return to previous branch so HEAD points to the commit we're testing
+# See https://docs.github.com/en/actions/reference/environment-variables
+# for info about these variables
+
+# Run formal check only for PRs, GITHUB_BASE_REF is only set for PRs
+if [ ! -z "$GITHUB_BASE_REF" ]; then
+    # Github Actions does a shallow clone, checkout PR target so that we have it
+    # Then return to previous branch so HEAD points to the commit we're testing
     git remote set-branches origin $GITHUB_BASE_REF && git fetch
     git checkout $GITHUB_BASE_REF
     git checkout -
