@@ -85,7 +85,8 @@ jobs:
   publish:
     needs: [all_tests_passed]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    # TODO uncomment before merging
+    #if: github.event_name == 'push'
 
     steps:
       - name: Checkout
