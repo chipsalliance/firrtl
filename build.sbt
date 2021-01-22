@@ -20,9 +20,15 @@ def javacOptionsVersion(scalaVersion: String): Seq[String] = {
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   name := "firrtl",
+<<<<<<< HEAD
   version := "1.4-SNAPSHOT",
   scalaVersion := "2.12.12",
   crossScalaVersions := Seq("2.13.2", "2.12.12", "2.11.12"),
+=======
+  version := "1.5-SNAPSHOT",
+  scalaVersion := "2.12.13",
+  crossScalaVersions := Seq("2.13.4", "2.12.13", "2.11.12"),
+>>>>>>> e3230941... Bump to Scala 2.12.13 and 2.13.4 (#2053)
   addCompilerPlugin(scalafixSemanticdb),
   scalacOptions := Seq(
     "-deprecation",
