@@ -21,8 +21,8 @@ lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
   name := "firrtl",
   version := "1.5-SNAPSHOT",
-  scalaVersion := "2.12.12",
-  crossScalaVersions := Seq("2.13.2", "2.12.12", "2.11.12"),
+  scalaVersion := "2.12.13",
+  crossScalaVersions := Seq("2.13.4", "2.12.13", "2.11.12"),
   addCompilerPlugin(scalafixSemanticdb),
   scalacOptions := Seq(
     "-deprecation",
@@ -53,6 +53,10 @@ lazy val commonSettings = Seq(
     Resolver.sonatypeRepo("snapshots"),
     Resolver.sonatypeRepo("releases")
   )
+)
+
+lazy val mimaSettings = Seq(
+  mimaPreviousArtifacts := Set()
 )
 
 lazy val protobufSettings = Seq(
@@ -179,6 +183,7 @@ lazy val firrtl = (project in file("."))
     buildInfoUsePackageAsPath := true,
     buildInfoKeys := Seq[BuildInfoKey](buildInfoPackage, version, scalaVersion, sbtVersion)
   )
+  .settings(mimaSettings)
 
 lazy val benchmark = (project in file("benchmark"))
   .dependsOn(firrtl)
