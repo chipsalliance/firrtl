@@ -18,10 +18,13 @@ def javacOptionsVersion(scalaVersion: String): Seq[String] = {
 
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
+  scalaVersion := "2.12.13",
+  crossScalaVersions := Seq("2.13.4", "2.12.13", "2.11.12")
+)
+
+lazy val firrtlSettings = Seq(
   name := "firrtl",
   version := "1.5-SNAPSHOT",
-  scalaVersion := "2.12.12",
-  crossScalaVersions := Seq("2.13.2", "2.12.12", "2.11.12"),
   addCompilerPlugin(scalafixSemanticdb),
   scalacOptions := Seq(
     "-deprecation",
@@ -52,6 +55,10 @@ lazy val commonSettings = Seq(
     Resolver.sonatypeRepo("snapshots"),
     Resolver.sonatypeRepo("releases")
   )
+)
+
+lazy val mimaSettings = Seq(
+  mimaPreviousArtifacts := Set()
 )
 
 lazy val protobufSettings = Seq(
@@ -89,8 +96,7 @@ lazy val publishSettings = Seq(
   publishMavenStyle := true,
   publishArtifact in Test := false,
   pomIncludeRepository := { x => false },
-  // Don't add 'scm' elements if we have a git.remoteRepo definition,
-  //  but since we don't (with the removal of ghpages), add them in below.
+  // scm is set by sbt-ci-release
   pomExtra := <url>http://chisel.eecs.berkeley.edu/</url>
     <licenses>
       <license>
@@ -99,10 +105,6 @@ lazy val publishSettings = Seq(
         <distribution>repo</distribution>
       </license>
     </licenses>
-    <scm>
-      <url>https://github.com/freechipsproject/firrtl.git</url>
-      <connection>scm:git:github.com/freechipsproject/firrtl.git</connection>
-    </scm>
     <developers>
       <developer>
         <id>jackbackrack</id>
@@ -170,6 +172,7 @@ lazy val firrtl = (project in file("."))
     Test / testForkedParallel := true
   )
   .settings(commonSettings)
+  .settings(firrtlSettings)
   .settings(protobufSettings)
   .settings(antlrSettings)
   .settings(assemblySettings)
@@ -183,9 +186,11 @@ lazy val firrtl = (project in file("."))
     buildInfoUsePackageAsPath := true,
     buildInfoKeys := Seq[BuildInfoKey](buildInfoPackage, version, scalaVersion, sbtVersion)
   )
+  .settings(mimaSettings)
 
 lazy val benchmark = (project in file("benchmark"))
   .dependsOn(firrtl)
+  .settings(commonSettings)
   .settings(
     assemblyJarName in assembly := "firrtl-benchmark.jar",
     test in assembly := {},
@@ -195,6 +200,7 @@ lazy val benchmark = (project in file("benchmark"))
 val JQF_VERSION = "1.5"
 
 lazy val jqf = (project in file("jqf"))
+  .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
       "edu.berkeley.cs.jqf" % "jqf-fuzz" % JQF_VERSION,
@@ -220,6 +226,7 @@ lazy val testClassAndMethodParser = {
 
 lazy val fuzzer = (project in file("fuzzer"))
   .dependsOn(firrtl)
+  .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
       "com.pholser" % "junit-quickcheck-core" % "0.8",
