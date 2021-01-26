@@ -16,13 +16,15 @@ def javacOptionsVersion(scalaVersion: String): Seq[String] = {
   }
 }
 
-
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
+  scalaVersion := "2.12.13",
+  crossScalaVersions := Seq("2.13.4", "2.12.13", "2.11.12")
+)
+
+lazy val firrtlSettings = Seq(
   name := "firrtl",
   version := "1.4-SNAPSHOT",
-  scalaVersion := "2.12.13",
-  crossScalaVersions := Seq("2.13.4", "2.12.13", "2.11.12"),
   addCompilerPlugin(scalafixSemanticdb),
   scalacOptions := Seq(
     "-deprecation",
@@ -175,6 +177,7 @@ lazy val firrtl = (project in file("."))
     Test / testForkedParallel := true
   )
   .settings(commonSettings)
+  .settings(firrtlSettings)
   .settings(protobufSettings)
   .settings(antlrSettings)
   .settings(assemblySettings)
@@ -192,6 +195,7 @@ lazy val firrtl = (project in file("."))
 
 lazy val benchmark = (project in file("benchmark"))
   .dependsOn(firrtl)
+  .settings(commonSettings)
   .settings(
     assemblyJarName in assembly := "firrtl-benchmark.jar",
     test in assembly := {},
@@ -201,6 +205,7 @@ lazy val benchmark = (project in file("benchmark"))
 val JQF_VERSION = "1.5"
 
 lazy val jqf = (project in file("jqf"))
+  .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
       "edu.berkeley.cs.jqf" % "jqf-fuzz" % JQF_VERSION,
@@ -226,6 +231,7 @@ lazy val testClassAndMethodParser = {
 
 lazy val fuzzer = (project in file("fuzzer"))
   .dependsOn(firrtl)
+  .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
       "com.pholser" % "junit-quickcheck-core" % "0.8",
