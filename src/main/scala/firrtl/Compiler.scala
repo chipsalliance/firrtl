@@ -15,12 +15,17 @@ import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
 import firrtl.options.{Dependency, DependencyAPI, StageUtils, TransformLike}
 import firrtl.stage.Forms
 
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
+
 /** Container of all annotations for a Firrtl compiler */
-class AnnotationSeq private (private[firrtl] val underlying: List[Annotation]) {
-  def toSeq: Seq[Annotation] = underlying.toSeq
+class AnnotationSeq private (underlying: Future[Seq[Annotation]]) {
+  def toSeq: Seq[Annotation] = Await.result(underlying, Duration.Inf)
 }
 object AnnotationSeq {
-  def apply(xs: Seq[Annotation]): AnnotationSeq = new AnnotationSeq(xs.toList)
+  def apply(xs: Seq[Annotation]): AnnotationSeq = new AnnotationSeq(Future(xs))
+  private[firrtl] def apply(f: Future[Seq[Annotation]]): AnnotationSeq = new AnnotationSeq(f)
 }
 
 /** Current State of the Circuit
@@ -258,7 +263,7 @@ private[firrtl] object Transform {
     inAnno:    AnnotationSeq,
     resAnno:   AnnotationSeq,
     renameOpt: Option[RenameMap]
-  ): AnnotationSeq = {
+  ): AnnotationSeq = AnnotationSeq(Future {
     val newAnnotations = {
       val inSet = mutable.LinkedHashSet() ++ inAnno
       val resSet = mutable.LinkedHashSet() ++ resAnno
@@ -290,7 +295,7 @@ private[firrtl] object Transform {
       logger.debug(s"""New Annotation:\n  $key""")
     }
     finalAnnotations
-  }
+  })
 }
 
 /** The basic unit of operating on a Firrtl AST */
