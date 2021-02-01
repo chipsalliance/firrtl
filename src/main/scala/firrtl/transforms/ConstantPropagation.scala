@@ -102,7 +102,29 @@ class ConstantPropagation extends Transform with ResolvedAnnotationPaths {
   def inputForm = LowForm
   def outputForm = LowForm
 
+<<<<<<< HEAD
   override val annotationClasses: Traversable[Class[_]] = Seq(classOf[DontTouchAnnotation])
+=======
+  override def prerequisites =
+    ((new mutable.LinkedHashSet())
+      ++ firrtl.stage.Forms.LowForm
+      - Dependency(firrtl.passes.Legalize)).toSeq
+
+  override def optionalPrerequisites = Seq(Dependency(firrtl.passes.RemoveValidIf))
+
+  override def optionalPrerequisiteOf =
+    Seq(
+      Dependency(firrtl.passes.memlib.VerilogMemDelays),
+      Dependency(firrtl.passes.SplitExpressions),
+      Dependency[SystemVerilogEmitter],
+      Dependency[VerilogEmitter]
+    )
+
+  override def invalidates(a: Transform): Boolean = a match {
+    case firrtl.passes.Legalize => true
+    case _                      => false
+  }
+>>>>>>> ad0fd657... ConstantPropagation: make RemoveValidIf an optional dependency (#2027)
 
   sealed trait SimplifyBinaryOp {
     def matchingArgsValue(e: DoPrim, arg: Expression): Expression
