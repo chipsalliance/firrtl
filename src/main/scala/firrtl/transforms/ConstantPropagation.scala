@@ -103,11 +103,16 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
 
   override def prerequisites =
     ((new mutable.LinkedHashSet())
+<<<<<<< HEAD
        ++ firrtl.stage.Forms.LowForm
        - Dependency(firrtl.passes.Legalize)
        + Dependency(firrtl.passes.RemoveValidIf)).toSeq
+=======
+      ++ firrtl.stage.Forms.LowForm
+      - Dependency(firrtl.passes.Legalize)).toSeq
+>>>>>>> ad0fd657... ConstantPropagation: make RemoveValidIf an optional dependency (#2027)
 
-  override def optionalPrerequisites = Seq.empty
+  override def optionalPrerequisites = Seq(Dependency(firrtl.passes.RemoveValidIf))
 
   override def optionalPrerequisiteOf =
     Seq( Dependency(firrtl.passes.memlib.VerilogMemDelays),
