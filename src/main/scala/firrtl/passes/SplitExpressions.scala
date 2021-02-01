@@ -52,8 +52,8 @@ object SplitExpressions extends Pass {
       /* Split expressions consisting of compound nodes. Do not split the outer expression if it is the RHS of an assignment
        * (node or connect).  This prevents generating unnecessary nodes and also makes this transform idempotent.
        */
-      def onExp(e: Expression, isAssign: Boolean): Expression =
-        e.map(onExp(_, false)) match {
+      def onExp(isAssign: Boolean)(e: Expression): Expression =
+        e.map(onExp(false)) match {
           case ex: DoPrim =>
             val exx = ex.map(split)
             if (isAssign) exx else split(exx)
@@ -61,8 +61,8 @@ object SplitExpressions extends Pass {
         }
 
       (s match {
-        case _: DefNode | _: Connect => s.map(onExp(_, true))
-        case _                       => s.map(onExp(_, false))
+        case _: DefNode | _: Connect => s.map(onExp(true))
+        case _                       => s.map(onExp(false))
       }) match {
         case x: Block => x.map(onStmt)
         case EmptyStmt => EmptyStmt
