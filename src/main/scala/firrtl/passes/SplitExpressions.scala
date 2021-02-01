@@ -56,10 +56,7 @@ object SplitExpressions extends Pass {
         e.map(onExp(_, false)) match {
           case ex: DoPrim =>
             val exx = ex.map(split)
-            isAssign match {
-              case true  => exx
-              case false => split(exx)
-            }
+            if (isAssign) exx else split(exx)
           case ex => ex
         }
 
