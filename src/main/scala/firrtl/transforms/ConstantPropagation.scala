@@ -107,10 +107,9 @@ class ConstantPropagation extends Transform with DependencyAPIMigration {
   override def prerequisites =
     ((new mutable.LinkedHashSet())
       ++ firrtl.stage.Forms.LowForm
-      - Dependency(firrtl.passes.Legalize)
-      + Dependency(firrtl.passes.RemoveValidIf)).toSeq
+      - Dependency(firrtl.passes.Legalize)).toSeq
 
-  override def optionalPrerequisites = Seq.empty
+  override def optionalPrerequisites = Seq(Dependency(firrtl.passes.RemoveValidIf))
 
   override def optionalPrerequisiteOf =
     Seq(
@@ -647,7 +646,8 @@ class ConstantPropagation extends Transform with DependencyAPIMigration {
         case WRef(rname, _, kind, _) if betterName(lname, rname) && !swapMap.contains(rname) && kind != PortKind =>
           assert(!swapMap.contains(lname)) // <- Shouldn't be possible because lname is either a
           // node declaration or the single connection to a wire or register
-          swapMap += (lname -> rname, rname -> lname)
+          swapMap += lname -> rname
+          swapMap += rname -> lname
         case _ =>
       }
       nodeMap(lname) = InfoExpr.wrap(info, value)
