@@ -48,7 +48,7 @@ lazy val firrtlSettings = Seq(
     "net.jcazevedo" %% "moultingyaml" % "0.4.2",
     "org.json4s" %% "json4s-native" % "3.6.9",
     "org.apache.commons" % "commons-text" % "1.8",
-    "io.github.alexarchambault" %% "data-class" % "0.2.1",
+    "io.github.alexarchambault" %% "data-class" % "0.2.5",
   ),
   // macros for the data-class library
   libraryDependencies ++= {

@@ -613,7 +613,7 @@ case class Attach(info: Info, exprs: Seq[Expression]) extends Statement with Has
   }
 }
 object Stop {
-  def unapply(s: Stop): Option[(Info, Int, Expression, Expression)] = {
+  def unapply(s: Stop): Some[(Info, Int, Expression, Expression)] = {
     Some((s.info, s.ret, s.clk, s.en))
   }
 }
@@ -647,7 +647,7 @@ object Stop {
   }
 }
 object Print {
-  def unapply(s: Print): Option[(Info, StringLit, Seq[Expression], Expression, Expression)] = {
+  def unapply(s: Print): Some[(Info, StringLit, Seq[Expression], Expression, Expression)] = {
     Some((s.info, s.string, s.args, s.clk, s.en))
   }
 }
@@ -692,7 +692,7 @@ object Formal extends Enumeration {
   }
 }
 object Verification {
-  def unapply(s: Verification): Option[(Formal.Value, Info, Expression, Expression, Expression, StringLit)] = {
+  def unapply(s: Verification): Some[(Formal.Value, Info, Expression, Expression, Expression, StringLit)] = {
     Some((s.op, s.info, s.clk, s.pred, s.en, s.msg))
   }
 }
