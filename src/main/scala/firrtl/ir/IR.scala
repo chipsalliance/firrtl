@@ -636,7 +636,13 @@ object Stop {
   def foreachType(f:   Type => Unit):   Unit = ()
   def foreachString(f: String => Unit): Unit = ()
   def foreachInfo(f:   Info => Unit):   Unit = f(info)
-  def copy(info: Info = info, string: StringLit = string, args: Seq[Expression] = args, clk: Expression = clk, en: Expression = en): Print = {
+  def copy(
+    info:   Info = info,
+    string: StringLit = string,
+    args:   Seq[Expression] = args,
+    clk:    Expression = clk,
+    en:     Expression = en
+  ): Print = {
     Print(info, string, args, clk, en)
   }
 }
@@ -674,7 +680,14 @@ object Formal extends Enumeration {
   def foreachType(f:   Type => Unit):   Unit = ()
   def foreachString(f: String => Unit): Unit = ()
   def foreachInfo(f:   Info => Unit):   Unit = f(info)
-  def copy(op: Formal.Value = op, info: Info = info, clk:  Expression = clk, pred: Expression = pred, en: Expression = en, msg: StringLit = msg): Verification = {
+  def copy(
+    op:   Formal.Value = op,
+    info: Info = info,
+    clk:  Expression = clk,
+    pred: Expression = pred,
+    en:   Expression = en,
+    msg:  StringLit = msg
+  ): Verification = {
     Verification(op, info, clk, pred, en, msg)
   }
 }
