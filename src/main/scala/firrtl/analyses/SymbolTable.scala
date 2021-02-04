@@ -87,6 +87,8 @@ object SymbolTable {
     case d: DefNode     => table.declare(d)
     case d: DefWire     => table.declare(d)
     case d: DefRegister => table.declare(d)
+    // matches named statements like printf, stop, assert, assume, cover
+    case s: IsDeclaration => table.declare(s.name, UnknownType, firrtl.UnknownKind)
     case other => other.foreachStmt(scanStatement)
   }
 }
