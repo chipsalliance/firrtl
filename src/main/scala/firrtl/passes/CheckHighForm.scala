@@ -251,6 +251,9 @@ trait CheckHighFormLike { this: Pass =>
     }
 
     def checkName(info: Info, mname: String, names: ScopeView)(name: String): Unit = {
+      // Empty names are allowed for backwards compatibility reasons and
+      // indicate that the entity has essentially no name.
+      if(name.isEmpty) return
       if (!names.legalDecl(name))
         errors.append(new NotUniqueException(info, mname, name))
       names.declare(name)
