@@ -159,7 +159,9 @@ class ParserSpec extends FirrtlFlatSpec {
         val src = (prelude :+ line).mkString("\n") + "\n"
         val res = firrtl.Parser.parse(src)
         CircuitState(res, Nil) should containTree {
-          case s: NamedStatement => s.name == expected
+          case s: Stop => s.name == expected
+          case s: Print => s.name == expected
+          case s: Verification => s.name == expected
         }
       }
     }
