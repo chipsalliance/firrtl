@@ -594,9 +594,12 @@ case class Attach(info: Info, exprs: Seq[Expression]) extends Statement with Has
   def foreachString(f: String => Unit):           Unit = ()
   def foreachInfo(f:   Info => Unit):             Unit = f(info)
 }
+trait NamedStatement extends Statement with HasName
+
 @data class Stop(info: Info, ret: Int, clk: Expression, en: Expression, @since("FIRRTL 1.5") name: String = "")
     extends Statement
     with HasInfo
+    with NamedStatement
     with UseSerializer {
   def mapStmt(f:     Statement => Statement):   Statement = this
   def mapExpr(f:     Expression => Expression): Statement = Stop(info, ret, f(clk), f(en))
@@ -626,6 +629,7 @@ object Stop {
   @since("FIRRTL 1.5") name: String = "")
     extends Statement
     with HasInfo
+      with NamedStatement
     with UseSerializer {
   def mapStmt(f:     Statement => Statement):   Statement = this
   def mapExpr(f:     Expression => Expression): Statement = Print(info, string, args.map(f), f(clk), f(en))
@@ -670,6 +674,7 @@ object Formal extends Enumeration {
   @since("FIRRTL 1.5") name: String = "")
     extends Statement
     with HasInfo
+      with NamedStatement
     with UseSerializer {
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement =
