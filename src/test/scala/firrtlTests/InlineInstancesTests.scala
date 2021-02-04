@@ -387,15 +387,12 @@ class InlineInstancesTests extends LowTransformSpec {
     val input =
       """circuit Top :
         |  module Top :
-        |    input clock : Clock
         |    input a : UInt<32>
         |    output b : UInt<32>
         |    inst i of Inline
-        |    i.clock <= clock
         |    i.a <= a
         |    b <= i.b
         |  module Inline :
-        |    input clock : Clock
         |    input a : UInt<32>
         |    output b : UInt<32>
         |    inst foo of NestedInline
@@ -403,7 +400,6 @@ class InlineInstancesTests extends LowTransformSpec {
         |    foo.a <= a
         |    bar.a <= foo.b
         |    b <= bar.b
-        |    assert(clock, UInt(1), eq(a,b), "a == b") : assert1
         |  module NestedInline :
         |    input a : UInt<32>
         |    output b : UInt<32>
@@ -429,7 +425,6 @@ class InlineInstancesTests extends LowTransformSpec {
         |    i_bar.a <= i_foo_b
         |    b <= i_b
         |    i_a <= a
-        |    assert(clock, UInt(1), eq(a,b), "a == b") : assert1
         |  module NestedNoInline :
         |    input a : UInt<32>
         |    output b : UInt<32>
@@ -494,10 +489,10 @@ class InlineInstancesTests extends LowTransformSpec {
         |    wire i_clock : Clock
         |    wire i_a : UInt<32>
         |    wire i_b : UInt<32>
+        |    i_b <= i_a
         |    assert(i_clock, UInt(1), eq(i_a, i_b), "a == b") : i_assert1
         |    assert(i_clock, UInt(1), not(eq(i_a, i_b)), "a != b")
         |    stop(i_clock, UInt(0), 0)
-        |    i_b <= i_a
         |    b <= i_b
         |    i_clock <= clock
         |    i_a <= a
