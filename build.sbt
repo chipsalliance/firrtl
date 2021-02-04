@@ -16,13 +16,20 @@ def javacOptionsVersion(scalaVersion: String): Seq[String] = {
   }
 }
 
-
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
+  scalaVersion := "2.12.13",
+  crossScalaVersions := Seq("2.13.4", "2.12.13", "2.11.12")
+)
+
+lazy val isAtLeastScala213 = Def.setting {
+  import Ordering.Implicits._
+  CrossVersion.partialVersion(scalaVersion.value).exists(_ >= (2, 13))
+}
+
+lazy val firrtlSettings = Seq(
   name := "firrtl",
-  version := "1.4-SNAPSHOT",
-  scalaVersion := "2.12.12",
-  crossScalaVersions := Seq("2.13.2", "2.12.12", "2.11.12"),
+  version := "1.5-SNAPSHOT",
   addCompilerPlugin(scalafixSemanticdb),
   scalacOptions := Seq(
     "-deprecation",
@@ -39,9 +46,19 @@ lazy val commonSettings = Seq(
     "org.scalatestplus" %% "scalacheck-1-14" % "3.1.3.0" % "test",
     "com.github.scopt" %% "scopt" % "3.7.1",
     "net.jcazevedo" %% "moultingyaml" % "0.4.2",
-    "org.json4s" %% "json4s-native" % "3.6.10",
-    "org.apache.commons" % "commons-text" % "1.8"
+    "org.json4s" %% "json4s-native" % "3.6.9",
+    "org.apache.commons" % "commons-text" % "1.8",
+    "io.github.alexarchambault" %% "data-class" % "0.2.5",
   ),
+  // macros for the data-class library
+  libraryDependencies ++= {
+    if (isAtLeastScala213.value) Nil
+    else Seq(compilerPlugin("org.scalamacros" % "paradise" % "2.1.1" cross CrossVersion.full))
+  },
+  scalacOptions ++= {
+    if (isAtLeastScala213.value) Seq("-Ymacro-annotations")
+    else Nil
+  },
   // starting with scala 2.13 the parallel collections are separate from the standard library
   libraryDependencies ++= {
     CrossVersion.partialVersion(scalaVersion.value) match {
@@ -53,6 +70,10 @@ lazy val commonSettings = Seq(
     Resolver.sonatypeRepo("snapshots"),
     Resolver.sonatypeRepo("releases")
   )
+)
+
+lazy val mimaSettings = Seq(
+  mimaPreviousArtifacts := Set()
 )
 
 lazy val protobufSettings = Seq(
@@ -85,7 +106,7 @@ lazy val antlrSettings = Seq(
   antlr4GenVisitor in Antlr4 := true,
   antlr4GenListener in Antlr4 := false,
   antlr4PackageName in Antlr4 := Option("firrtl.antlr"),
-  antlr4Version in Antlr4 := "4.7.1",
+  antlr4Version in Antlr4 := "4.8",
   javaSource in Antlr4 := (sourceManaged in Compile).value
 )
 
@@ -93,8 +114,7 @@ lazy val publishSettings = Seq(
   publishMavenStyle := true,
   publishArtifact in Test := false,
   pomIncludeRepository := { x => false },
-  // Don't add 'scm' elements if we have a git.remoteRepo definition,
-  //  but since we don't (with the removal of ghpages), add them in below.
+  // scm is set by sbt-ci-release
   pomExtra := <url>http://chisel.eecs.berkeley.edu/</url>
     <licenses>
       <license>
@@ -103,10 +123,6 @@ lazy val publishSettings = Seq(
         <distribution>repo</distribution>
       </license>
     </licenses>
-    <scm>
-      <url>https://github.com/freechipsproject/firrtl.git</url>
-      <connection>scm:git:github.com/freechipsproject/firrtl.git</connection>
-    </scm>
     <developers>
       <developer>
         <id>jackbackrack</id>
@@ -171,6 +187,7 @@ lazy val firrtl = (project in file("."))
     Test / testForkedParallel := true
   )
   .settings(commonSettings)
+  .settings(firrtlSettings)
   .settings(protobufSettings)
   .settings(antlrSettings)
   .settings(assemblySettings)
@@ -184,9 +201,11 @@ lazy val firrtl = (project in file("."))
     buildInfoUsePackageAsPath := true,
     buildInfoKeys := Seq[BuildInfoKey](buildInfoPackage, version, scalaVersion, sbtVersion)
   )
+  .settings(mimaSettings)
 
 lazy val benchmark = (project in file("benchmark"))
   .dependsOn(firrtl)
+  .settings(commonSettings)
   .settings(
     assemblyJarName in assembly := "firrtl-benchmark.jar",
     test in assembly := {},
@@ -196,6 +215,7 @@ lazy val benchmark = (project in file("benchmark"))
 val JQF_VERSION = "1.5"
 
 lazy val jqf = (project in file("jqf"))
+  .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
       "edu.berkeley.cs.jqf" % "jqf-fuzz" % JQF_VERSION,
@@ -221,6 +241,7 @@ lazy val testClassAndMethodParser = {
 
 lazy val fuzzer = (project in file("fuzzer"))
   .dependsOn(firrtl)
+  .settings(commonSettings)
   .settings(
     libraryDependencies ++= Seq(
       "com.pholser" % "junit-quickcheck-core" % "0.8",

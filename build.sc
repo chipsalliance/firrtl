@@ -15,7 +15,7 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
   // 2.12.12 -> Array("2", "12", "12") -> "12" -> 12
   private def majorVersion = crossScalaVersion.split('.')(1).toInt
 
-  def publishVersion = "1.4-SNAPSHOT"
+  def publishVersion = "1.5-SNAPSHOT"
 
   override def mainClass = T {
     Some("firrtl.stage.FirrtlMain")
@@ -57,7 +57,7 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
 
   object test extends Tests {
     private def ivyCrossDeps = majorVersion match {
-      case i if i < 12 => Agg(ivy"junit:junit:4.12")
+      case i if i < 12 => Agg(ivy"junit:junit:4.13.1")
       case _ => Agg()
     }
 
@@ -94,7 +94,7 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
   }
 
   /* antlr4 */
-  def antlr4Version = "4.7.1"
+  def antlr4Version = "4.8"
 
   def antlrSource = T.source {
     millSourcePath / "src" / "main" / "antlr4" / "FIRRTL.g4"

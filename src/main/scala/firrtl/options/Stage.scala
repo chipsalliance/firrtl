@@ -23,12 +23,12 @@ abstract class Stage extends Phase {
     * @param annotations input annotations
     * @return output annotations
     */
-  def run(annotations: AnnotationSeq): AnnotationSeq
+  protected def run(annotations: AnnotationSeq): AnnotationSeq
 
   /** Execute this stage on some input annotations. Annotations will be read from any input annotation files.
     * @param annotations input annotations
     * @return output annotations
-    * @throws OptionsException if command line or annotation validation fails
+    * @throws firrtl.options.OptionsException if command line or annotation validation fails
     */
   final def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val annotationsx =
@@ -52,7 +52,7 @@ abstract class Stage extends Phase {
     * @param args command line arguments
     * @param initialAnnotations annotation
     * @return output annotations
-    * @throws OptionsException if command line or annotation validation fails
+    * @throws firrtl.options.OptionsException if command line or annotation validation fails
     */
   final def execute(args: Array[String], annotations: AnnotationSeq): AnnotationSeq =
     transform(shell.parse(args, annotations))

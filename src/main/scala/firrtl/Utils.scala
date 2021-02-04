@@ -250,6 +250,24 @@ object Utils extends LazyLogging {
   val one = UIntLiteral(1)
   val zero = UIntLiteral(0)
 
+  private val ClockZero = DoPrim(PrimOps.AsClock, Seq(zero), Seq.empty, ClockType)
+  private val AsyncZero = DoPrim(PrimOps.AsAsyncReset, Seq(zero), Nil, AsyncResetType)
+
+  /** Returns an [[firrtl.ir.Expression Expression]] equal to zero for a given [[firrtl.ir.GroundType GroundType]]
+    * @note Does not support [[firrtl.ir.AnalogType AnalogType]] nor [[firrtl.ir.IntervalType IntervalType]]
+    */
+  def getGroundZero(tpe: GroundType): Expression = tpe match {
+    case u: UIntType  => UIntLiteral(0, u.width)
+    case s: SIntType  => SIntLiteral(0, s.width)
+    case f: FixedType => FixedLiteral(0, f.width, f.point)
+    // Default reset type is Bool
+    case ResetType      => Utils.zero
+    case ClockType      => ClockZero
+    case AsyncResetType => AsyncZero
+    // TODO Support IntervalType
+    case other => throwInternalError(s"Unexpected type $other")
+  }
+
   def create_exps(n: String, t: Type): Seq[Expression] =
     create_exps(WRef(n, t, ExpKind, UnknownFlow))
   def create_exps(e: Expression): Seq[Expression] = e match {
@@ -307,7 +325,7 @@ object Utils extends LazyLogging {
     onExp(expression)
     ReferenceTarget(main, module, Nil, ref, tokens.toSeq)
   }
-  @deprecated("get_flip is fundamentally slow, use to_flip(flow(expr))", "1.2")
+  @deprecated("get_flip is fundamentally slow, use to_flip(flow(expr))", "FIRRTL 1.2")
   def get_flip(t: Type, i: Int, f: Orientation): Orientation = {
     if (i >= get_size(t)) throwInternalError(s"get_flip: shouldn't be here - $i >= get_size($t)")
     t match {
@@ -614,7 +632,6 @@ object Utils extends LazyLogging {
   def get_flow(s: Statement): Flow = s match {
     case sx: DefWire        => DuplexFlow
     case sx: DefRegister    => DuplexFlow
-    case sx: WDefInstance   => SourceFlow
     case sx: DefNode        => SourceFlow
     case sx: DefInstance    => SourceFlow
     case sx: DefMemory      => SourceFlow
@@ -642,19 +659,24 @@ object Utils extends LazyLogging {
     *   Given:   SubField(SubIndex(Ref("b"), 2), "c")
     *   Returns: (Ref("b"), SubField(SubIndex(EmptyExpression, 2), "c"))
     *   b[2].c -> (b, EMPTY[2].c)
-    * @note This function only supports WRef, WSubField, and WSubIndex
+    * @note This function only supports [[firrtl.ir.RefLikeExpression RefLikeExpression]]s: [[firrtl.ir.Reference
+    * Reference]], [[firrtl.ir.SubField SubField]], [[firrtl.ir.SubIndex SubIndex]], and [[firrtl.ir.SubAccess
+    * SubAccess]]
     */
   def splitRef(e: Expression): (WRef, Expression) = e match {
-    case e: WRef => (e, EmptyExpression)
-    case e: WSubIndex =>
+    case e: Reference => (e, EmptyExpression)
+    case e: SubIndex =>
       val (root, tail) = splitRef(e.expr)
-      (root, WSubIndex(tail, e.value, e.tpe, e.flow))
-    case e: WSubField =>
+      (root, SubIndex(tail, e.value, e.tpe, e.flow))
+    case e: SubField =>
       val (root, tail) = splitRef(e.expr)
       tail match {
-        case EmptyExpression => (root, WRef(e.name, e.tpe, root.kind, e.flow))
-        case exp             => (root, WSubField(tail, e.name, e.tpe, e.flow))
+        case EmptyExpression => (root, Reference(e.name, e.tpe, root.kind, e.flow))
+        case exp             => (root, SubField(tail, e.name, e.tpe, e.flow))
       }
+    case e: SubAccess =>
+      val (root, tail) = splitRef(e.expr)
+      (root, SubAccess(tail, e.index, e.tpe, e.flow))
   }
 
   /** Adds a root reference to some SubField/SubIndex chain */
@@ -801,7 +823,7 @@ object Utils extends LazyLogging {
 
     "scalared", "sequence", "shortint", "shortreal", "showcancelled",
     "signed", "small", "solve", "specify", "specparam", "static",
-    "strength", "string", "strong0", "strong1", "struct", "super",
+    "strength", "string", "strong", "strong0", "strong1", "struct", "super",
     "supply0", "supply1",
 
     "table", "tagged", "task", "this", "throughout", "time", "timeprecision",
@@ -812,7 +834,7 @@ object Utils extends LazyLogging {
 
     "var", "vectored", "virtual", "void",
 
-    "wait", "wait_order", "wand", "weak0", "weak1", "while",
+    "wait", "wait_order", "wand", "weak", "weak0", "weak1", "while",
     "wildcard", "wire", "with", "within", "wor",
 
     "xnor", "xor",
