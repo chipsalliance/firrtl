@@ -594,22 +594,21 @@ case class Attach(info: Info, exprs: Seq[Expression]) extends Statement with Has
   def foreachString(f: String => Unit):           Unit = ()
   def foreachInfo(f:   Info => Unit):             Unit = f(info)
 }
-trait NamedStatement extends Statement with HasName
 
 @data class Stop(info: Info, ret: Int, clk: Expression, en: Expression, @since("FIRRTL 1.5") name: String = "")
     extends Statement
     with HasInfo
-    with NamedStatement
+    with IsDeclaration
     with UseSerializer {
   def mapStmt(f:     Statement => Statement):   Statement = this
-  def mapExpr(f:     Expression => Expression): Statement = Stop(info, ret, f(clk), f(en))
+  def mapExpr(f:     Expression => Expression): Statement = Stop(info, ret, f(clk), f(en), name)
   def mapType(f:     Type => Type):             Statement = this
-  def mapString(f:   String => String):         Statement = this
+  def mapString(f:   String => String):         Statement = withName(f(name))
   def mapInfo(f:     Info => Info):             Statement = this.copy(info = f(info))
   def foreachStmt(f: Statement => Unit):        Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = { f(clk); f(en) }
   def foreachType(f:   Type => Unit):   Unit = ()
-  def foreachString(f: String => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f:   Info => Unit):   Unit = f(info)
   def copy(info: Info = info, ret: Int = ret, clk: Expression = clk, en: Expression = en): Stop = {
     Stop(info, ret, clk, en, name)
@@ -629,17 +628,17 @@ object Stop {
   @since("FIRRTL 1.5") name: String = "")
     extends Statement
     with HasInfo
-      with NamedStatement
+      with IsDeclaration
     with UseSerializer {
   def mapStmt(f:     Statement => Statement):   Statement = this
-  def mapExpr(f:     Expression => Expression): Statement = Print(info, string, args.map(f), f(clk), f(en))
+  def mapExpr(f:     Expression => Expression): Statement = Print(info, string, args.map(f), f(clk), f(en), name)
   def mapType(f:     Type => Type):             Statement = this
-  def mapString(f:   String => String):         Statement = this
+  def mapString(f:   String => String):         Statement = withName(f(name))
   def mapInfo(f:     Info => Info):             Statement = this.copy(info = f(info))
   def foreachStmt(f: Statement => Unit):        Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = { args.foreach(f); f(clk); f(en) }
   def foreachType(f:   Type => Unit):   Unit = ()
-  def foreachString(f: String => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f:   Info => Unit):   Unit = f(info)
   def copy(
     info:   Info = info,
@@ -674,18 +673,18 @@ object Formal extends Enumeration {
   @since("FIRRTL 1.5") name: String = "")
     extends Statement
     with HasInfo
-      with NamedStatement
+      with IsDeclaration
     with UseSerializer {
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement =
     copy(clk = f(clk), pred = f(pred), en = f(en))
   def mapType(f:     Type => Type):      Statement = this
-  def mapString(f:   String => String):  Statement = this
+  def mapString(f:   String => String):  Statement = withName(f(name))
   def mapInfo(f:     Info => Info):      Statement = copy(info = f(info))
   def foreachStmt(f: Statement => Unit): Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = { f(clk); f(pred); f(en); }
   def foreachType(f:   Type => Unit):   Unit = ()
-  def foreachString(f: String => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f:   Info => Unit):   Unit = f(info)
   def copy(
     op:   Formal.Value = op,
