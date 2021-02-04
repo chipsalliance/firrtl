@@ -115,7 +115,12 @@ class RemoveWires extends Transform with DependencyAPIMigration {
           val initDep = Some(reg.init).filter(we(WRef(reg)) != we(_)) // Dependency exists IF reg doesn't init itself
           regInfo(we(WRef(reg))) = reg
           netlist(we(WRef(reg))) = (Seq(reg.clock) ++ resetDep ++ initDep, reg.info)
-        case decl: IsDeclaration => // Keep all declarations except for nodes and non-Analog wires
+        case other @ (_: Print | _: Stop | _: Attach | _: Verification) =>
+          otherStmts += other
+        case decl: IsDeclaration =>
+          // Keep all declarations except for nodes and non-Analog wires and "other" statements.
+          // Thus this is expected to match DefInstance and DefMemory which both do not connect to
+          // any signals directly (instead a separate Connect is used).
           decls += decl
         case con @ Connect(cinfo, lhs, rhs) =>
           kind(lhs) match {
@@ -133,8 +138,6 @@ class RemoveWires extends Transform with DependencyAPIMigration {
               netlist(we(expr)) = (Seq(ValidIf(Utils.zero, getGroundZero(tpe), tpe)), info)
             case _ => otherStmts += invalid
           }
-        case other @ (_: Print | _: Stop | _: Attach | _: Verification) =>
-          otherStmts += other
         case EmptyStmt => // Dont bother keeping EmptyStmts around
         case block: Block => block.foreach(onStmt)
         case _ => throwInternalError()
