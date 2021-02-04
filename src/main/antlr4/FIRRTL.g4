@@ -103,13 +103,17 @@ stmt
   | exp '<-' exp info?
   | exp 'is' 'invalid' info?
   | when
-  | 'stop(' exp exp intLit ')' info?
-  | 'printf(' exp exp StringLit ( exp)* ')' info?
+  | 'stop(' exp exp intLit ')' stmtLabel? info?
+  | 'printf(' exp exp StringLit ( exp)* ')' stmtLabel? info?
   | 'skip' info?
   | 'attach' '(' exp+ ')' info?
-  | 'assert' '(' exp exp exp StringLit ')' info?
-  | 'assume' '(' exp exp exp StringLit ')' info?
-  | 'cover' '(' exp exp exp StringLit ')' info?
+  | 'assert' '(' exp exp exp StringLit ')' stmtLabel? info?
+  | 'assume' '(' exp exp exp StringLit ')' stmtLabel? info?
+  | 'cover' '(' exp exp exp StringLit ')' stmtLabel? info?
+  ;
+
+stmtLabel
+  : ':' id
   ;
 
 memField

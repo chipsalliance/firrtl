@@ -4,7 +4,7 @@ package firrtl
 package ir
 
 import Utils.{dec2string, trim}
-import dataclass.data
+import dataclass.{data, since}
 import firrtl.constraint.{Constraint, IsKnown, IsVar}
 import org.apache.commons.text.translate.{AggregateTranslator, JavaUnicodeEscaper, LookupTranslator}
 
@@ -594,7 +594,7 @@ case class Attach(info: Info, exprs: Seq[Expression]) extends Statement with Has
   def foreachString(f: String => Unit):           Unit = ()
   def foreachInfo(f:   Info => Unit):             Unit = f(info)
 }
-@data class Stop(info: Info, ret: Int, clk: Expression, en: Expression)
+@data class Stop(info: Info, ret: Int, clk: Expression, en: Expression, @since("FIRRTL 1.5") name: String = "")
     extends Statement
     with HasInfo
     with UseSerializer {
@@ -609,7 +609,7 @@ case class Attach(info: Info, exprs: Seq[Expression]) extends Statement with Has
   def foreachString(f: String => Unit): Unit = ()
   def foreachInfo(f:   Info => Unit):   Unit = f(info)
   def copy(info: Info = info, ret: Int = ret, clk: Expression = clk, en: Expression = en): Stop = {
-    Stop(info, ret, clk, en)
+    Stop(info, ret, clk, en, name)
   }
 }
 object Stop {
@@ -622,7 +622,8 @@ object Stop {
   string: StringLit,
   args:   Seq[Expression],
   clk:    Expression,
-  en:     Expression)
+  en:     Expression,
+  @since("FIRRTL 1.5") name: String = "")
     extends Statement
     with HasInfo
     with UseSerializer {
@@ -643,7 +644,7 @@ object Stop {
     clk:    Expression = clk,
     en:     Expression = en
   ): Print = {
-    Print(info, string, args, clk, en)
+    Print(info, string, args, clk, en, name)
   }
 }
 object Print {
@@ -665,7 +666,8 @@ object Formal extends Enumeration {
   clk:  Expression,
   pred: Expression,
   en:   Expression,
-  msg:  StringLit)
+  msg:  StringLit,
+  @since("FIRRTL 1.5") name: String = "")
     extends Statement
     with HasInfo
     with UseSerializer {
@@ -688,7 +690,7 @@ object Formal extends Enumeration {
     en:   Expression = en,
     msg:  StringLit = msg
   ): Verification = {
-    Verification(op, info, clk, pred, en, msg)
+    Verification(op, info, clk, pred, en, msg, name)
   }
 }
 object Verification {
