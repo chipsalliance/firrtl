@@ -536,6 +536,20 @@ class CheckSpec extends AnyFlatSpec with Matchers {
     }
   }
 
+  it should "throw an exception if a statement name is used as a reference" in {
+    val src = """
+        |circuit test:
+        |  module test:
+        |    input clock: Clock
+        |    output a: UInt<2>
+        |    stop(clock, UInt(1), 1) : hello
+        |    a <= hello
+        |""".stripMargin
+    assertThrows[CheckHighForm.UndeclaredReferenceException] {
+      checkHighInput(src)
+    }
+  }
+
 }
 
 object CheckSpec {

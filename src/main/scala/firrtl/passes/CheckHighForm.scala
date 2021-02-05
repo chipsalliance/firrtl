@@ -250,13 +250,15 @@ trait CheckHighFormLike { this: Pass =>
       e.foreach(checkHighFormE(info, mname, names))
     }
 
-    def checkName(info: Info, mname: String, names: ScopeView)(name: String): Unit = {
+    def checkName(info: Info, mname: String, names: ScopeView, canBeReference: Boolean)(name: String): Unit = {
       // Empty names are allowed for backwards compatibility reasons and
       // indicate that the entity has essentially no name.
-      if(name.isEmpty) return
+      if (!canBeReference && name.isEmpty) return
       if (!names.legalDecl(name))
         errors.append(new NotUniqueException(info, mname, name))
-      names.declare(name)
+      if(canBeReference) {
+        names.declare(name)
+      }
     }
 
     def checkInstance(info: Info, child: String, parent: String): Unit = {
@@ -273,7 +275,11 @@ trait CheckHighFormLike { this: Pass =>
         case NoInfo => minfo
         case x      => x
       }
-      s.foreach(checkName(info, mname, names))
+      val canBeReference = s match {
+        case _: Stop | _: Print | _: Verification => false
+        case _ => true
+      }
+      s.foreach(checkName(info, mname, names, canBeReference))
       s match {
         case DefRegister(info, name, tpe, _, reset, init) =>
           if (hasFlip(tpe))
