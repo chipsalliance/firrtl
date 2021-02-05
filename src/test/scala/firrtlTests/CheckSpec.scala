@@ -384,6 +384,23 @@ class CheckSpec extends AnyFlatSpec with Matchers {
     }
   }
 
+  "Attempting to shadow a statement name" should "throw an error" in {
+    val input =
+      s"""|circuit scopes:
+          |  module scopes:
+          |    input c: Clock
+          |    input i: UInt<1>
+          |    output o: UInt<1>
+          |    wire x: UInt<1>
+          |    when i:
+          |      stop(c, UInt(1), 1) : x
+          |    o <= and(x, i)
+          |""".stripMargin
+    assertThrows[CheckHighForm.NotUniqueException] {
+      checkHighInput(input)
+    }
+  }
+
   "Conditionally statements" should "create separate consequent and alternate scopes" in {
     val input =
       s"""|circuit scopes:
