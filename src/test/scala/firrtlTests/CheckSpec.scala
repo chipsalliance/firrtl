@@ -401,6 +401,19 @@ class CheckSpec extends AnyFlatSpec with Matchers {
     }
   }
 
+  "Colliding statement names" should "throw an error" in {
+    val input =
+      s"""|circuit test:
+          |  module test:
+          |    input c: Clock
+          |    stop(c, UInt(1), 1) : x
+          |    stop(c, UInt(1), 1) : x
+          |""".stripMargin
+    assertThrows[CheckHighForm.NotUniqueException] {
+      checkHighInput(input)
+    }
+  }
+
   "Conditionally statements" should "create separate consequent and alternate scopes" in {
     val input =
       s"""|circuit scopes:

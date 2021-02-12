@@ -22,6 +22,10 @@ trait CheckHighFormLike { this: Pass =>
       moduleNS += name
       scopes.head += name
     }
+    // ensures that the name cannot be used again, but prevent references to this name
+    def addToNamespace(name: String): Unit = {
+      moduleNS += name
+    }
     def expandMPortVisibility(port: CDefMPort): Unit = {
       // Legacy CHIRRTL ports are visible in any scope where their parent memory is visible
       scopes.find(_.contains(port.mem)).getOrElse(scopes.head) += port.name
@@ -258,6 +262,8 @@ trait CheckHighFormLike { this: Pass =>
         errors.append(new NotUniqueException(info, mname, name))
       if(canBeReference) {
         names.declare(name)
+      } else {
+        names.addToNamespace(name)
       }
     }
 
