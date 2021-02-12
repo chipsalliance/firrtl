@@ -104,11 +104,11 @@ object Serializer {
       }
     case stop @ Stop(info, ret, clk, en) =>
       b ++= "stop("; s(clk); b ++= ", "; s(en); b ++= ", "; b ++= ret.toString; b += ')'
-      sStmtLabel(stop.name) ; s(info)
+      sStmtName(stop.name) ; s(info)
     case print @ Print(info, string, args, clk, en) =>
       b ++= "printf("; s(clk); b ++= ", "; s(en); b ++= ", "; b ++= string.escape
       if (args.nonEmpty) b ++= ", "; s(args, ", "); b += ')'
-      sStmtLabel(print.name) ; s(info)
+      sStmtName(print.name) ; s(info)
     case IsInvalid(info, expr)    => s(expr); b ++= " is invalid"; s(info)
     case DefWire(info, name, tpe) => b ++= "wire "; b ++= name; b ++= " : "; s(tpe); s(info)
     case DefRegister(info, name, tpe, clock, reset, init) =>
@@ -142,7 +142,7 @@ object Serializer {
       b ++= "attach ("; s(exprs, ", "); b += ')'; s(info)
     case veri @ Verification(op, info, clk, pred, en, msg) =>
       b ++= op.toString; b += '('; s(List(clk, pred, en), ", ", false); b ++= msg.escape
-      b += ')'; sStmtLabel(veri.name) ; s(info)
+      b += ')'; sStmtName(veri.name) ; s(info)
 
     // WIR
     case firrtl.CDefMemory(info, name, tpe, size, seq, readUnderWrite) =>
@@ -157,7 +157,7 @@ object Serializer {
     case other => b ++= other.serialize // Handle user-defined nodes
   }
 
-  private def sStmtLabel(lbl: String)(implicit b: StringBuilder): Unit = {
+  private def sStmtName(lbl: String)(implicit b: StringBuilder): Unit = {
     if(lbl.isEmpty) return
     b ++= s" : $lbl"
   }

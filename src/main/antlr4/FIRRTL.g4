@@ -103,16 +103,16 @@ stmt
   | exp '<-' exp info?
   | exp 'is' 'invalid' info?
   | when
-  | 'stop(' exp exp intLit ')' stmtLabel? info?
-  | 'printf(' exp exp StringLit ( exp)* ')' stmtLabel? info?
+  | 'stop(' exp exp intLit ')' stmtName? info?
+  | 'printf(' exp exp StringLit ( exp)* ')' stmtName? info?
   | 'skip' info?
   | 'attach' '(' exp+ ')' info?
-  | 'assert' '(' exp exp exp StringLit ')' stmtLabel? info?
-  | 'assume' '(' exp exp exp StringLit ')' stmtLabel? info?
-  | 'cover' '(' exp exp exp StringLit ')' stmtLabel? info?
+  | 'assert' '(' exp exp exp StringLit ')' stmtName? info?
+  | 'assume' '(' exp exp exp StringLit ')' stmtName? info?
+  | 'cover' '(' exp exp exp StringLit ')' stmtName? info?
   ;
 
-stmtLabel
+stmtName
   : ':' id
   ;
 
