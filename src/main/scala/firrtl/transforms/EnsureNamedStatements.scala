@@ -34,7 +34,8 @@ object EnsureNamedStatements extends Transform with DependencyAPIMigration {
     case other => other.mapStmt(onStmt(namespace))
   }
 
-  // we are using a slightly different algorithm than the basic namespace
+  // We are using a slightly different algorithm than the basic namespace.
+  // We want all generated names to end in a number like `assert_0`, `assert_1`, etc.
   private def makeName(namespace: Namespace, base: String): String = {
     val name = Iterator.from(0).map(i => s"${base}_$i").find(n => !namespace.contains(n)).get
     namespace.newName(name)
