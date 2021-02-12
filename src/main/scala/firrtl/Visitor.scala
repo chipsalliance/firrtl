@@ -347,7 +347,8 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
           case "inst" => DefInstance(info, ctx.id(0).getText, ctx.id(1).getText)
           case "node" => DefNode(info, ctx.id(0).getText, visitExp(ctx_exp(0)))
 
-          case "stop("  => Stop(info, string2Int(ctx.intLit().getText), visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), name=stmtName)
+          case "stop(" =>
+            Stop(info, string2Int(ctx.intLit().getText), visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), name = stmtName)
           case "attach" => Attach(info, ctx_exp.map(visitExp).toSeq)
           case "printf(" =>
             Print(
@@ -356,7 +357,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
               ctx_exp.drop(2).map(visitExp).toSeq,
               visitExp(ctx_exp(0)),
               visitExp(ctx_exp(1)),
-              name=stmtName
+              name = stmtName
             )
           // formal
           case "assert" =>
@@ -367,7 +368,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
               visitExp(ctx_exp(1)),
               visitExp(ctx_exp(2)),
               visitStringLit(ctx.StringLit),
-              name=stmtName
+              name = stmtName
             )
           case "assume" =>
             Verification(
@@ -377,7 +378,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
               visitExp(ctx_exp(1)),
               visitExp(ctx_exp(2)),
               visitStringLit(ctx.StringLit),
-              name=stmtName
+              name = stmtName
             )
           case "cover" =>
             Verification(
@@ -387,7 +388,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
               visitExp(ctx_exp(1)),
               visitExp(ctx_exp(2)),
               visitStringLit(ctx.StringLit),
-              name=stmtName
+              name = stmtName
             )
           // end formal
           case "skip" => EmptyStmt

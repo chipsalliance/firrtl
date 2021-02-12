@@ -154,15 +154,16 @@ class ParserSpec extends FirrtlFlatSpec {
       Seq("assert", "assume", "cover").map(_ + "(c, UInt(1), UInt(1), \"\")")
     val validLabels = Seq(":test" -> "test", " :test" -> "test", " : test" -> "test", " : test01" -> "test01")
     statements.foreach { stmt =>
-      validLabels.foreach { case (lbl, expected) =>
-        val line = "    " + stmt + lbl
-        val src = (prelude :+ line).mkString("\n") + "\n"
-        val res = firrtl.Parser.parse(src)
-        CircuitState(res, Nil) should containTree {
-          case s: Stop => s.name == expected
-          case s: Print => s.name == expected
-          case s: Verification => s.name == expected
-        }
+      validLabels.foreach {
+        case (lbl, expected) =>
+          val line = "    " + stmt + lbl
+          val src = (prelude :+ line).mkString("\n") + "\n"
+          val res = firrtl.Parser.parse(src)
+          CircuitState(res, Nil) should containTree {
+            case s: Stop         => s.name == expected
+            case s: Print        => s.name == expected
+            case s: Verification => s.name == expected
+          }
       }
     }
   }

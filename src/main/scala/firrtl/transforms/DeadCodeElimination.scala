@@ -258,8 +258,8 @@ class DeadCodeElimination extends Transform with RegisteredTransform with Depend
               renames.delete(inst.name)
               EmptyStmt
           }
-        case print:  Print => deleteIfNotEnabled(print, print.en)
-        case stop:   Stop  => deleteIfNotEnabled(stop, stop.en)
+        case print:  Print        => deleteIfNotEnabled(print, print.en)
+        case stop:   Stop         => deleteIfNotEnabled(stop, stop.en)
         case formal: Verification => deleteIfNotEnabled(formal, formal.en)
         // Statements are also declarations and thus this case needs to come *after* checking the
         // print, stop and verification statements.
@@ -270,7 +270,7 @@ class DeadCodeElimination extends Transform with RegisteredTransform with Depend
             renames.delete(decl.name)
             EmptyStmt
           } else decl
-        case con:    Connect =>
+        case con: Connect =>
           val node = getDeps(con.loc) match { case Seq(elt) => elt }
           if (deadNodes.contains(node)) EmptyStmt else con
         case Attach(info, exprs) => // If any exprs are dead then all are

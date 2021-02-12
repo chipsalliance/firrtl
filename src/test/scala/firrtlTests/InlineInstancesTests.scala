@@ -506,10 +506,10 @@ class InlineInstancesTests extends LowTransformSpec {
       Seq(
         inline("Inline"),
         NoCircuitDedupAnnotation,
-        DummyAnno(inlined.ref("assert1")),
+        DummyAnno(inlined.ref("assert1"))
       ),
       Seq(
-        DummyAnno(top.ref("i_assert1")),
+        DummyAnno(top.ref("i_assert1"))
       )
     )
   }

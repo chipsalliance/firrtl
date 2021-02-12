@@ -260,7 +260,7 @@ trait CheckHighFormLike { this: Pass =>
       if (!canBeReference && name.isEmpty) return
       if (!names.legalDecl(name))
         errors.append(new NotUniqueException(info, mname, name))
-      if(canBeReference) {
+      if (canBeReference) {
         names.declare(name)
       } else {
         names.addToNamespace(name)

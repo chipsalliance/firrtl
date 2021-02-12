@@ -620,15 +620,15 @@ object Stop {
   }
 }
 @data class Print(
-  info:   Info,
-  string: StringLit,
-  args:   Seq[Expression],
-  clk:    Expression,
-  en:     Expression,
+  info:                      Info,
+  string:                    StringLit,
+  args:                      Seq[Expression],
+  clk:                       Expression,
+  en:                        Expression,
   @since("FIRRTL 1.5") name: String = "")
     extends Statement
     with HasInfo
-      with IsDeclaration
+    with IsDeclaration
     with UseSerializer {
   def mapStmt(f:     Statement => Statement):   Statement = this
   def mapExpr(f:     Expression => Expression): Statement = Print(info, string, args.map(f), f(clk), f(en), name)
@@ -664,16 +664,16 @@ object Formal extends Enumeration {
 }
 
 @data class Verification(
-  op:   Formal.Value,
-  info: Info,
-  clk:  Expression,
-  pred: Expression,
-  en:   Expression,
-  msg:  StringLit,
+  op:                        Formal.Value,
+  info:                      Info,
+  clk:                       Expression,
+  pred:                      Expression,
+  en:                        Expression,
+  msg:                       StringLit,
   @since("FIRRTL 1.5") name: String = "")
     extends Statement
     with HasInfo
-      with IsDeclaration
+    with IsDeclaration
     with UseSerializer {
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement =

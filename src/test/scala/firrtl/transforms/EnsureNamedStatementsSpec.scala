@@ -32,8 +32,8 @@ class EnsureNamedStatementsSpec extends LeanTransformSpec(Seq(Dependency(EnsureN
       """assert(clock, UInt<1>("h0"), UInt<1>("h0"), "") : assert_1""",
       """assume(clock, UInt<1>("h0"), UInt<1>("h0"), "") : assume_0""",
       """cover(clock, UInt<1>("h0"), UInt<1>("h0"), "") : cover_0""",
-      """cover(clock, UInt<1>("h0"), UInt<1>("h0"), "") : cover_1""",
+      """cover(clock, UInt<1>("h0"), UInt<1>("h0"), "") : cover_1"""
     )
-    expected.foreach(e =>  assert(result.contains(e)))
+    expected.foreach(e => assert(result.contains(e)))
   }
 }

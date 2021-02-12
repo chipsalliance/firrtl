@@ -190,7 +190,7 @@ class InlineInstances extends Transform with DependencyAPIMigration with Registe
       def onName(ofModuleOpt: Option[String])(name: String): String = {
         // Empty names are allowed for backwards compatibility reasons and
         // indicate that the entity has essentially no name and thus cannot be prefixed.
-        if(name.isEmpty) return name
+        if (name.isEmpty) return name
         if (prefix.nonEmpty && !ns.tryName(prefix + name)) {
           throw new Exception(s"Inlining failed. Inlined name '${prefix + name}' already exists")
         }
