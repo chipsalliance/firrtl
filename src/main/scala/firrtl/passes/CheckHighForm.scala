@@ -257,13 +257,15 @@ trait CheckHighFormLike { this: Pass =>
     def checkName(info: Info, mname: String, names: ScopeView, canBeReference: Boolean)(name: String): Unit = {
       // Empty names are allowed for backwards compatibility reasons and
       // indicate that the entity has essentially no name.
-      if (!canBeReference && name.isEmpty) return
-      if (!names.legalDecl(name))
-        errors.append(new NotUniqueException(info, mname, name))
-      if (canBeReference) {
-        names.declare(name)
-      } else {
-        names.addToNamespace(name)
+      if (name.isEmpty) { assert(!canBeReference, "A statement with an empty name cannot be used as a reference!") }
+      else {
+        if (!names.legalDecl(name))
+          errors.append(new NotUniqueException(info, mname, name))
+        if (canBeReference) {
+          names.declare(name)
+        } else {
+          names.addToNamespace(name)
+        }
       }
     }
 
