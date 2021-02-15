@@ -18,26 +18,22 @@ object EnsureNamedStatements extends Transform with DependencyAPIMigration {
     case e:   ExtModule => e
     case mod: Module =>
       val namespace = Namespace(mod)
+      // Ensure we always start with _0 suffix
+      val prefixes = Seq("cover", "assert", "assume", "print", "stop")
+      prefixes.filterNot(namespace.contains).foreach(namespace.newName)
       mod.mapStmt(onStmt(namespace))
   }
 
   private def onStmt(namespace: Namespace)(stmt: Statement): Statement = stmt match {
-    case s: Print if s.name.isEmpty => s.withName(makeName(namespace, "print"))
-    case s: Stop if s.name.isEmpty => s.withName(makeName(namespace, "stop"))
+    case s: Print if s.name.isEmpty => s.withName(namespace.newName("print"))
+    case s: Stop if s.name.isEmpty => s.withName(namespace.newName("stop"))
     case s: Verification if s.name.isEmpty =>
       val baseName = s.op match {
         case Formal.Cover  => "cover"
         case Formal.Assert => "assert"
         case Formal.Assume => "assume"
       }
-      s.withName(makeName(namespace, baseName))
+      s.withName(namespace.newName(baseName))
     case other => other.mapStmt(onStmt(namespace))
-  }
-
-  // We are using a slightly different algorithm than the basic namespace.
-  // We want all generated names to end in a number like `assert_0`, `assert_1`, etc.
-  private def makeName(namespace: Namespace, base: String): String = {
-    val name = Iterator.from(0).map(i => s"${base}_$i").find(n => !namespace.contains(n)).get
-    namespace.newName(name)
   }
 }
