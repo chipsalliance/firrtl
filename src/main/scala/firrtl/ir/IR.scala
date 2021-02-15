@@ -227,6 +227,13 @@ abstract class Expression extends FirrtlNode {
   */
 sealed trait RefLikeExpression extends Expression { def flow: Flow }
 
+/** Represents a statement that can be referenced in a firrtl expression.
+  * This explicitly excludes named side-effecting statements like Print, Stop and Verification.
+  * Note: This trait cannot be sealed since the memory ports are declared in WIR.scala.
+  *       Once we fully remove all WIR, this trait could be sealed.
+  */
+trait CanBeReferenced
+
 object Reference {
 
   /** Creates a Reference from a Wire */
@@ -387,7 +394,11 @@ abstract class Statement extends FirrtlNode {
   def foreachString(f: String => Unit):           Unit
   def foreachInfo(f:   Info => Unit):             Unit
 }
-case class DefWire(info: Info, name: String, tpe: Type) extends Statement with IsDeclaration with UseSerializer {
+case class DefWire(info: Info, name: String, tpe: Type)
+    extends Statement
+    with IsDeclaration
+    with CanBeReferenced
+    with UseSerializer {
   def mapStmt(f:       Statement => Statement):   Statement = this
   def mapExpr(f:       Expression => Expression): Statement = this
   def mapType(f:       Type => Type):             Statement = DefWire(info, name, f(tpe))
@@ -408,6 +419,7 @@ case class DefRegister(
   init:  Expression)
     extends Statement
     with IsDeclaration
+    with CanBeReferenced
     with UseSerializer {
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement =
@@ -429,6 +441,7 @@ object DefInstance {
 case class DefInstance(info: Info, name: String, module: String, tpe: Type = UnknownType)
     extends Statement
     with IsDeclaration
+    with CanBeReferenced
     with UseSerializer {
   def mapExpr(f:       Expression => Expression): Statement = this
   def mapStmt(f:       Statement => Statement):   Statement = this
@@ -462,6 +475,7 @@ case class DefMemory(
   readUnderWrite: ReadUnderWrite.Value = ReadUnderWrite.Undefined)
     extends Statement
     with IsDeclaration
+    with CanBeReferenced
     with UseSerializer {
   def mapStmt(f:       Statement => Statement):   Statement = this
   def mapExpr(f:       Expression => Expression): Statement = this
@@ -477,6 +491,7 @@ case class DefMemory(
 case class DefNode(info: Info, name: String, value: Expression)
     extends Statement
     with IsDeclaration
+    with CanBeReferenced
     with UseSerializer {
   def mapStmt(f:       Statement => Statement):   Statement = this
   def mapExpr(f:       Expression => Expression): Statement = DefNode(info, name, f(value))
@@ -1022,6 +1037,7 @@ case class Port(
   tpe:       Type)
     extends FirrtlNode
     with IsDeclaration
+    with CanBeReferenced
     with UseSerializer {
   def mapType(f:   Type => Type):     Port = Port(info, name, direction, f(tpe))
   def mapString(f: String => String): Port = Port(info, f(name), direction, tpe)

@@ -284,8 +284,8 @@ trait CheckHighFormLike { this: Pass =>
         case x      => x
       }
       val canBeReference = s match {
-        case _: Stop | _: Print | _: Verification => false
-        case _ => true
+        case _: CanBeReferenced => true
+        case _ => false
       }
       s.foreach(checkName(info, mname, names, canBeReference))
       s match {
