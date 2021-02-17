@@ -635,12 +635,13 @@ object Stop {
   }
 }
 @data class Print(
-  info:                      Info,
-  string:                    StringLit,
-  args:                      Seq[Expression],
-  clk:                       Expression,
-  en:                        Expression,
-  @since("FIRRTL 1.5") name: String = "")
+  info:   Info,
+  string: StringLit,
+  args:   Seq[Expression],
+  clk:    Expression,
+  en:     Expression,
+  @since("FIRRTL 1.5")
+  name: String = "")
     extends Statement
     with HasInfo
     with IsDeclaration
@@ -679,13 +680,14 @@ object Formal extends Enumeration {
 }
 
 @data class Verification(
-  op:                        Formal.Value,
-  info:                      Info,
-  clk:                       Expression,
-  pred:                      Expression,
-  en:                        Expression,
-  msg:                       StringLit,
-  @since("FIRRTL 1.5") name: String = "")
+  op:   Formal.Value,
+  info: Info,
+  clk:  Expression,
+  pred: Expression,
+  en:   Expression,
+  msg:  StringLit,
+  @since("FIRRTL 1.5")
+  name: String = "")
     extends Statement
     with HasInfo
     with IsDeclaration
