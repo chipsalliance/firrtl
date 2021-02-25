@@ -84,6 +84,7 @@ class MemDelayAndReadwriteTransformer(m: DefModule) {
   private val netlist = new collection.mutable.HashMap[WrappedExpression, Expression]
   private val exprReplacements = new collection.mutable.HashMap[WrappedExpression, Expression]
   private val newConns = new mutable.ArrayBuffer[Connect]
+  private val passthroughMems = new collection.mutable.HashSet[WrappedExpression]
 
   private def findMemConns(s: Statement): Unit = s match {
     case Connect(_, loc, expr) if (kind(loc) == MemKind) => netlist(we(loc)) = expr
@@ -95,7 +96,15 @@ class MemDelayAndReadwriteTransformer(m: DefModule) {
     case ex => ex
   }
 
+  def canPassthrough(mem: DefMemory): Boolean = {
+    (mem.readLatency <= 1 && mem.writeLatency == 1 &&
+      (mem.readwriters.isEmpty || (mem.readLatency == 1 && mem.readUnderWrite != ReadUnderWrite.New)))
+  }
+
   private def transform(s: Statement): Statement = s.map(transform) match {
+    case mem: DefMemory if canPassthrough(mem) =>
+      passthroughMems += WRef(mem)
+      mem
     case mem: DefMemory =>
       // Per-memory bookkeeping
       val portNS = Namespace(mem.readers ++ mem.writers)
@@ -163,7 +172,13 @@ class MemDelayAndReadwriteTransformer(m: DefModule) {
 
       newConns ++= (readStmts ++ writeStmts).flatMap(_.conns)
       Block(newMem +: (readStmts ++ writeStmts).flatMap(_.decls))
-    case sx: Connect if kind(sx.loc) == MemKind => EmptyStmt // Filter old mem connections
+    case sx: Connect if kind(sx.loc) == MemKind =>
+      val (memRef, _) = Utils.splitRef(sx.loc)
+      // Filter old mem connections for *transformed* memories only
+      if (passthroughMems(WrappedExpression(memRef)))
+        sx
+      else
+        EmptyStmt 
     case sx => sx.map(swapMemRefs)
   }
 

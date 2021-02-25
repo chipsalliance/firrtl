@@ -1016,6 +1016,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
           }
           instdeclares += Seq(");")
         case sx: DefMemory =>
+          require(sx.writeLatency == 1)
+          require(sx.readLatency <= 1)
           val options = emissionOptions.getMemoryEmissionOption(moduleTarget.ref(sx.name))
           val fullSize = sx.depth * (sx.dataType match {
             case GroundType(IntWidth(width)) => width
@@ -1023,32 +1025,48 @@ class VerilogEmitter extends SeqTransform with Emitter {
           val decl = if (fullSize > (1 << 29)) "reg /* sparse */" else "reg"
           declareVectorType(decl, sx.name, sx.dataType, sx.depth, sx.info)
           initialize_mem(sx, options)
-          if (sx.readLatency != 0 || sx.writeLatency != 1)
+          if (sx.readLatency > 1 || sx.writeLatency != 1)
             throw EmitterException(
-              "All memories should be transformed into " +
+              "All complex memories should be transformed into " +
                 "blackboxes or combinational by previous passses"
             )
+
+          def createMemWire(name: String, tpe: Type, rhs: InfoExpr): Unit = {
+            declare("wire", name, tpe, MultiInfo(sx.info, rhs.info), rhs.expr)
+          }
+
           for (r <- sx.readers) {
             val data = memPortField(sx, r, "data")
             val addr = memPortField(sx, r, "addr")
-            // Ports should share an always@posedge, so can't have intermediary wire
-
-            declare("wire", LowerTypes.loweredName(data), data.tpe, sx.info)
-            declare("wire", LowerTypes.loweredName(addr), addr.tpe, sx.info)
-            // declare("wire", LowerTypes.loweredName(en), en.tpe)
-
-            //; Read port
-            assign(addr, netlist(addr))
-            // assign(en, netlist(en))     //;Connects value to m.r.en
-            val mem = WRef(sx.name, memType(sx), MemKind, UnknownFlow)
-            val memPort = WSubAccess(mem, addr, sx.dataType, UnknownFlow)
+            val en = memPortField(sx, r, "en")
+            val memPort = WSubAccess(WRef(sx), addr, sx.dataType, UnknownFlow)
             val depthValue = UIntLiteral(sx.depth, IntWidth(sx.depth.bitLength))
             val garbageGuard = DoPrim(Geq, Seq(addr, depthValue), Seq(), UnknownType)
 
-            if ((sx.depth & (sx.depth - 1)) == 0)
-              assign(data, memPort, sx.info)
-            else
-              garbageAssign(data, memPort, garbageGuard, sx.info)
+            val clkSource = netlist(memPortField(sx, r, "clk")).expr
+
+            createMemWire(LowerTypes.loweredName(en), en.tpe, netlist(en))
+
+            if (sx.readLatency == 1 && sx.readUnderWrite != ReadUnderWrite.Old) {
+              val InfoExpr(addrInfo, addrDriver) = netlist(addr)
+              declare("reg", LowerTypes.loweredName(addr), addr.tpe, sx.info)
+              initialize(WRef(LowerTypes.loweredName(addr), addr.tpe), zero, zero)
+              update(addr, addrDriver, clkSource, en, addrInfo)
+            } else {
+              createMemWire(LowerTypes.loweredName(addr), addr.tpe, netlist(addr))
+            }
+
+            if (sx.readLatency == 1 && sx.readUnderWrite == ReadUnderWrite.Old) {
+              declare("reg", LowerTypes.loweredName(data), data.tpe, sx.info)
+              initialize(WRef(LowerTypes.loweredName(data), data.tpe), zero, zero)
+              update(data, memPort, clkSource, en, sx.info)
+            } else {
+              declare("wire", LowerTypes.loweredName(data), data.tpe, sx.info)
+              if ((sx.depth & (sx.depth - 1)) == 0)
+                assign(data, memPort, sx.info)
+              else
+                garbageAssign(data, memPort, garbageGuard, sx.info)
+            }
           }
 
           for (w <- sx.writers) {
@@ -1056,31 +1074,47 @@ class VerilogEmitter extends SeqTransform with Emitter {
             val addr = memPortField(sx, w, "addr")
             val mask = memPortField(sx, w, "mask")
             val en = memPortField(sx, w, "en")
-            //Ports should share an always@posedge, so can't have intermediary wire
-            // TODO should we use the info here for anything?
-            val InfoExpr(_, clk) = netlist(memPortField(sx, w, "clk"))
 
-            declare("wire", LowerTypes.loweredName(data), data.tpe, sx.info)
-            declare("wire", LowerTypes.loweredName(addr), addr.tpe, sx.info)
-            declare("wire", LowerTypes.loweredName(mask), mask.tpe, sx.info)
-            declare("wire", LowerTypes.loweredName(en), en.tpe, sx.info)
+            val clkSource = netlist(memPortField(sx, w, "clk")).expr
 
-            // Write port
-            assign(data, netlist(data))
-            assign(addr, netlist(addr))
-            assign(mask, netlist(mask))
-            assign(en, netlist(en))
+            createMemWire(LowerTypes.loweredName(data), data.tpe, netlist(data))
+            createMemWire(LowerTypes.loweredName(addr), addr.tpe, netlist(addr))
+            createMemWire(LowerTypes.loweredName(mask), mask.tpe, netlist(mask))
+            createMemWire(LowerTypes.loweredName(en), en.tpe, netlist(en))
 
-            val mem = WRef(sx.name, memType(sx), MemKind, UnknownFlow)
-            val memPort = WSubAccess(mem, addr, sx.dataType, UnknownFlow)
-            update(memPort, data, clk, AND(en, mask), sx.info)
+            val memPort = WSubAccess(WRef(sx), addr, sx.dataType, UnknownFlow)
+            update(memPort, data, clkSource, AND(en, mask), sx.info)
           }
 
-          if (sx.readwriters.nonEmpty)
-            throw EmitterException(
-              "All readwrite ports should be transformed into " +
-                "read & write ports by previous passes"
-            )
+          for (rw <- sx.readwriters) {
+            // Read-write ports are not meaningful for comb-read mems
+            require(sx.readLatency == 1)
+            // Currently, no idiomatic way to emit write-first Verilog, in
+            // part because our definition of 'write-first' is very strict.
+            require(sx.readUnderWrite != ReadUnderWrite.New)
+
+            val rdata = memPortField(sx, rw, "rdata")
+            val wdata = memPortField(sx, rw, "wdata")
+            val addr = memPortField(sx, rw, "addr")
+            val en = memPortField(sx, rw, "en")
+            val wmode = memPortField(sx, rw, "wmode")
+            val wmask = memPortField(sx, rw, "wmask")
+            val memPort = WSubAccess(WRef(sx), addr, sx.dataType, UnknownFlow)
+
+            val clkSource = netlist(memPortField(sx, rw, "clk")).expr
+
+            createMemWire(LowerTypes.loweredName(wdata), wdata.tpe, netlist(wdata))
+            createMemWire(LowerTypes.loweredName(addr), addr.tpe, netlist(addr))
+            createMemWire(LowerTypes.loweredName(wmode), wmode.tpe, netlist(wmode))
+            createMemWire(LowerTypes.loweredName(wmask), wmask.tpe, netlist(wmask))
+            createMemWire(LowerTypes.loweredName(en), en.tpe, netlist(en))
+
+            declare("reg", LowerTypes.loweredName(rdata), rdata.tpe, sx.info)
+            initialize(WRef(LowerTypes.loweredName(rdata), rdata.tpe), zero, zero)
+            update(rdata, memPort, clkSource, en, sx.info)
+            update(memPort, wdata, clkSource, AND(en, AND(wmode, wmask)), sx.info)
+          }
+
         case _ =>
       }
     }
