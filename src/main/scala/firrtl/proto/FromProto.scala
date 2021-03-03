@@ -261,6 +261,7 @@ object FromProto {
       case CMEMORY_FIELD_NUMBER     => convert(stmt.getCmemory, info)
       case MEMORY_PORT_FIELD_NUMBER => convert(stmt.getMemoryPort, info)
       case ATTACH_FIELD_NUMBER      => convert(stmt.getAttach, info)
+      case VERIFICATION_FIELD_NUMBER => convert(stmt.getVerification, info)
     }
   }
 
