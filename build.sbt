@@ -62,7 +62,10 @@ lazy val mimaSettings = Seq(
   mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.4.1"),
   // Public method on private object
   mimaBinaryIssueFilters ++= Seq(
-    ProblemFilters.exclude[IncompatibleMethTypeProblem]("firrtl.passes.DestructTypes.destructInstance")
+    ProblemFilters.exclude[IncompatibleMethTypeProblem]("firrtl.passes.DestructTypes.destructInstance"),
+    ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.FirrtlProtos#Firrtl#StatementOrBuilder.hasVerification"),
+    ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.FirrtlProtos#Firrtl#StatementOrBuilder.getVerification"),
+    ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.FirrtlProtos#Firrtl#StatementOrBuilder.getVerificationOrBuilder")
   )
 )
 
