@@ -390,8 +390,6 @@ private class InstrumentMems(
           val wire = DefWire(info, copyName(signal), signal.tpe)
           declarations += wire
 
-          // println(s"Making: ${wire.name}")
-
           // connect the old expression to the new wire
           val con = Connect(info, Reference(wire), value)
           newStmts.append(con)
