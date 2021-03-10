@@ -23,6 +23,7 @@ trait FirrtlCli { this: Shell =>
     WarnNoScalaVersionDeprecation,
     PrettyNoExprInlining,
     DisableFold,
+    OptimizeForFPGA,
     CurrentFirrtlStateAnnotation
   )
     .map(_.addOptions(parser))
