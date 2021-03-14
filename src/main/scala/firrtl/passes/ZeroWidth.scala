@@ -111,8 +111,21 @@ object ZeroWidth extends Transform {
       }
       nonZeros match {
         case Nil => UIntLiteral(ZERO, IntWidth(BigInt(1)))
+<<<<<<< HEAD
         case Seq(x) => x
         case seq => DoPrim(Cat, seq, consts, tpe) map onExp
+=======
+        // We may have an SInt, Cat has type UInt so cast
+        case Seq(x) => castRhs(tpe, x)
+        case seq    => DoPrim(Cat, seq, consts, tpe).map(onExp)
+      }
+    case DoPrim(Andr, Seq(x), _, _) if (bitWidth(x.tpe) == 0) => UIntLiteral(1) // nothing false
+    case other =>
+      other.tpe match {
+        case UIntType(IntWidth(ZERO)) => UIntLiteral(ZERO, IntWidth(BigInt(1)))
+        case SIntType(IntWidth(ZERO)) => SIntLiteral(ZERO, IntWidth(BigInt(1)))
+        case _                        => e.map(onExp)
+>>>>>>> fd55c51b... Fix cat of zero-width SInt (#2116)
       }
     case other => other.tpe match {
       case UIntType(IntWidth(ZERO)) => UIntLiteral(ZERO, IntWidth(BigInt(1)))
