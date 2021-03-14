@@ -111,7 +111,8 @@ object ZeroWidth extends Transform {
       }
       nonZeros match {
         case Nil => UIntLiteral(ZERO, IntWidth(BigInt(1)))
-        case Seq(x) => x
+        // We may have an SInt, Cat has type UInt so cast
+        case Seq(x) => castRhs(tpe, x)
         case seq => DoPrim(Cat, seq, consts, tpe) map onExp
       }
     case other => other.tpe match {
