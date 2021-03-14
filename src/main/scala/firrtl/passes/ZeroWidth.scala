@@ -124,14 +124,9 @@ object ZeroWidth extends Transform with DependencyAPIMigration {
       }
       nonZeros match {
         case Nil => UIntLiteral(ZERO, IntWidth(BigInt(1)))
-<<<<<<< HEAD
-        case Seq(x) => x
-        case seq => DoPrim(Cat, seq, consts, tpe) map onExp
-=======
         // We may have an SInt, Cat has type UInt so cast
         case Seq(x) => castRhs(tpe, x)
-        case seq    => DoPrim(Cat, seq, consts, tpe).map(onExp)
->>>>>>> fd55c51b... Fix cat of zero-width SInt (#2116)
+        case seq => DoPrim(Cat, seq, consts, tpe) map onExp
       }
     case DoPrim(Andr, Seq(x), _, _) if (bitWidth(x.tpe) == 0) => UIntLiteral(1) // nothing false
     case other => other.tpe match {
