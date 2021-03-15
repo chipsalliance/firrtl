@@ -19,7 +19,7 @@ class LegalizeClocksTransformSpec extends FirrtlFlatSpec {
         |    stop(asClock(UInt(1)), UInt(1), 1)
         |""".stripMargin
     val result = compile(input).getEmittedCircuit.value
-    result should include (s"always @(posedge _GEN_")
+    result should include(s"always @(posedge _GEN_")
     result shouldNot include("always @(posedge 1")
   }
 
@@ -30,7 +30,7 @@ class LegalizeClocksTransformSpec extends FirrtlFlatSpec {
         |    printf(asClock(UInt(1)), UInt(1), "hi")
         |""".stripMargin
     val result = compile(input).getEmittedCircuit.value
-    result should include (s"always @(posedge _GEN_")
+    result should include(s"always @(posedge _GEN_")
     result shouldNot include("always @(posedge 1")
   }
 
@@ -45,7 +45,7 @@ class LegalizeClocksTransformSpec extends FirrtlFlatSpec {
         |    out <= r
         |""".stripMargin
     val result = compile(input).getEmittedCircuit.value
-    result should include (s"always @(posedge _GEN_")
+    result should include(s"always @(posedge _GEN_")
     result shouldNot include("always @(posedge 1")
   }
 

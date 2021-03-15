@@ -2,22 +2,15 @@
 
 package firrtlTests.passes
 
-import firrtl.{
-  CircuitState,
-  Parser
-}
-import firrtl.passes.{
-  CheckTypes,
-  InferTypes,
-  VerilogModulusCleanup
-}
+import firrtl.{CircuitState, Parser}
+import firrtl.passes.{CheckTypes, InferTypes, VerilogModulusCleanup}
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
 class VerilogModulusCleanupSpec extends AnyFlatSpec with Matchers {
 
-  behavior of "VerilogModulusCleanup"
+  behavior.of("VerilogModulusCleanup")
 
   it should "add an 'asSInt' prim op if the 'rem' prim op operates on 'SInt' types" in {
 
@@ -30,14 +23,15 @@ class VerilogModulusCleanupSpec extends AnyFlatSpec with Matchers {
          |""".stripMargin
 
     /* Running CheckTypes after VerilogModulusCleanup will fail if the asSInt prim op isn't generated */
-    val output = (Parser.parse(_: String))
+    val output = (Parser
+      .parse(_: String))
       .andThen(CircuitState(_, Seq.empty))
       .andThen(InferTypes.transform)
       .andThen(VerilogModulusCleanup.transform)
       .andThen(CheckTypes.transform)
       .apply(input)
 
-    output.circuit.serialize should include ("asSInt")
+    output.circuit.serialize should include("asSInt")
 
   }
 

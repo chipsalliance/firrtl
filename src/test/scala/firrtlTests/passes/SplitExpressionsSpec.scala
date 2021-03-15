@@ -2,12 +2,7 @@
 
 package firrtlTests.passes
 
-import firrtl.{
-  ir,
-  CircuitState,
-  Parser,
-  PrimOps
-}
+import firrtl.{ir, CircuitState, Parser, PrimOps}
 import firrtl.passes.SplitExpressions
 import firrtl.testutils.FirrtlCheckers._
 
@@ -16,7 +11,7 @@ import org.scalatest.matchers.should.Matchers
 
 class SplitExpressionsSpec extends AnyFlatSpec {
 
-  behavior of "SplitExpressions"
+  behavior.of("SplitExpressions")
 
   it should "be idempotent" in {
 
@@ -30,15 +25,15 @@ class SplitExpressionsSpec extends AnyFlatSpec {
 
     val state = CircuitState(Parser.parse(input), Seq.empty)
 
-    val output = Seq.fill(2)(SplitExpressions).foldLeft(state){ case (acc, a) => a.transform(acc) }
+    val output = Seq.fill(2)(SplitExpressions).foldLeft(state) { case (acc, a) => a.transform(acc) }
 
-    output should be (state)
+    output should be(state)
 
   }
 
   it should "fix issue #2037" in {
 
-    val input=
+    val input =
       """|circuit Foo:
          |  module Foo:
          |    input cond: UInt<1>

@@ -62,7 +62,7 @@ object SplitExpressions extends Pass {
 
       (s match {
         case _: DefNode | _: Connect => s.map(onExp(true))
-        case _                       => s.map(onExp(false))
+        case _ => s.map(onExp(false))
       }) match {
         case x: Block => x.map(onStmt)
         case EmptyStmt => EmptyStmt
