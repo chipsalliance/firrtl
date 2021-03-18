@@ -40,7 +40,7 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
       ivy"${scalaOrganization()}:scala-reflect:${scalaVersion()}",
       ivy"com.github.scopt::scopt:3.7.1",
       ivy"net.jcazevedo::moultingyaml:0.4.2",
-      ivy"org.json4s::json4s-native:3.6.9",
+      ivy"org.json4s::json4s-native:3.6.11",
       ivy"org.apache.commons:commons-text:1.8",
       ivy"org.antlr:antlr4-runtime:$antlr4Version",
       ivy"com.google.protobuf:protobuf-java:$protocVersion"
