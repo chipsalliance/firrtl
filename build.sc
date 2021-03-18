@@ -45,7 +45,7 @@ class firrtlCrossModule(val crossScalaVersion: String)
   override def ivyDeps = T {
     super.ivyDeps() ++ Agg(
       ivy"${scalaOrganization()}:scala-reflect:${scalaVersion()}",
-      ivy"com.github.scopt::scopt:3.7.1",
+      ivy"com.github.scopt::scopt:4.0.1",
       ivy"net.jcazevedo::moultingyaml:0.4.2",
       ivy"org.json4s::json4s-native:3.6.12",
       ivy"org.apache.commons:commons-text:1.9",
