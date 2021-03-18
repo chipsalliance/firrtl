@@ -178,7 +178,7 @@ class InferWidths extends Transform
     Port(p.info, p.name, p.direction, fixType(p.tpe))
   }
 
-  def run (c: Circuit): Circuit = {
+  def run (c: Circuit): Circuit = this.synchronized {
     val ct = CircuitTarget(c.main)
     c.modules foreach ( m => m map addStmtConstraints(ct.module(m.name)))
     constraintSolver.solve()

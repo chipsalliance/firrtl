@@ -739,7 +739,7 @@ object Utils extends LazyLogging {
 
     "scalared", "sequence", "shortint", "shortreal", "showcancelled",
     "signed", "small", "solve", "specify", "specparam", "static",
-    "strength", "string", "strong0", "strong1", "struct", "super",
+    "strength", "string", "strong", "strong0", "strong1", "struct", "super",
     "supply0", "supply1",
 
     "table", "tagged", "task", "this", "throughout", "time", "timeprecision",
@@ -750,7 +750,7 @@ object Utils extends LazyLogging {
 
     "var", "vectored", "virtual", "void",
 
-    "wait", "wait_order", "wand", "weak0", "weak1", "while",
+    "wait", "wait_order", "wand", "weak", "weak0", "weak1", "while",
     "wildcard", "wire", "with", "within", "wor",
 
     "xnor", "xor",
@@ -773,6 +773,15 @@ object Utils extends LazyLogging {
       .map(_.end - 1)
       .toSeq
       .foldLeft(Seq[String]()){ case (seq, id) => seq :+ name.splitAt(id)._1 }
+  }
+
+  /** Returns the value masked with the width.
+    *
+    * This supports truncating negative values as well as values that are too
+    * wide for the width
+    */
+  def maskBigInt(value: BigInt, width: Int): BigInt = {
+    value & ((BigInt(1) << width) - 1)
   }
 }
 
