@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl
 package passes
@@ -21,12 +21,8 @@ object RemoveValidIf extends Pass {
     * @note Accepts [[firrtl.ir.Type Type]] but dyanmically expects [[firrtl.ir.GroundType GroundType]]
     */
   def getGroundZero(tpe: Type): Expression = tpe match {
-    case _: UIntType => UIntZero
-    case _: SIntType => SIntZero
-    case ClockType => ClockZero
-    case _: FixedType => FixedZero
-    case AsyncResetType => AsyncZero
-    case other          => throwInternalError(s"Unexpected type $other")
+    case g: GroundType => Utils.getGroundZero(g)
+    case other => throwInternalError(s"Unexpected type $other")
   }
 
   override def prerequisites = firrtl.stage.Forms.LowForm

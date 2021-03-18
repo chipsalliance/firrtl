@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl
 
@@ -8,7 +8,6 @@ import java.io.Writer
 import scala.collection.mutable
 import scala.util.Try
 import scala.util.control.NonFatal
-
 import firrtl.annotations._
 import firrtl.ir.Circuit
 import firrtl.Utils.throwInternalError
@@ -116,6 +115,14 @@ sealed abstract class CircuitForm(private val value: Int) extends Ordered[Circui
 
   /** Defines a suffix to use if this form is written to a file */
   def outputSuffix: String
+}
+private[firrtl] object CircuitForm {
+  // Private internal utils to reduce number of deprecation warnings
+  val ChirrtlForm = firrtl.ChirrtlForm
+  val HighForm = firrtl.HighForm
+  val MidForm = firrtl.MidForm
+  val LowForm = firrtl.LowForm
+  val UnknownForm = firrtl.UnknownForm
 }
 
 // These magic numbers give an ordering to CircuitForm
@@ -311,7 +318,7 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
 
   def transform(state: CircuitState): CircuitState = execute(state)
 
-  import firrtl.{ChirrtlForm => C, HighForm => H, MidForm => M, LowForm => L, UnknownForm => U}
+  import firrtl.CircuitForm.{ChirrtlForm => C, HighForm => H, MidForm => M, LowForm => L, UnknownForm => U}
 
   override def prerequisites: Seq[Dependency[Transform]] = inputForm match {
     case C => Nil
@@ -420,7 +427,7 @@ trait Emitter extends Transform {
 
   override def invalidates(a: Transform) = false
 
-  @deprecated("Use emission annotations instead", "firrtl 1.0")
+  @deprecated("Use emission annotations instead", "FIRRTL 1.0")
   def emit(state: CircuitState, writer: Writer): Unit
 
   /** An output suffix to use if the output of this [[Emitter]] was written to a file */

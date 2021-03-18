@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl
 package proto
@@ -307,6 +307,7 @@ object ToProto {
               .setCond(convert(cond))
               .setEn(convert(en))
               .setMsg(msg.string)
+            sb.setVerification(vb)
           case ir.IsInvalid(_, expr) =>
             val ib = Firrtl.Statement.IsInvalid
               .newBuilder()

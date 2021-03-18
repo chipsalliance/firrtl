@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.transforms
 
@@ -16,9 +16,9 @@ import scala.collection.mutable
 import scala.util.Try
 
 object InferResets {
-  @deprecated("This is no longer in use and will be removed", "1.3")
+  @deprecated("This is no longer in use and will be removed", "FIRRTL 1.3")
   final class DifferingDriverTypesException private (msg: String) extends PassException(msg)
-  @deprecated("This is no longer in use and will be removed", "1.3")
+  @deprecated("This is no longer in use and will be removed", "FIRRTL 1.3")
   object DifferingDriverTypesException {
     def apply(target: ReferenceTarget, tpes: Seq[(Type, Seq[TypeDriver])]): DifferingDriverTypesException = {
       val xs = tpes.map { case (t, ds) => s"${ds.map(_.target().serialize).mkString(", ")} of type ${t.serialize}" }
@@ -117,7 +117,7 @@ class InferResets extends Transform with DependencyAPIMigration {
       Dependency(passes.InferTypes),
       Dependency(passes.ResolveFlows),
       Dependency[passes.InferWidths]
-    ) ++ stage.Forms.WorkingIR
+    ) ++ stage.Forms.MinimalHighForm
 
   override def invalidates(a: Transform): Boolean = a match {
     case _: checks.CheckResets | passes.CheckTypes => true

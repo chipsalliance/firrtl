@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtlTests
 
@@ -321,6 +321,25 @@ class LowerTypesUniquifySpec extends FirrtlFlatSpec {
     executeTest(input, expected)
   }
 
+  it should "rename nodes colliding with labled statements" in {
+    val input =
+      """circuit Test :
+        |  module Test :
+        |    input clock : Clock
+        |    reg x : { b : UInt<1>, c : { d : UInt<2>, e : UInt<3>}[2], c_1_e : UInt<4>}[2], clock
+        |    node a = x
+        |    printf(clock, UInt(1), "") : a_0_c_
+        |    assert(clock, UInt(1), UInt(1), "") : a__0
+      """.stripMargin
+    val expected = Seq(
+      "node a___0_b = x_0_b",
+      "node a___1_c__1_e = x_1_c__1_e",
+      "node a___1_c_1_e = x_1_c_1_e"
+    )
+
+    executeTest(input, expected)
+  }
+
   it should "rename DefRegister expressions: clock, reset, and init" in {
     val input =
       """circuit Test :
@@ -451,6 +470,24 @@ class LowerTypesUniquifySpec extends FirrtlFlatSpec {
       """.stripMargin
     val expected = Seq(
       "a_0_b <= mux(a___0_c_1_e, or(_a_or_b, xorr(a___0_c_1_e)), orr(cat(a__0_c__0_e, a___1_c_1_e)))"
+    )
+
+    executeTest(input, expected)
+  }
+
+  it should "remove index express in SubAccess" in {
+    val input =
+      s"""circuit Bug :
+         |  module Bug :
+         |    input in0 : UInt<1> [2][2]
+         |    input in1 : UInt<1> [2]
+         |    input in2 : UInt<1> [2]
+         |    output out : UInt<1>
+         |    out <= in0[in1[in2[0]]][in1[in2[1]]]
+         |""".stripMargin
+    val expected = Seq(
+      "node _in0_in1_in1 = _in0_in1_in1_in2_1",
+      "out <= _in0_in1_in1"
     )
 
     executeTest(input, expected)

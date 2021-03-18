@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 // Author: Kevin Laeufer <laeufer@cs.berkeley.edu>
 // Inspired by the uclid5 SMT library (https://github.com/uclid-org/uclid).
 // And the btor2 documentation (BTOR2 , BtorMC and Boolector 3.0 by Niemetz et.al.)
@@ -136,6 +136,17 @@ private case class BVIte(cond: BVExpr, tru: BVExpr, fals: BVExpr) extends BVExpr
   override val width:    Int = tru.width
   override def toString: String = s"ite($cond, $tru, $fals)"
   override def children: List[BVExpr] = List(cond, tru, fals)
+}
+
+/** apply bv arguments to a function which returns a result of bit vector type */
+private case class BVFunctionCall(name: String, args: List[BVExpr], width: Int) extends BVExpr {
+  override def children = args
+  def toSymbol:          BVFunctionSymbol = BVFunctionSymbol(name, args.map(_.width), width)
+  override def toString: String = args.mkString(name + "(", ", ", ")")
+}
+
+private case class BVFunctionSymbol(name: String, argWidths: List[Int], width: Int) {
+  override def toString: String = s"$name : " + (argWidths :+ width).map(w => s"bv<$w>").mkString(" -> ")
 }
 
 private sealed trait ArrayExpr extends SMTExpr { val indexWidth: Int; val dataWidth: Int }

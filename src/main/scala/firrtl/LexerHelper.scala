@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl
 
@@ -98,7 +98,7 @@ abstract class LexerHelper {
       if (tokenBuffer.isEmpty)
         pullToken()
       else
-        tokenBuffer.dequeue
+        tokenBuffer.dequeue()
 
     if (reachedEof)
       t
@@ -157,6 +157,6 @@ abstract class LexerHelper {
     doPop()
 
     indentations.push(targetIndent)
-    tokenBuffer.dequeue
+    tokenBuffer.dequeue()
   }
 }

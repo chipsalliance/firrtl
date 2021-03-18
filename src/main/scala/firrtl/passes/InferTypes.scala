@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.passes
 
@@ -10,10 +10,10 @@ import firrtl.options.Dependency
 
 object InferTypes extends Pass {
 
-  override def prerequisites = Dependency(ResolveKinds) +: firrtl.stage.Forms.WorkingIR
+  override def prerequisites = Dependency(ResolveKinds) +: firrtl.stage.Forms.MinimalHighForm
   override def invalidates(a: Transform) = false
 
-  @deprecated("This should never have been public", "1.3.2")
+  @deprecated("This should never have been public", "FIRRTL 1.3.2")
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]
 
   private type TypeLookup = collection.mutable.HashMap[String, Type]
@@ -102,7 +102,7 @@ object CInferTypes extends Pass {
   override def prerequisites = firrtl.stage.Forms.ChirrtlForm
   override def invalidates(a: Transform) = false
 
-  @deprecated("This should never have been public", "1.3.2")
+  @deprecated("This should never have been public", "FIRRTL 1.3.2")
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]
 
   private type TypeLookup = collection.mutable.HashMap[String, Type]

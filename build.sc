@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 import mill._
 import mill.scalalib._
 import mill.scalalib.publish._
@@ -5,7 +7,7 @@ import mill.modules.Util
 import $ivy.`com.lihaoyi::mill-contrib-buildinfo:$MILL_VERSION`
 import mill.contrib.buildinfo.BuildInfo
 
-object firrtl extends mill.Cross[firrtlCrossModule]("2.11.12", "2.12.12", "2.13.2")
+object firrtl extends mill.Cross[firrtlCrossModule]("2.12.12", "2.13.2")
 
 class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule with PublishModule with BuildInfo {
   override def millSourcePath = super.millSourcePath / os.up
@@ -13,16 +15,13 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
   // 2.12.12 -> Array("2", "12", "12") -> "12" -> 12
   private def majorVersion = crossScalaVersion.split('.')(1).toInt
 
-  def publishVersion = "1.4-SNAPSHOT"
+  def publishVersion = "1.5-SNAPSHOT"
 
   override def mainClass = T {
     Some("firrtl.stage.FirrtlMain")
   }
 
-  private def javacCrossOptions = majorVersion match {
-    case i if i < 12 => Seq("-source", "1.7", "-target", "1.7")
-    case _ => Seq("-source", "1.8", "-target", "1.8")
-  }
+  private def javacCrossOptions = Seq("-source", "1.8", "-target", "1.8")
 
   override def scalacOptions = T {
     super.scalacOptions() ++ Seq(
@@ -54,16 +53,11 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
   }
 
   object test extends Tests {
-    private def ivyCrossDeps = majorVersion match {
-      case i if i < 12 => Agg(ivy"junit:junit:4.12")
-      case _ => Agg()
-    }
-
     override def ivyDeps = T {
       Agg(
         ivy"org.scalatest::scalatest:3.2.0",
-        ivy"org.scalatestplus::scalacheck-1-14:3.1.4.0"
-      ) ++ ivyCrossDeps
+        ivy"org.scalatestplus::scalacheck-1-14:3.1.3.0"
+      )
     }
 
     def testFrameworks = T {
@@ -92,7 +86,7 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
   }
 
   /* antlr4 */
-  def antlr4Version = "4.7.1"
+  def antlr4Version = "4.8"
 
   def antlrSource = T.source {
     millSourcePath / "src" / "main" / "antlr4" / "FIRRTL.g4"

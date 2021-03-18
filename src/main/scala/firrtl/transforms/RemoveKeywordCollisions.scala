@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.transforms
 
@@ -46,7 +46,5 @@ class VerilogRename extends RemoveKeywordCollisions(v_keywords) {
   override def optionalPrerequisites = firrtl.stage.Forms.LowFormOptimized
 
   override def optionalPrerequisiteOf = Seq.empty
-
-  override def invalidates(a: Transform) = false
 
 }

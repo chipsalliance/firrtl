@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package firrtl.transforms
 
 import firrtl._
@@ -9,6 +11,7 @@ import firrtl.analyses.InstanceKeyGraph
 import firrtl.Mappers._
 import firrtl.Utils.{kind, throwInternalError}
 import firrtl.MemoizedHash._
+import firrtl.backends.experimental.smt.random.DefRandom
 import firrtl.options.{Dependency, RegisteredTransform, ShellOption}
 
 import collection.mutable
@@ -28,11 +31,7 @@ import collection.mutable
   * circumstances of their instantiation in their parent module, they will still not be removed. To
   * remove such modules, use the [[NoDedupAnnotation]] to prevent deduplication.
   */
-class DeadCodeElimination
-    extends Transform
-    with ResolvedAnnotationPaths
-    with RegisteredTransform
-    with DependencyAPIMigration {
+class DeadCodeElimination extends Transform with RegisteredTransform with DependencyAPIMigration {
 
   override def prerequisites = firrtl.stage.Forms.LowForm ++
     Seq(
@@ -128,6 +127,11 @@ class DeadCodeElimination
         val node = LogicNode(mod.name, name)
         depGraph.addVertex(node)
         Seq(clock, reset, init).flatMap(getDeps(_)).foreach(ref => depGraph.addPairWithEdge(node, ref))
+      case DefRandom(_, name, _, clock, en) =>
+        val node = LogicNode(mod.name, name)
+        depGraph.addVertex(node)
+        val inputs = clock ++: en +: Nil
+        inputs.flatMap(getDeps).foreach(ref => depGraph.addPairWithEdge(node, ref))
       case DefNode(_, name, value) =>
         val node = LogicNode(mod.name, name)
         depGraph.addVertex(node)
@@ -227,6 +231,7 @@ class DeadCodeElimination
       val tpe = decl match {
         case _: DefNode     => "node"
         case _: DefRegister => "reg"
+        case _: DefRandom   => "rand"
         case _: DefWire     => "wire"
         case _: Port        => "port"
         case _: DefMemory   => "mem"
@@ -260,6 +265,11 @@ class DeadCodeElimination
               renames.delete(inst.name)
               EmptyStmt
           }
+        case print:  Print        => deleteIfNotEnabled(print, print.en)
+        case stop:   Stop         => deleteIfNotEnabled(stop, stop.en)
+        case formal: Verification => deleteIfNotEnabled(formal, formal.en)
+        // Statements are also declarations and thus this case needs to come *after* checking the
+        // print, stop and verification statements.
         case decl: IsDeclaration =>
           val node = LogicNode(mod.name, decl.name)
           if (deadNodes.contains(node)) {
@@ -267,10 +277,7 @@ class DeadCodeElimination
             renames.delete(decl.name)
             EmptyStmt
           } else decl
-        case print:  Print => deleteIfNotEnabled(print, print.en)
-        case stop:   Stop  => deleteIfNotEnabled(stop, stop.en)
-        case formal: Verification => deleteIfNotEnabled(formal, formal.en)
-        case con:    Connect =>
+        case con: Connect =>
           val node = getDeps(con.loc) match { case Seq(elt) => elt }
           if (deadNodes.contains(node)) EmptyStmt else con
         case Attach(info, exprs) => // If any exprs are dead then all are
@@ -368,12 +375,13 @@ class DeadCodeElimination
     state.copy(circuit = newCircuit, renames = Some(renames))
   }
 
-  override val annotationClasses: Traversable[Class[_]] =
-    Seq(classOf[DontTouchAnnotation], classOf[OptimizableExtModuleAnnotation])
-
   def execute(state: CircuitState): CircuitState = {
     val dontTouches: Seq[LogicNode] = state.annotations.flatMap {
-      case anno: HasDontTouches => anno.dontTouches.filter(_.isLocal).map(LogicNode(_))
+      case anno: HasDontTouches =>
+        anno.dontTouches
+          // We treat all ReferenceTargets as if they were local because of limitations of
+          // EliminateTargetPaths
+          .map(rt => LogicNode(rt.encapsulatingModule, rt.ref))
       case o => Nil
     }
     val doTouchExtMods: Seq[String] = state.annotations.collect {

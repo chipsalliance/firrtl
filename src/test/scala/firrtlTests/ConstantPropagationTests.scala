@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtlTests
 
@@ -7,6 +7,7 @@ import firrtl.passes._
 import firrtl.transforms._
 import firrtl.testutils._
 import firrtl.annotations.Annotation
+import firrtl.stage.DisableFold
 
 class ConstantPropagationSpec extends FirrtlFlatSpec {
   val transforms: Seq[Transform] =
@@ -798,6 +799,17 @@ class ConstantPropagationSingleModule extends ConstantPropagationSpec {
     castCheck("Clock", "asClock")
     castCheck("AsyncReset", "asAsyncReset")
   }
+
+  /* */
+  "The rule a / a -> 1" should "be ignored if division folds are disabled" in {
+    val input =
+      """circuit foo:
+        |  module foo:
+        |    input a: UInt<8>
+        |    output b: UInt<8>
+        |    b <= div(a, a)""".stripMargin
+    (parse(exec(input, Seq(DisableFold(PrimOps.Div))))) should be(parse(input))
+  }
 }
 
 // More sophisticated tests of the full compiler
@@ -1528,6 +1540,41 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
     execute(input, check, Seq.empty)
   }
 
+  "ConstProp" should "compose with Dedup and not duplicate modules " in {
+    val input =
+      """circuit Top :
+        |  module child :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    z <= not(x)
+        |  module child_1 :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    z <= not(x)
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    inst c of child
+        |    inst c_1 of child_1
+        |    c.x <= x
+        |    c_1.x <= x
+        |    z <= and(c.z, c_1.z)""".stripMargin
+    val check =
+      """circuit Top :
+        |  module child :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    z <= not(x)
+        |  module Top :
+        |    input x : UInt<1>
+        |    output z : UInt<1>
+        |    inst c of child
+        |    inst c_1 of child
+        |    z <= and(c.z, c_1.z)
+        |    c.x <= x
+        |    c_1.x <= x""".stripMargin
+    execute(input, check, Seq(dontTouch("child.z"), dontTouch("child_1.z")))
+  }
 }
 
 class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
@@ -1588,6 +1635,20 @@ class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
          |    out1 <= cat(temp, temp)
          |    node const = add(SInt<4>("h1"), SInt<3>("h-2"))
          |    out2 <= cat(const, const)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  // https://github.com/chipsalliance/firrtl/issues/2034
+  "SInt OR with constant zero" should "have the correct widths" in {
+    val input =
+      s"""circuit WidthsOrSInt :
+         |  module WidthsOrSInt :
+         |    input in : SInt<1>
+         |    input in2 : SInt<4>
+         |    output out : UInt<8>
+         |    output out2 : UInt<8>
+         |    out <= or(in, SInt<8>(0))
+         |    out2 <= or(in2, SInt<8>(0))""".stripMargin
     firrtlEquivalenceTest(input, transforms)
   }
 

@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 // Author: Kevin Laeufer <laeufer@cs.berkeley.edu>
 
 package firrtl.backends.experimental.smt
@@ -19,6 +19,9 @@ private object SMTTransitionSystemEncoder {
 
     // emit header as comments
     cmds ++= sys.header.map(Comment)
+
+    // declare uninterpreted functions used in model
+    cmds ++= sys.ufs.map(SMTLibSerializer.declareFunction)
 
     // declare state type
     val stateType = id(name + "_s")

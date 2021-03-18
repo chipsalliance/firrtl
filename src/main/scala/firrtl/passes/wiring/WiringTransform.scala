@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.passes
 package wiring
@@ -47,8 +47,7 @@ class WiringTransform extends Transform with DependencyAPIMigration {
 
   /** Defines the sequence of Transform that should be applied */
   private def transforms(w: Seq[WiringInfo]): Seq[Transform] = Seq(
-    new Wiring(w),
-    ToWorkingIR
+    new Wiring(w)
   )
   def execute(state: CircuitState): CircuitState = {
     val annos = state.annotations.collect {

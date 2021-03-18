@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.passes
 
@@ -10,7 +10,7 @@ import firrtl.options.Dependency
 
 object CheckFlows extends Pass {
 
-  override def prerequisites = Dependency(passes.ResolveFlows) +: firrtl.stage.Forms.WorkingIR
+  override def prerequisites = Dependency(passes.ResolveFlows) +: firrtl.stage.Forms.MinimalHighForm
 
   override def optionalPrerequisiteOf =
     Seq(

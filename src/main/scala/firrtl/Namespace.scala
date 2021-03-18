@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl
 
@@ -53,9 +53,11 @@ object Namespace {
     val namespace = new Namespace
 
     def buildNamespaceStmt(s: Statement): Seq[String] = s match {
-      case s: IsDeclaration => Seq(s.name)
-      case s: Conditionally => buildNamespaceStmt(s.conseq) ++ buildNamespaceStmt(s.alt)
-      case s: Block         => s.stmts.flatMap(buildNamespaceStmt)
+      // Empty names are allowed for backwards compatibility reasons and
+      // indicate that the entity has essentially no name.
+      case s: IsDeclaration if s.name.nonEmpty => Seq(s.name)
+      case s: Conditionally                    => buildNamespaceStmt(s.conseq) ++ buildNamespaceStmt(s.alt)
+      case s: Block                            => s.stmts.flatMap(buildNamespaceStmt)
       case _ => Nil
     }
     namespace.namespace ++= m.ports.map(_.name)

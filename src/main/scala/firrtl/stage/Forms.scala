@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.stage
 
@@ -25,7 +25,8 @@ object Forms {
       Dependency[annotations.transforms.CleanupNamedTargets]
     )
 
-  val WorkingIR: Seq[TransformDependency] = MinimalHighForm :+ Dependency(passes.ToWorkingIR)
+  @deprecated("Use firrtl.stage.forms.MinimalHighForm", "FIRRTL 1.4.2")
+  val WorkingIR: Seq[TransformDependency] = MinimalHighForm
 
   val Checks: Seq[TransformDependency] =
     Seq(
@@ -35,7 +36,7 @@ object Forms {
       Dependency(passes.CheckWidths)
     )
 
-  val Resolved: Seq[TransformDependency] = WorkingIR ++ Checks ++
+  val Resolved: Seq[TransformDependency] = MinimalHighForm ++ Checks ++
     Seq(
       Dependency(passes.ResolveKinds),
       Dependency(passes.InferTypes),
@@ -50,13 +51,13 @@ object Forms {
 
   val HighForm: Seq[TransformDependency] = ChirrtlForm ++
     MinimalHighForm ++
-    WorkingIR ++
     Resolved ++
     Deduped
 
   val MidForm: Seq[TransformDependency] = HighForm ++
     Seq(
       Dependency(passes.PullMuxes),
+      Dependency[firrtl.transforms.CSESubAccesses],
       Dependency(passes.ReplaceAccesses),
       Dependency(passes.ExpandConnects),
       Dependency(passes.RemoveAccesses),

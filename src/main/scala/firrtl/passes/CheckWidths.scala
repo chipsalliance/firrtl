@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.passes
 
@@ -13,7 +13,7 @@ import firrtl.options.Dependency
 
 object CheckWidths extends Pass {
 
-  override def prerequisites = Dependency[passes.InferWidths] +: firrtl.stage.Forms.WorkingIR
+  override def prerequisites = Dependency[passes.InferWidths] +: firrtl.stage.Forms.MinimalHighForm
 
   override def optionalPrerequisiteOf = Seq(Dependency[transforms.InferResets])
 

@@ -1,4 +1,4 @@
-// See LICENSE for license details
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.stage
 
@@ -180,7 +180,7 @@ case class RunFirrtlTransformAnnotation(transform: Transform) extends NoTargetAn
 object RunFirrtlTransformAnnotation extends HasShellOptions {
 
   def apply(transform: TransformDependency): RunFirrtlTransformAnnotation =
-    RunFirrtlTransformAnnotation(transform.getObject)
+    RunFirrtlTransformAnnotation(transform.getObject())
 
   private[firrtl] def stringToEmitter(a: String): RunFirrtlTransformAnnotation = {
     val emitter = a match {
@@ -253,15 +253,61 @@ case class FirrtlCircuitAnnotation(circuit: Circuit) extends NoTargetAnnotation 
 
 /** Suppresses warning about Scala 2.11 deprecation
   *
-  *  - set with `--Wno-scala-version-warning`
+  *  - set with `--warn:no-scala-version-deprecation`
   */
-case object SuppressScalaVersionWarning extends NoTargetAnnotation with FirrtlOption with HasShellOptions {
-  def longOption: String = "Wno-scala-version-warning"
+@deprecated("Support for Scala 2.11 has been dropped, this object no longer does anything", "FIRRTL 1.5")
+case object WarnNoScalaVersionDeprecation extends NoTargetAnnotation with FirrtlOption with HasShellOptions {
+  def longOption: String = "warn:no-scala-version-deprecation"
+  val options = Seq(
+    new ShellOption[Unit](
+      longOption = longOption,
+      toAnnotationSeq = { _ =>
+        val msg = s"'$longOption' no longer does anything and will be removed in FIRRTL 1.6"
+        firrtl.options.StageUtils.dramaticWarning(msg)
+        Seq(this)
+      },
+      helpText = "(deprecated, this option does nothing)"
+    )
+  )
+}
+
+/** Turn off all expression inlining
+  *
+  * @note this primarily applies to emitted Verilog
+  */
+case object PrettyNoExprInlining extends NoTargetAnnotation with FirrtlOption with HasShellOptions {
+  def longOption: String = "pretty:no-expr-inlining"
   val options = Seq(
     new ShellOption[Unit](
       longOption = longOption,
       toAnnotationSeq = { _ => Seq(this) },
-      helpText = "Suppress Scala 2.11 deprecation warning (ignored in Scala 2.12+)"
+      helpText = "Disable expression inlining"
     )
   )
+}
+
+/** Turn off folding a specific primitive operand
+  * @param op the op that should never be folded
+  */
+case class DisableFold(op: ir.PrimOp) extends NoTargetAnnotation with FirrtlOption
+
+object DisableFold extends HasShellOptions {
+
+  private val mapping: Map[String, ir.PrimOp] = PrimOps.builtinPrimOps.map { case op => op.toString -> op }.toMap
+
+  override val options = Seq(
+    new ShellOption[String](
+      longOption = "dont-fold",
+      toAnnotationSeq = a => {
+        mapping
+          .get(a)
+          .orElse(throw new OptionsException(s"Unknown primop '$a'. (Did you misspell it?)"))
+          .map(DisableFold(_))
+          .toSeq
+      },
+      helpText = "Disable folding of specific primitive operations",
+      helpValueName = Some("<primop>")
+    )
+  )
+
 }

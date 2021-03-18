@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package tutorial
 package lesson1
@@ -142,7 +142,7 @@ class AnalyzeCircuit extends Transform {
     visited match {
       // If e is a [[firrtl.ir.Mux Mux]], increment our ledger and return e.
       case Mux(cond, tval, fval, tpe) =>
-        ledger.foundMux
+        ledger.foundMux()
         e
       // If e is not a [[firrtl.ir.Mux Mux]], return e.
       case notmux => notmux

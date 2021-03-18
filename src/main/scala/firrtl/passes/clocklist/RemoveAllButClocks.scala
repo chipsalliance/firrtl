@@ -1,4 +1,4 @@
-// See license file for details
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.passes
 package clocklist
@@ -16,7 +16,6 @@ object RemoveAllButClocks extends Pass {
     case DefWire(i, n, ClockType)                       => s
     case DefNode(i, n, value) if value.tpe == ClockType => s
     case Connect(i, l, r) if l.tpe == ClockType         => s
-    case sx: WDefInstance  => sx
     case sx: DefInstance   => sx
     case sx: Block         => sx
     case sx: Conditionally => sx

@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtlTests
 
@@ -218,6 +218,23 @@ class ZeroWidthTests extends FirrtlFlatSpec {
         |  module Top :
         |    output x : UInt<1>
         |    x <= UInt<1>(1)""".stripMargin
+    (parse(exec(input))) should be(parse(check))
+  }
+
+  "Cat of SInt with zero-width" should "keep type correctly" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input x : SInt<0>
+        |    input y : SInt<1>
+        |    output z : UInt<1>
+        |    z <= cat(y, x)""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input y : SInt<1>
+        |    output z : UInt<1>
+        |    z <= asUInt(y)""".stripMargin
     (parse(exec(input))) should be(parse(check))
   }
 }
