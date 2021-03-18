@@ -155,7 +155,10 @@ class LoweringCompilersSpec extends AnyFlatSpec with Matchers {
 
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.WorkingIR, Forms.MinimalHighForm)
-    compare(legacyTransforms(new firrtl.IRToWorkingIR), tm)
+    val patches = Seq(
+      Del(1)
+    )
+    compare(legacyTransforms(new firrtl.IRToWorkingIR), tm, patches)
   }
 
   behavior.of("ResolveAndCheck")
@@ -177,6 +180,7 @@ class LoweringCompilersSpec extends AnyFlatSpec with Matchers {
   it should "replicate the old order" in {
     val tm = new TransformManager(Forms.MidForm, Forms.Deduped)
     val patches = Seq(
+      Add(2, Seq(Dependency[firrtl.transforms.CSESubAccesses])),
       Add(4, Seq(Dependency(firrtl.passes.ResolveFlows))),
       Add(5, Seq(Dependency(firrtl.passes.ResolveKinds))),
       // Uniquify is now part of [[firrtl.passes.LowerTypes]]

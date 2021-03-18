@@ -5,6 +5,7 @@ package firrtl
 import firrtl.ir._
 import firrtl.PrimOps._
 import firrtl.Mappers._
+import firrtl.traversals.Foreachers._
 import firrtl.WrappedExpression._
 
 import scala.collection.mutable
@@ -206,6 +207,24 @@ object Utils extends LazyLogging {
   def isBitExtract(expr: Expression): Boolean = expr match {
     case DoPrim(op, _, _, UIntType(_)) if isBitExtract(op) => true
     case _                                                 => false
+  }
+
+  /** Selects all the elements of this list ignoring the duplicates as determined by == after
+    * applying the transforming function f
+    *
+    * @note In Scala Standard Library starting in 2.13
+    */
+  def distinctBy[A, B](xs: List[A])(f: A => B): List[A] = {
+    val buf = new mutable.ListBuffer[A]
+    val seen = new mutable.HashSet[B]
+    for (x <- xs) {
+      val y = f(x)
+      if (!seen(y)) {
+        buf += x
+        seen += y
+      }
+    }
+    buf.toList
   }
 
   /** Provide a nice name to create a temporary * */
@@ -642,6 +661,19 @@ object Utils extends LazyLogging {
     case _ => NoInfo
   }
 
+  /** Finds all root References in a nested Expression */
+  def getAllRefs(expr: Expression): Seq[Reference] = {
+    val refs = mutable.ListBuffer.empty[Reference]
+    def rec(e: Expression): Unit = {
+      e match {
+        case ref: Reference => refs += ref
+        case other => other.foreach(rec)
+      }
+    }
+    rec(expr)
+    refs.toList
+  }
+
   /** Splits an Expression into root Ref and tail
     *
     * @example
@@ -652,19 +684,24 @@ object Utils extends LazyLogging {
     *   Given:   SubField(SubIndex(Ref("b"), 2), "c")
     *   Returns: (Ref("b"), SubField(SubIndex(EmptyExpression, 2), "c"))
     *   b[2].c -> (b, EMPTY[2].c)
-    * @note This function only supports WRef, WSubField, and WSubIndex
+    * @note This function only supports [[firrtl.ir.RefLikeExpression RefLikeExpression]]s: [[firrtl.ir.Reference
+    * Reference]], [[firrtl.ir.SubField SubField]], [[firrtl.ir.SubIndex SubIndex]], and [[firrtl.ir.SubAccess
+    * SubAccess]]
     */
   def splitRef(e: Expression): (WRef, Expression) = e match {
-    case e: WRef => (e, EmptyExpression)
-    case e: WSubIndex =>
+    case e: Reference => (e, EmptyExpression)
+    case e: SubIndex =>
       val (root, tail) = splitRef(e.expr)
-      (root, WSubIndex(tail, e.value, e.tpe, e.flow))
-    case e: WSubField =>
+      (root, SubIndex(tail, e.value, e.tpe, e.flow))
+    case e: SubField =>
       val (root, tail) = splitRef(e.expr)
       tail match {
-        case EmptyExpression => (root, WRef(e.name, e.tpe, root.kind, e.flow))
-        case exp             => (root, WSubField(tail, e.name, e.tpe, e.flow))
+        case EmptyExpression => (root, Reference(e.name, e.tpe, root.kind, e.flow))
+        case exp             => (root, SubField(tail, e.name, e.tpe, e.flow))
       }
+    case e: SubAccess =>
+      val (root, tail) = splitRef(e.expr)
+      (root, SubAccess(tail, e.index, e.tpe, e.flow))
   }
 
   /** Adds a root reference to some SubField/SubIndex chain */
@@ -855,6 +892,79 @@ object Utils extends LazyLogging {
     */
   def maskBigInt(value: BigInt, width: Int): BigInt = {
     value & ((BigInt(1) << width) - 1)
+  }
+
+  /** Returns true iff the expression is a Literal or a Literal cast to a different type. */
+  def isLiteral(e: Expression): Boolean = e match {
+    case _: Literal => true
+    case DoPrim(op, args, _, _) if isCast(op) => args.exists(isLiteral)
+    case _                                    => false
+  }
+
+  /** Applies the firrtl And primop. Automatically constant propagates when one of the expressions is True or False. */
+  def and(e1: Expression, e2: Expression): Expression = {
+    assert(e1.tpe == e2.tpe)
+    (e1, e2) match {
+      case (a: UIntLiteral, b: UIntLiteral) => UIntLiteral(a.value | b.value, a.width)
+      case (True(), b)      => b
+      case (a, True())      => a
+      case (False(), _)     => False()
+      case (_, False())     => False()
+      case (a, b) if a == b => a
+      case (a, b)           => DoPrim(PrimOps.And, Seq(a, b), Nil, BoolType)
+    }
+  }
+
+  /** Applies the firrtl Eq primop. */
+  def eq(e1: Expression, e2: Expression): Expression = DoPrim(PrimOps.Eq, Seq(e1, e2), Nil, BoolType)
+
+  /** Applies the firrtl Or primop. Automatically constant propagates when one of the expressions is True or False. */
+  def or(e1: Expression, e2: Expression): Expression = {
+    assert(e1.tpe == e2.tpe)
+    (e1, e2) match {
+      case (a: UIntLiteral, b: UIntLiteral) => UIntLiteral(a.value | b.value, a.width)
+      case (True(), _)      => True()
+      case (_, True())      => True()
+      case (False(), b)     => b
+      case (a, False())     => a
+      case (a, b) if a == b => a
+      case (a, b)           => DoPrim(PrimOps.Or, Seq(a, b), Nil, BoolType)
+    }
+  }
+
+  /** Applies the firrtl Not primop. Automatically constant propagates when the expressions is True or False. */
+  def not(e: Expression): Expression = e match {
+    case True()  => False()
+    case False() => True()
+    case a       => DoPrim(PrimOps.Not, Seq(a), Nil, BoolType)
+  }
+
+  /** implies(e1, e2) = or(not(e1), e2). Automatically constant propagates when one of the expressions is True or False. */
+  def implies(e1: Expression, e2: Expression): Expression = or(not(e1), e2)
+
+  /** Builds a Mux expression with the correct type. */
+  def mux(cond: Expression, tval: Expression, fval: Expression): Expression = {
+    require(tval.tpe == fval.tpe)
+    Mux(cond, tval, fval, tval.tpe)
+  }
+
+  object True {
+    private val _True = UIntLiteral(1, IntWidth(1))
+
+    /** Matches `UInt<1>(1)` */
+    def unapply(e: UIntLiteral): Boolean = e.value == 1 && e.width == _True.width
+
+    /** Returns `UInt<1>(1)` */
+    def apply(): UIntLiteral = _True
+  }
+  object False {
+    private val _False = UIntLiteral(0, IntWidth(1))
+
+    /** Matches `UInt<1>(0)` */
+    def unapply(e: UIntLiteral): Boolean = e.value == 0 && e.width == _False.width
+
+    /** Returns `UInt<1>(0)` */
+    def apply(): UIntLiteral = _False
   }
 }
 

@@ -7,7 +7,7 @@ import firrtl.PrimOps._
 import firrtl.Utils._
 import firrtl.WrappedExpression._
 import firrtl.traversals.Foreachers._
-import firrtl.annotations.{CircuitTarget, ReferenceTarget, SingleTargetAnnotation}
+import firrtl.annotations.{CircuitTarget, MemoryLoadFileType, ReferenceTarget, SingleTargetAnnotation}
 import firrtl.passes.LowerTypes
 import firrtl.passes.MemPortUtils._
 import firrtl.stage.TransformManager
@@ -57,6 +57,13 @@ object VerilogEmitter {
   private def precedenceGt(op1: PrimOp, op2: PrimOp): Boolean = {
     precedenceMap(op1) < precedenceMap(op2)
   }
+
+  /** Identifies PrimOps that never need parentheses
+    *
+    * These PrimOps emit either {..., a0, ...} or a0 so they never need parentheses
+    */
+  private val neverParens: PrimOp => Boolean =
+    Set(Shl, Cat, Cvt, AsUInt, AsSInt, AsClock, AsAsyncReset, Pad)
 }
 
 class VerilogEmitter extends SeqTransform with Emitter {
@@ -229,8 +236,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
   // to ensure Verilog operations are signed.
   def op_stream(doprim: DoPrim): Seq[Any] = {
     def parenthesize(e: Expression, isFirst: Boolean): Any = doprim.op match {
-      // these PrimOps emit either {..., a0, ...} or a0 so they never need parentheses
-      case Shl | Cat | Cvt | AsUInt | AsSInt | AsClock | AsAsyncReset => e
+      case op if neverParens(op) => e
       case _ =>
         e match {
           case e: DoPrim =>
@@ -247,7 +253,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
                */
               case other =>
                 val noParens =
-                  precedenceGt(e.op, doprim.op) ||
+                  neverParens(e.op) ||
+                    precedenceGt(e.op, doprim.op) ||
                     (isFirst && precedenceEq(e.op, doprim.op) && !isUnaryOp(e.op))
                 if (noParens) other else Seq("(", other, ")")
             }
@@ -752,7 +759,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
       val lines = noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]())
       if (weq(en, one)) lines += Seq(e, " <= ", value, ";")
       else {
-        lines += Seq("if(", en, ") begin")
+        lines += Seq("if (", en, ") begin")
         lines += Seq(tab, e, " <= ", value, ";", info)
         lines += Seq("end")
       }
@@ -844,6 +851,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
             rstring,
             ";"
           )
+        case MemoryFileInlineInit(filename, hexOrBinary) =>
+          val readmem = hexOrBinary match {
+            case MemoryLoadFileType.Binary => "$readmemb"
+            case MemoryLoadFileType.Hex    => "$readmemh"
+          }
+          memoryInitials += Seq(s"""$readmem("$filename", ${s.name});""")
       }
     }
 

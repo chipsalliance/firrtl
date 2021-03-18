@@ -2,7 +2,10 @@
 
 package firrtl
 
-/** Base type for emission customization options
+import firrtl.annotations.MemoryLoadFileType
+
+/**
+  * Base type for emission customization options
   * NOTE: all the following traits must be mixed with SingleTargetAnnotation[T <: Named]
   *       in order to be taken into account in the Emitter
   */
@@ -17,6 +20,7 @@ sealed trait MemoryInitValue
 case object MemoryRandomInit extends MemoryInitValue
 case class MemoryScalarInit(value: BigInt) extends MemoryInitValue
 case class MemoryArrayInit(values: Seq[BigInt]) extends MemoryInitValue
+case class MemoryFileInlineInit(filename: String, hexOrBinary: MemoryLoadFileType.FileType) extends MemoryInitValue
 
 /** default Emitter behavior for memories */
 case object MemoryEmissionOptionDefault extends MemoryEmissionOption
