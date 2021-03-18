@@ -3,11 +3,13 @@
 package firrtlTests.annotationTests
 
 import firrtl._
-import firrtl.annotations.{JsonProtocol, NoTargetAnnotation}
+import firrtl.annotations.{JsonProtocol, NoTargetAnnotation, UnserializableAnnotationException}
 import firrtl.ir._
 import firrtl.options.Dependency
 import _root_.logger.{Logger, LogLevel, LogLevelAnnotation}
 import org.scalatest.{FlatSpec, Matchers}
+import scala.util.Failure
+import org.scalatest.Inside._
 
 case class AnAnnotation(
     info: Info,
@@ -63,6 +65,15 @@ class JsonProtocolSpec extends FlatSpec with Matchers {
       """.stripMargin)
     Logger.makeScope(LogLevelAnnotation(LogLevel.Trace) :: Nil) {
       compiler.execute(CircuitState(circuit, Nil))
+    }
+  }
+  "Trying to serialize annotations that cannot be serialized" should "tell you why" in {
+    case class MyAnno(x: Int) extends NoTargetAnnotation
+    inside(JsonProtocol.serializeTry(MyAnno(3) :: Nil)) {
+      case Failure(e: UnserializableAnnotationException) =>
+        e.getMessage should include("MyAnno")
+        // From json4s Exception
+        e.getMessage should include("Classes defined in method bodies are not supported")
     }
   }
 }
