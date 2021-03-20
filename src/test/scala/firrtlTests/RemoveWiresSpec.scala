@@ -5,10 +5,6 @@ package firrtlTests
 import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
-<<<<<<< HEAD
-=======
-import firrtl.testutils._
->>>>>>> c7bbb75b... Fix RemoveWires handling of invalidated non-UInt wires (#1949)
 import FirrtlCheckers._
 
 import collection.mutable
