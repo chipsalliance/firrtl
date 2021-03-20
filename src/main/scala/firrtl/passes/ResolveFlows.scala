@@ -9,10 +9,7 @@ import firrtl.options.{Dependency, PreservesAll}
 
 object ResolveFlows extends Pass with PreservesAll[Transform] {
 
-  override def prerequisites =
-    Seq( Dependency(passes.ResolveKinds),
-         Dependency(passes.InferTypes),
-         Dependency(passes.Uniquify) ) ++ firrtl.stage.Forms.WorkingIR
+  override def prerequisites = Seq(Dependency(passes.InferTypes)) ++ firrtl.stage.Forms.WorkingIR
 
   def resolve_e(g: Flow)(e: Expression): Expression = e match {
     case ex: WRef => ex copy (flow = g)

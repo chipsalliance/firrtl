@@ -108,8 +108,7 @@ lazy val publishSettings = Seq(
   publishMavenStyle := true,
   publishArtifact in Test := false,
   pomIncludeRepository := { x => false },
-  // Don't add 'scm' elements if we have a git.remoteRepo definition,
-  //  but since we don't (with the removal of ghpages), add them in below.
+  // scm is set by sbt-ci-release
   pomExtra := <url>http://chisel.eecs.berkeley.edu/</url>
     <licenses>
       <license>
@@ -118,10 +117,6 @@ lazy val publishSettings = Seq(
         <distribution>repo</distribution>
       </license>
     </licenses>
-    <scm>
-      <url>https://github.com/freechipsproject/firrtl.git</url>
-      <connection>scm:git:github.com/freechipsproject/firrtl.git</connection>
-    </scm>
     <developers>
       <developer>
         <id>jackbackrack</id>
@@ -172,7 +167,7 @@ lazy val docSettings = Seq(
         } else {
           s"v${version.value}"
         }
-      s"https://github.com/freechipsproject/firrtl/tree/$branch€{FILE_PATH}.scala"
+      s"https://github.com/chipsalliance/firrtl/tree/$branch€{FILE_PATH_EXT}#L€{FILE_LINE}"
     }
   ) ++ scalacOptionsVersion(scalaVersion.value) ++ scalacDocOptionsVersion(scalaVersion.value)
 )
