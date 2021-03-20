@@ -58,13 +58,8 @@ private class LoggerState {
   val classLevels = new scala.collection.mutable.HashMap[String, LogLevel.Value]
   val classToLevelCache = new scala.collection.mutable.HashMap[String, LogLevel.Value]
   var logClassNames = false
-<<<<<<< HEAD
-  var stream: PrintStream = System.out
+  var stream: PrintStream = Console.out
   var fromInvoke: Boolean = false  // this is used to not have invokes re-create run-state
-=======
-  var stream:             PrintStream = Console.out
-  var fromInvoke:         Boolean = false // this is used to not have invokes re-create run-state
->>>>>>> b249814d... make LazyLogging log to console by default. (#1961)
   var stringBufferOption: Option[Logger.OutputCaptor] = None
 
   override def toString: String = {
