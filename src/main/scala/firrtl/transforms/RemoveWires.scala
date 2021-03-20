@@ -8,14 +8,9 @@ import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.traversals.Foreachers._
 import firrtl.WrappedExpression._
-<<<<<<< HEAD
 import firrtl.graph.{MutableDiGraph, CyclicException}
 import firrtl.options.{Dependency, PreservesAll}
-=======
-import firrtl.graph.{CyclicException, MutableDiGraph}
-import firrtl.options.Dependency
 import firrtl.Utils.getGroundZero
->>>>>>> c7bbb75b... Fix RemoveWires handling of invalidated non-UInt wires (#1949)
 
 import scala.collection.mutable
 import scala.util.{Try, Success, Failure}
