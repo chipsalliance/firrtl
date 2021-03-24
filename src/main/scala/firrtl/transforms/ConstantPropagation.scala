@@ -13,7 +13,7 @@ import firrtl.PrimOps._
 import firrtl.graph.DiGraph
 import firrtl.analyses.InstanceKeyGraph
 import firrtl.annotations.TargetToken.Ref
-import firrtl.options.{Dependency, RegisteredTransform, ShellOption}
+import firrtl.options.{Dependency, OptionsException, RegisteredTransform, ShellOption}
 import firrtl.stage.DisableFold
 
 import annotation.tailrec
@@ -129,6 +129,20 @@ class ConstantPropagation extends Transform with RegisteredTransform with Depend
       longOption = "no-constant-propagation",
       toAnnotationSeq = _ => Seq(NoConstantPropagationAnnotation),
       helpText = "Disable constant propagation elimination"
+    ),
+    new ShellOption[String](
+      longOption = "dont-fold",
+      toAnnotationSeq = a => {
+        PrimOps.builtinPrimOps
+          .map(op => op.toString -> op)
+          .toMap
+          .get(a)
+          .orElse(throw new OptionsException(s"Unknown primop '$a'. (Did you misspell it?)"))
+          .map(DisableFold(_))
+          .toSeq
+      },
+      helpText = "Disable folding of specific primitive operations",
+      helpValueName = Some("<primop>")
     )
   )
 
