@@ -24,27 +24,6 @@ object ZeroWidth extends Transform with DependencyAPIMigration {
     case _          => false
   }
 
-<<<<<<< HEAD
-  private def makeEmptyMemBundle(name: String): Field =
-    Field(name, Flip, BundleType(Seq(
-      Field("addr", Default, UIntType(IntWidth(0))),
-      Field("en",   Default, UIntType(IntWidth(0))),
-      Field("clk",  Default, UIntType(IntWidth(0))),
-      Field("data", Flip,    UIntType(IntWidth(0)))
-    )))
-
-  private def onEmptyMemStmt(s: Statement): Statement = s match {
-    case d @ DefMemory(info, name, tpe, _, _, _, rs, ws, rws, _) => removeZero(tpe) match {
-      case None =>
-        DefWire(info, name, BundleType(
-          rs.map(r => makeEmptyMemBundle(r)) ++
-          ws.map(w => makeEmptyMemBundle(w)) ++
-          rws.map(rw => makeEmptyMemBundle(rw))
-        ))
-      case Some(_) => d
-    }
-    case sx => sx map onEmptyMemStmt
-=======
   private def makeZero(tpe: ir.Type): ir.Type = tpe match {
     case ClockType => UIntType(IntWidth(0))
     case a: UIntType      => a.copy(IntWidth(0))
@@ -66,7 +45,6 @@ object ZeroWidth extends Transform with DependencyAPIMigration {
         case Some(_) => d
       }
     case sx => sx.map(onEmptyMemStmt)
->>>>>>> 67ce97a1... Fix bug in zero-width memory removal (#2153)
   }
 
   private def onModuleEmptyMemStmt(m: DefModule): DefModule = {
