@@ -285,20 +285,20 @@ class ZeroWidthTests extends FirrtlFlatSpec {
         |    rwDataOut <= memory.rw.rdata""".stripMargin
     val check =
       s"""circuit Foo:
-        |  module Foo:
-        |    input clock: Clock
-        |    input rAddr: UInt<4>
-        |    input rEn: UInt<1>
-        |    input wAddr: UInt<4>
-        |    input wEn: UInt<1>
-        |    input wMask: UInt<1>
-        |    input rwEn: UInt<1>
-        |    input rwMode: UInt<1>
-        |    input rwAddr: UInt<1>
-        |    input rwMask: UInt<1>
-        |
-        |${Seq.tabulate(17)(_ => "    skip").mkString("\n")}""".stripMargin
-    parse(exec(input)) should be (parse(check))
+         |  module Foo:
+         |    input clock: Clock
+         |    input rAddr: UInt<4>
+         |    input rEn: UInt<1>
+         |    input wAddr: UInt<4>
+         |    input wEn: UInt<1>
+         |    input wMask: UInt<1>
+         |    input rwEn: UInt<1>
+         |    input rwMode: UInt<1>
+         |    input rwAddr: UInt<1>
+         |    input rwMask: UInt<1>
+         |
+         |${Seq.tabulate(17)(_ => "    skip").mkString("\n")}""".stripMargin
+    parse(exec(input)) should be(parse(check))
   }
 }
 

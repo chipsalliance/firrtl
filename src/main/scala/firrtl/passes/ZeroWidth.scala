@@ -26,7 +26,7 @@ object ZeroWidth extends Transform with DependencyAPIMigration {
   }
 
   private def makeZero(tpe: ir.Type): ir.Type = tpe match {
-    case ClockType        => UIntType(IntWidth(0))
+    case ClockType => UIntType(IntWidth(0))
     case a: UIntType      => a.copy(IntWidth(0))
     case a: SIntType      => a.copy(IntWidth(0))
     case a: AggregateType => a.map(makeZero)
