@@ -139,6 +139,7 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
 
     val protocBinary =
       if (isMac)
+        // MacOS ARM 64-bit still supports x86_64 binaries via Rosetta 2
         if (aarch_64 || x86_64) "osx-x86_64"
         else throw new Exception("mill cannot detect your architecture of your Mac")
       else if (isLinux)
