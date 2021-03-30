@@ -119,13 +119,16 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
     millSourcePath / "src" / "main" / "proto" / "firrtl.proto"
   }
 
+  def protocJarVersion = "3.11.4"
+
   def downloadProtocJar = T.persistent {
-    Util.download(s"https://repo.maven.apache.org/maven2/com/github/os72/protoc-jar/$protocVersion/protoc-jar-$protocVersion.jar")
+    Util.download(s"https://repo.maven.apache.org/maven2/com/github/os72/protoc-jar/$protocJarVersion/protoc-jar-$protocJarVersion.jar")
   }
 
   def generatedProtoSources = T.sources {
     os.proc("java",
       "-jar", downloadProtocJar().path.toString,
+      "-v351",
       "-I", protobufSource().path / os.up,
       s"--java_out=${T.ctx.dest.toString}",
       protobufSource().path.toString()
