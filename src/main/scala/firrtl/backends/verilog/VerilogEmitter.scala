@@ -7,7 +7,14 @@ import firrtl.PrimOps._
 import firrtl.Utils._
 import firrtl.WrappedExpression._
 import firrtl.traversals.Foreachers._
-import firrtl.annotations.{CircuitTarget, MemoryLoadFileType, ReferenceTarget, SingleTargetAnnotation}
+import firrtl.annotations.{
+  CircuitTarget,
+  MemoryLoadFileType,
+  MemoryNoSynthInit,
+  MemorySynthInit,
+  ReferenceTarget,
+  SingleTargetAnnotation
+}
 import firrtl.passes.LowerTypes
 import firrtl.passes.MemPortUtils._
 import firrtl.stage.TransformManager
@@ -482,6 +489,15 @@ class VerilogEmitter extends SeqTransform with Emitter {
     def getConnectEmissionOption(target: ReferenceTarget): ConnectEmissionOption =
       connectEmissionOption(target)
 
+    // Defines the memory initialization based on the annotation
+    // Defaults to having the memories inside the `ifndef SYNTHESIS` block
+    def emitMemoryInitAsNoSynth: Option[Boolean] = {
+      annotations.collectFirst {
+        case MemoryNoSynthInit => Option(true)
+        case MemorySynthInit   => Option(false)
+      }.getOrElse(Option(true))
+    }
+
     private val emissionAnnos = annotations.collect {
       case m: SingleTargetAnnotation[ReferenceTarget] @unchecked with EmissionOption => m
     }
@@ -605,6 +621,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
     val asyncInitials = ArrayBuffer[Seq[Any]]()
     // memories need to be initialized even when randomization is disabled
     val memoryInitials = ArrayBuffer[Seq[Any]]()
+    val randomMemoryInitials = ArrayBuffer[Seq[Any]]()
     val simulates = ArrayBuffer[Seq[Any]]()
     val formals = mutable.LinkedHashMap[Expression, ArrayBuffer[Seq[Any]]]()
 
@@ -861,7 +878,14 @@ class VerilogEmitter extends SeqTransform with Emitter {
             case MemoryLoadFileType.Binary => "$readmemb"
             case MemoryLoadFileType.Hex    => "$readmemh"
           }
-          memoryInitials += Seq(s"""$readmem("$filename", ${s.name});""")
+          if (emissionOptions.emitMemoryInitAsNoSynth.get) {
+            memoryInitials += Seq(s"""$readmem("$filename", ${s.name});""")
+          } else {
+            val inlineLoad = s"""initial begin
+                                |    $readmem("$filename", ${s.name});
+                                |  end""".stripMargin
+            memoryInitials += Seq(inlineLoad)
+          }
       }
     }
 
@@ -1140,7 +1164,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq(tab, "end"))
       }
 
-      if (initials.nonEmpty || ifdefInitials.nonEmpty || memoryInitials.nonEmpty) {
+      if (initials.nonEmpty || ifdefInitials.nonEmpty || memoryInitials.nonEmpty || randomMemoryInitials.nonEmpty) {
         emit(Seq("// Register and memory initialization"))
         emit(Seq("`ifdef RANDOMIZE_GARBAGE_ASSIGN"))
         emit(Seq("`define RANDOMIZE"))
@@ -1158,7 +1182,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("`define RANDOM $random"))
         emit(Seq("`endif"))
         // the initvar is also used to initialize memories to constants
-        if (memoryInitials.isEmpty) emit(Seq("`ifdef RANDOMIZE_MEM_INIT"))
+        if (randomMemoryInitials.isEmpty) emit(Seq("`ifdef RANDOMIZE_MEM_INIT"))
         // Since simulators don't actually support memories larger than 2^31 - 1, there is no reason
         // to change Verilog emission in the common case. Instead, we only emit a larger initvar
         // where necessary
@@ -1169,7 +1193,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
           val width = maxMemSize.bitLength - 1 // minus one because [width-1:0] has a width of "width"
           emit(Seq(s"  reg [$width:0] initvar;"))
         }
-        if (memoryInitials.isEmpty) emit(Seq("`endif"))
+        if (randomMemoryInitials.isEmpty) emit(Seq("`endif"))
         emit(Seq("`ifndef SYNTHESIS"))
         // User-defined macro of code to run before an initial block
         emit(Seq("`ifdef FIRRTL_BEFORE_INITIAL"))
@@ -1200,13 +1224,20 @@ class VerilogEmitter extends SeqTransform with Emitter {
         for (x <- initials) emit(Seq(tab, x))
         for (x <- asyncInitials) emit(Seq(tab, x))
         emit(Seq("  `endif // RANDOMIZE"))
-        for (x <- memoryInitials) emit(Seq(tab, x))
+
+        if (emissionOptions.emitMemoryInitAsNoSynth.get) {
+          for (x <- memoryInitials) emit(Seq(tab, x))
+        }
+        for (x <- randomMemoryInitials) emit(Seq(tab, x))
         emit(Seq("end // initial"))
         // User-defined macro of code to run after an initial block
         emit(Seq("`ifdef FIRRTL_AFTER_INITIAL"))
         emit(Seq("`FIRRTL_AFTER_INITIAL"))
         emit(Seq("`endif"))
         emit(Seq("`endif // SYNTHESIS"))
+        if (!emissionOptions.emitMemoryInitAsNoSynth.get) {
+          for (x <- memoryInitials) emit(Seq(tab, x))
+        }
       }
 
       if (formals.keys.nonEmpty) {

@@ -52,3 +52,8 @@ case class MemoryFileInlineAnnotation(
   override def initValue:    MemoryInitValue = MemoryFileInlineInit(filename, hexOrBinary)
   override def isRandomInit: Boolean = false
 }
+
+/** Defines the memory initialization target, inside or outside the `ifndef SYNTHESIS` block */
+trait MemoryInitTargetAnnotation extends NoTargetAnnotation
+case object MemoryNoSynthInit extends MemoryInitTargetAnnotation
+case object MemorySynthInit extends MemoryInitTargetAnnotation
