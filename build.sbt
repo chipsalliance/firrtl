@@ -24,7 +24,7 @@ lazy val commonSettings = Seq(
 
 lazy val firrtlSettings = Seq(
   name := "firrtl",
-  version := "1.4.2",
+  version := "1.4.3",
   addCompilerPlugin(scalafixSemanticdb),
   scalacOptions := Seq(
     "-deprecation",
