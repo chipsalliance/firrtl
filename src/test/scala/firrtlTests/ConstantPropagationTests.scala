@@ -908,6 +908,17 @@ class ConstantPropagationIntegrationSpec extends LowTransformSpec {
     execute(input, check, Seq(dontTouch("Child.in1")))
   }
 
+  it should "NOT optimize if no-constant-propagation is enabled" in {
+    val input =
+      """circuit Foo:
+        |  module Foo:
+        |    input a: UInt<1>
+        |    output b: UInt<1>
+        |    b <= and(UInt<1>(0), a)""".stripMargin
+    val check = parse(input).serialize
+    execute(input, check, Seq(NoConstantPropagationAnnotation))
+  }
+
   it should "still propagate constants even when there is name swapping" in {
     val input =
       """circuit Top :
@@ -1635,6 +1646,20 @@ class ConstantPropagationEquivalenceSpec extends FirrtlFlatSpec {
          |    out1 <= cat(temp, temp)
          |    node const = add(SInt<4>("h1"), SInt<3>("h-2"))
          |    out2 <= cat(const, const)""".stripMargin
+    firrtlEquivalenceTest(input, transforms)
+  }
+
+  // https://github.com/chipsalliance/firrtl/issues/2034
+  "SInt OR with constant zero" should "have the correct widths" in {
+    val input =
+      s"""circuit WidthsOrSInt :
+         |  module WidthsOrSInt :
+         |    input in : SInt<1>
+         |    input in2 : SInt<4>
+         |    output out : UInt<8>
+         |    output out2 : UInt<8>
+         |    out <= or(in, SInt<8>(0))
+         |    out2 <= or(in2, SInt<8>(0))""".stripMargin
     firrtlEquivalenceTest(input, transforms)
   }
 

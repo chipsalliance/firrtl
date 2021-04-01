@@ -59,10 +59,13 @@ lazy val firrtlSettings = Seq(
 
 import com.typesafe.tools.mima.core._
 lazy val mimaSettings = Seq(
-  mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.4.1"),
+  mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.4.2"),
   // Public method on private object
   mimaBinaryIssueFilters ++= Seq(
-    ProblemFilters.exclude[IncompatibleMethTypeProblem]("firrtl.passes.DestructTypes.destructInstance")
+    ProblemFilters.exclude[IncompatibleMethTypeProblem]("firrtl.passes.DestructTypes.destructInstance"),
+    ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.FirrtlProtos#Firrtl#StatementOrBuilder.hasVerification"),
+    ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.FirrtlProtos#Firrtl#StatementOrBuilder.getVerification"),
+    ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.FirrtlProtos#Firrtl#StatementOrBuilder.getVerificationOrBuilder")
   )
 )
 
@@ -163,7 +166,7 @@ lazy val docSettings = Seq(
         } else {
           s"v${version.value}"
         }
-      s"https://github.com/freechipsproject/firrtl/tree/$branch€{FILE_PATH}.scala"
+      s"https://github.com/chipsalliance/firrtl/tree/$branch€{FILE_PATH_EXT}#L€{FILE_LINE}"
     }
   ) ++ scalacDocOptionsVersion(scalaVersion.value)
 )
