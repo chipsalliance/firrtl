@@ -1020,7 +1020,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
           val fullSize = sx.depth * (sx.dataType match {
             case GroundType(IntWidth(width)) => width
           })
-          val decl = if (fullSize > (1 << 29)) "reg /* sparse */" else "reg"
+          val decl = if (fullSize > (1 << 29)) "reg /* sparse */" else (if (sx.name == "in_shift") "(* ram_style =  \"registers\" *) reg" else "reg")
           declareVectorType(decl, sx.name, sx.dataType, sx.depth, sx.info)
           initialize_mem(sx, options)
           if (sx.readLatency != 0 || sx.writeLatency != 1)
