@@ -53,7 +53,8 @@ case class MemoryFileInlineAnnotation(
   override def isRandomInit: Boolean = false
 }
 
-/** Defines the memory initialization target, inside or outside the `ifndef SYNTHESIS` block */
-trait MemoryInitTargetAnnotation extends NoTargetAnnotation
-case object MemoryNoSynthInit extends MemoryInitTargetAnnotation
-case object MemorySynthInit extends MemoryInitTargetAnnotation
+/** Initializes the memory inside the `ifndef SYNTHESIS` block (default) */
+case object MemoryNoSynthInit extends NoTargetAnnotation
+
+/** Initializes the memory outside the `ifndef SYNTHESIS` block */
+case object MemorySynthInit extends NoTargetAnnotation
