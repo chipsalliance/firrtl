@@ -10,29 +10,29 @@ object Serializer {
   val NewLine = '\n'
   val Indent = "  "
 
-  /** Converts a `FirrtlNode` into its string representation
-   * with *zero* indents (old behavior for binary compatibility) */
+  /** Converts a `FirrtlNode` into its string representation with
+    * default indentation. */
   def serialize(node: FirrtlNode): String = {
     serialize(node, 0)
   }
 
   /** Converts a `FirrtlNode` into its string representation. */
-  def serialize(node: FirrtlNode, indents: Int): String = {
+  def serialize(node: FirrtlNode, indent: Int): String = {
     val builder = new StringBuilder()
     node match {
-      case n: Info        => s(n)(builder, indents)
-      case n: StringLit   => s(n)(builder, indents)
-      case n: Expression  => s(n)(builder, indents)
-      case n: Statement   => s(n)(builder, indents)
-      case n: Width       => s(n)(builder, indents)
-      case n: Orientation => s(n)(builder, indents)
-      case n: Field       => s(n)(builder, indents)
-      case n: Type        => s(n)(builder, indents)
-      case n: Direction   => s(n)(builder, indents)
-      case n: Port        => s(n)(builder, indents)
-      case n: Param       => s(n)(builder, indents)
-      case n: DefModule   => s(n)(builder, indents)
-      case n: Circuit     => s(n)(builder, indents)
+      case n: Info        => s(n)(builder, indent)
+      case n: StringLit   => s(n)(builder, indent)
+      case n: Expression  => s(n)(builder, indent)
+      case n: Statement   => s(n)(builder, indent)
+      case n: Width       => s(n)(builder, indent)
+      case n: Orientation => s(n)(builder, indent)
+      case n: Field       => s(n)(builder, indent)
+      case n: Type        => s(n)(builder, indent)
+      case n: Direction   => s(n)(builder, indent)
+      case n: Port        => s(n)(builder, indent)
+      case n: Param       => s(n)(builder, indent)
+      case n: DefModule   => s(n)(builder, indent)
+      case n: Circuit     => s(n)(builder, indent)
       case other => builder ++= other.serialize // Handle user-defined nodes
     }
     builder.toString()
