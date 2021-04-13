@@ -11,7 +11,8 @@ object Serializer {
   val Indent = "  "
 
   /** Converts a `FirrtlNode` into its string representation with
-    * default indentation. */
+    * default indentation.
+    */
   def serialize(node: FirrtlNode): String = {
     serialize(node, 0)
   }
