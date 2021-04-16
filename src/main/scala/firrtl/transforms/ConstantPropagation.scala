@@ -28,7 +28,17 @@ object ConstantPropagation {
 
   /** Pads e to the width of t */
   def pad(e: Expression, t: Type) = (bitWidth(e.tpe), bitWidth(t)) match {
-    case (we, wt) if we < wt => DoPrim(Pad, Seq(e), Seq(wt), t)
+    case (we, wt) if we < wt =>
+      DoPrim(
+        Pad,
+        Seq(e),
+        Seq(wt),
+        e.tpe match {
+          case UIntType(_) => UIntType(IntWidth(wt))
+          case SIntType(_) => SIntType(IntWidth(wt))
+          case _           => e.tpe
+        }
+      )
     case (we, wt) if we == wt => e
   }
 
@@ -242,8 +252,8 @@ class ConstantPropagation extends Transform with DependencyAPIMigration with Res
     }
     def simplify(e: Expression, lhs: Literal, rhs: Expression) = lhs match {
       case UIntLiteral(v, _) if v == BigInt(0) => rhs
-      case SIntLiteral(v, _) if v == BigInt(0) => asUInt(rhs, e.tpe)
-      case _ => e
+      case SIntLiteral(v, _) if v == BigInt(0) => asUInt(pad(rhs, e.tpe), e.tpe)
+      case _                                   => e
     }
     def matchingArgsValue(e: DoPrim, arg: Expression) = UIntLiteral(0, getWidth(arg.tpe))
   }
