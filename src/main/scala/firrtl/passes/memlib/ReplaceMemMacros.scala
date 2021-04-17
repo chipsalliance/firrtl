@@ -24,8 +24,8 @@ object ReplaceMemMacros {
   * This will not generate wmask ports if not needed.
   * Creates the minimum # of black boxes needed by the design.
   */
-class ReplaceMemMacros(writer: ConfWriter) extends Transform with DependencyAPIMigration {
-
+class ReplaceMemMacros extends Transform with DependencyAPIMigration {
+  val defAnnotatedMemories: collection.mutable.ListBuffer[DefAnnotatedMemory] = collection.mutable.ListBuffer[DefAnnotatedMemory]()
   override def prerequisites = Forms.MidForm
   override def optionalPrerequisites = Seq.empty
   override def optionalPrerequisiteOf = Forms.MidEmitters
@@ -156,7 +156,7 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform with DependencyAPIM
     // TODO: Annotate? -- use actual annotation map
 
     // add to conf file
-    writer.append(m)
+    defAnnotatedMemories += m
     Seq(bb, wrapper)
   }
 
@@ -264,8 +264,6 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform with DependencyAPIM
     val nameMap = new NameMap
     c.modules.map(m => m.map(constructNameMap(namespace, nameMap, m.name)))
     val modules = c.modules.map(updateMemMods(namespace, nameMap, memMods))
-    // print conf
-    writer.serialize()
     val pannos = state.annotations.collect { case a: PinAnnotation => a }
     val pins = pannos match {
       case Seq()                    => Nil
@@ -276,7 +274,10 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform with DependencyAPIM
       seq ++ memMods.collect {
         case m: ExtModule => SinkAnnotation(ModuleName(m.name, CircuitName(c.main)), pin)
       }
-    } ++ state.annotations
+    } ++ state.annotations.map {
+      case MemLibOutConfigFileAnnotation(f, _) => MemLibOutConfigFileAnnotation(f, defAnnotatedMemories.toList)
+      case a => a
+    }
     state.copy(circuit = c.copy(modules = modules ++ memMods), annotations = annos)
   }
 }

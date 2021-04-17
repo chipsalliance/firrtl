@@ -153,14 +153,14 @@ class ReplSeqMem extends Transform with HasShellOptions with DependencyAPIMigrat
     )
   )
 
-  def transforms(outConfigFile: ConfWriter): Seq[Transform] =
+  val transforms: Seq[Transform] =
     Seq(
       new SimpleMidTransform(Legalize),
       new SimpleMidTransform(ToMemIR),
       new SimpleMidTransform(ResolveMaskGranularity),
       new SimpleMidTransform(RenameAnnotatedMemoryPorts),
       new ResolveMemoryReference,
-      new ReplaceMemMacros(outConfigFile),
+      new ReplaceMemMacros,
       new WiringTransform
     )
 
@@ -177,8 +177,8 @@ class ReplSeqMem extends Transform with HasShellOptions with DependencyAPIMigrat
           }
           else error("Input configuration file does not exist!")
         }
-        val outConfigFile = new ConfWriter(outputConfig)
-        transforms(outConfigFile).foldLeft(state.copy(annotations = state.annotations ++ pinAnnotation)) { (in, xform) => xform.runTransform(in) }
+        val outConfigFile = MemLibOutConfigFileAnnotation(outputConfig, Seq.empty)
+        transforms.foldLeft(state.copy(annotations = state.annotations ++ pinAnnotation :+ outConfigFile)) { (in, xform) => xform.runTransform(in) }
       case _ => error("Unexpected transform annotation")
     }
   }
