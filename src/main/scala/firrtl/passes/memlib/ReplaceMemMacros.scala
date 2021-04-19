@@ -13,6 +13,8 @@ import firrtl.annotations._
 import firrtl.stage.Forms
 import wiring._
 
+import scala.collection.mutable.ListBuffer
+
 /** Annotates the name of the pins to add for WiringTransform */
 case class PinAnnotation(pins: Seq[String]) extends NoTargetAnnotation
 
@@ -25,7 +27,6 @@ object ReplaceMemMacros {
   * Creates the minimum # of black boxes needed by the design.
   */
 class ReplaceMemMacros extends Transform with DependencyAPIMigration {
-  val defAnnotatedMemories: collection.mutable.ListBuffer[DefAnnotatedMemory] = collection.mutable.ListBuffer[DefAnnotatedMemory]()
   override def prerequisites = Forms.MidForm
   override def optionalPrerequisites = Seq.empty
   override def optionalPrerequisiteOf = Forms.MidEmitters
@@ -136,7 +137,11 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
     *  The wrapper module has the same type as the memory it replaces
     *  The external module
     */
-  def createMemModule(m: DefAnnotatedMemory, wrapperName: String): Seq[DefModule] = {
+  def createMemModule(
+    m:                    DefAnnotatedMemory,
+    wrapperName:          String,
+    insertFunc: DefAnnotatedMemory => Unit
+  ): Seq[DefModule] = {
     assert(m.dataType != UnknownType)
     val wrapperIoType = memToBundle(m)
     val wrapperIoPorts = wrapperIoType.fields.map(f => Port(NoInfo, f.name, Input, f.tpe))
@@ -156,7 +161,7 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
     // TODO: Annotate? -- use actual annotation map
 
     // add to conf file
-    defAnnotatedMemories += m
+    insertFunc(m)
     Seq(bb, wrapper)
   }
 
@@ -224,12 +229,13 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
   }
 
   def updateMemStmts(
-    namespace:  Namespace,
-    nameMap:    NameMap,
-    mname:      String,
-    memPortMap: MemPortMap,
-    memMods:    Modules
-  )(s:          Statement
+    namespace:            Namespace,
+    nameMap:              NameMap,
+    mname:                String,
+    memPortMap:           MemPortMap,
+    memMods:              Modules,
+    insertFunc: DefAnnotatedMemory => Unit,
+  )(s:                    Statement
   ): Statement = s match {
     case m: DefAnnotatedMemory =>
       if (m.maskGran.isEmpty) {
@@ -242,18 +248,24 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
           val newWrapperName = nameMap(mname -> m.name)
           val newMemBBName = namespace.newName(s"${newWrapperName}_ext")
           val newMem = m.copy(name = newMemBBName)
-          memMods ++= createMemModule(newMem, newWrapperName)
+          memMods ++= createMemModule(newMem, newWrapperName, insertFunc)
           WDefInstance(m.info, m.name, newWrapperName, UnknownType)
         case Some((module, mem)) =>
           WDefInstance(m.info, m.name, nameMap(module -> mem), UnknownType)
       }
-    case sx => sx.map(updateMemStmts(namespace, nameMap, mname, memPortMap, memMods))
+    case sx => sx.map(updateMemStmts(namespace, nameMap, mname, memPortMap, memMods, insertFunc))
   }
 
-  def updateMemMods(namespace: Namespace, nameMap: NameMap, memMods: Modules)(m: DefModule) = {
+  def updateMemMods(
+    namespace:            Namespace,
+    nameMap:              NameMap,
+    memMods:              Modules,
+    insertFunc: DefAnnotatedMemory => Unit,
+  )(m:                    DefModule
+  ) = {
     val memPortMap = new MemPortMap
 
-    (m.map(updateMemStmts(namespace, nameMap, m.name, memPortMap, memMods))
+    (m.map(updateMemStmts(namespace, nameMap, m.name, memPortMap, memMods, insertFunc))
       .map(updateStmtRefs(memPortMap)))
   }
 
@@ -262,8 +274,12 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
     val namespace = Namespace(c)
     val memMods = new Modules
     val nameMap = new NameMap
+    val (insertFunc, updateDoneFunc) = state.annotations.collectFirst {
+      case m: MemLibOutConfigFileAnnotation => ((defAnnotatedMemory: DefAnnotatedMemory) => m.insert(defAnnotatedMemory), () => m.done)
+    }.get
     c.modules.map(m => m.map(constructNameMap(namespace, nameMap, m.name)))
-    val modules = c.modules.map(updateMemMods(namespace, nameMap, memMods))
+    val modules = c.modules.map(updateMemMods(namespace, nameMap, memMods, insertFunc))
+    updateDoneFunc()
     val pannos = state.annotations.collect { case a: PinAnnotation => a }
     val pins = pannos match {
       case Seq()                    => Nil
@@ -274,10 +290,7 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
       seq ++ memMods.collect {
         case m: ExtModule => SinkAnnotation(ModuleName(m.name, CircuitName(c.main)), pin)
       }
-    } ++ state.annotations.map {
-      case MemLibOutConfigFileAnnotation(f, _) => MemLibOutConfigFileAnnotation(f, defAnnotatedMemories.toList)
-      case a => a
-    }
+    } ++ state.annotations
     state.copy(circuit = c.copy(modules = modules ++ memMods), annotations = annos)
   }
 }

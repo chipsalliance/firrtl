@@ -73,22 +73,55 @@ case class ReplSeqMemAnnotation(inputFileName: String, outputConfig: String) ext
 /** Generate conf file for a sequence of [[DefAnnotatedMemory]]
   * @note file already has its suffix adding by `--replSeqMem`
   */
-case class MemLibOutConfigFileAnnotation(file: String, annotatedMemories: Seq[DefAnnotatedMemory]) extends NoTargetAnnotation with CustomFileEmission {
+case class MemLibOutConfigFileAnnotation(file: String)
+    extends NoTargetAnnotation
+    with HasAnnotatedMemories
+    with CustomFileEmission {
   def baseFileName(annotations: AnnotationSeq) = file
   def suffix = None
-  def getBytes = annotatedMemories.map{ m =>
-      require(bitWidth(m.dataType) <= Int.MaxValue)
-      m.maskGran.foreach(x => require(x <= Int.MaxValue))
-      MemConf(
-        m.name,
-        m.depth,
-        bitWidth(m.dataType).toInt,
-        m.readers.length,
-        m.writers.length,
-        m.readwriters.length,
-        m.maskGran.map(_.toInt)
-      ).toString
-    }.mkString("\n").getBytes
+  def getBytes = annotatedMemories.map { m =>
+    require(bitWidth(m.dataType) <= Int.MaxValue)
+    m.maskGran.foreach(x => require(x <= Int.MaxValue))
+    MemConf(
+      m.name,
+      m.depth,
+      bitWidth(m.dataType).toInt,
+      m.readers.length,
+      m.writers.length,
+      m.readwriters.length,
+      m.maskGran.map(_.toInt)
+    ).toString
+  }.mkString("\n").getBytes
+}
+
+trait HasAnnotatedMemories {
+
+  /** This is the place used by [[ReplaceMemMacros]] to write [[DefAnnotatedMemory]] during walking modules. */
+  private val annotatedMemoriesBuffer: collection.mutable.ListBuffer[DefAnnotatedMemory] =
+    collection.mutable.ListBuffer[DefAnnotatedMemory]()
+
+  /** Flag to mark [[annotatedMemoriesBuffer]] is safe to insert. */
+  private var safe: Boolean = false
+
+  /** function to write to private val [[annotatedMemoriesBuffer]]. */
+  private[memlib] def insert(defAnnotatedMemory: DefAnnotatedMemory): Unit = {
+    require(!safe, throw new RuntimeException(s"cannot insert to annotatedMemoriesBuffer, since annotatedMemories has been evaluated."))
+    annotatedMemoriesBuffer += defAnnotatedMemory
+  }
+
+  /** Need to guard [[annotatedMemories]] after writing to [[annotatedMemoriesBuffer]]. */
+  private[memlib] def done: Unit = {
+    safe = true
+    annotatedMemories
+  }
+
+  /** This it the immutable [[DefAnnotatedMemory]] can be accessed after */
+  final lazy val annotatedMemories: List[DefAnnotatedMemory] = {
+    require(safe, throw new RuntimeException(s"not safe to evaluate annotatedMemories now."))
+    annotatedMemoriesBuffer.toList
+  }
+
+
 }
 
 object ReplSeqMemAnnotation {
@@ -174,11 +207,12 @@ class ReplSeqMem extends Transform with HasShellOptions with DependencyAPIMigrat
           else if (new File(inputFileName).exists) {
             import CustomYAMLProtocol._
             Some(PinAnnotation(new YamlFileReader(inputFileName).parse[Config].map(_.pin.name)))
-          }
-          else error("Input configuration file does not exist!")
+          } else error("Input configuration file does not exist!")
         }
-        val outConfigFile = MemLibOutConfigFileAnnotation(outputConfig, Seq.empty)
-        transforms.foldLeft(state.copy(annotations = state.annotations ++ pinAnnotation :+ outConfigFile)) { (in, xform) => xform.runTransform(in) }
+        val outConfigFile = MemLibOutConfigFileAnnotation(outputConfig)
+        transforms.foldLeft(state.copy(annotations = state.annotations ++ pinAnnotation :+ outConfigFile)) {
+          (in, xform) => xform.runTransform(in)
+        }
       case _ => error("Unexpected transform annotation")
     }
   }
