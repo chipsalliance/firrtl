@@ -16,6 +16,7 @@ class Compiler(
 
   override val wrappers = Seq(
     (a: Transform) => ExpandPrepares(a),
+    (a: Transform) => new ReportSizeChange(a),
     (a: Transform) => CatchCustomTransformExceptions(a),
     (a: Transform) => UpdateAnnotations(a)
   )
