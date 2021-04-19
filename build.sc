@@ -97,7 +97,9 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
   }
 
   def downloadAntlr4Jar = T.persistent {
-    Util.download(s"https://www.antlr.org/download/antlr-$antlr4Version-complete.jar")
+    if (!os.isFile( T.ctx.dest / "antlr4" ))
+      Util.download(s"https://www.antlr.org/download/antlr-$antlr4Version-complete.jar", os.rel / "antlr4")
+    PathRef(T.ctx.dest / "antlr4")
   }
 
   def generatedAntlr4Source = T.sources {
@@ -141,11 +143,12 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
     val ppcle_64 = architecture().equals("ppc64le")
     val s390x = architecture().equals("s390x")
     val x86_32 = architecture().matches("^(x8632|x86|i[3-6]86|ia32|x32)$")
-    val x86_64 = architecture().matches("^(x8664|amd64|ia32e|em64t|x64)$")
+    val x86_64 = architecture().matches("^(x8664|amd64|ia32e|em64t|x64|x86_64)$")
 
     val protocBinary =
       if (isMac)
-        if (aarch_64) "osx-x86_64"
+        // MacOS ARM 64-bit still supports x86_64 binaries via Rosetta 2
+        if (aarch_64 || x86_64) "osx-x86_64"
         else throw new Exception("mill cannot detect your architecture of your Mac")
       else if (isLinux)
         if (aarch_64) "linux-aarch_64"
@@ -160,16 +163,20 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
         else throw new Exception("mill cannot detect your architecture of your Windows")
       else throw new Exception("mill cannot detect your operation system.")
 
-    val zip = Util.downloadUnpackZip(
-      s"https://github.com/protocolbuffers/protobuf/releases/download/v$protocVersion/protoc-$protocVersion-$protocBinary.zip"
-    )
-    val bin = if(isWindows)
-      zip.path / "bin" / "protoc.exe"
-    else
-      zip.path / "bin" / "protoc"
+    val unpackPath = os.rel / "unpacked"
 
+    val bin = if(isWindows)
+      T.ctx.dest / unpackPath / "bin" / "protoc.exe"
+    else
+      T.ctx.dest / unpackPath / "bin" / "protoc"
+
+    if (!os.exists(bin))
+      Util.downloadUnpackZip(
+        s"https://github.com/protocolbuffers/protobuf/releases/download/v$protocVersion/protoc-$protocVersion-$protocBinary.zip",
+        unpackPath
+      )
     // Download Linux/Mac binary doesn't have x.
-    if (!isWindows) os.perms.set(bin, "--x------")
+    if (!isWindows) os.perms.set(bin, "rwx------")
     PathRef(bin)
   }
 

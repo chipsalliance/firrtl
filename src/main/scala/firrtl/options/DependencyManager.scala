@@ -264,15 +264,23 @@ trait DependencyManager[A, B <: TransformLike[A] with DependencyAPI[B]] extends 
       val w = wrappers.foldLeft(t) { case (tx, wrapper) => wrapper(tx) }
       wrapperToClass += (w -> t)
       w
-    }.foldLeft((annotations, _currentState)) { case ((a, state), t) =>
-      if (!t.prerequisites.toSet.subsetOf(state)) {
-        throw new DependencyManagerException(
-          s"""|Tried to execute '$t' for which run-time prerequisites were not satisfied:
-              |  state: ${state.mkString("\n    -", "\n    -", "")}
-              |  prerequisites: ${prerequisites.mkString("\n    -", "\n    -", "")}""".stripMargin
-        )
-      }
-      (t.transform(a), ((state + wrapperToClass(t)).map(dToO).filterNot(t.invalidates).map(oToD)))
+    }.foldLeft((annotations, _currentState)) {
+      case ((a, state), t) =>
+        if (!t.prerequisites.toSet.subsetOf(state)) {
+          throw new DependencyManagerException(
+            s"""|Tried to execute '$t' for which run-time prerequisites were not satisfied:
+                |  state: ${state.mkString("\n    -", "\n    -", "")}
+                |  prerequisites: ${prerequisites.mkString("\n    -", "\n    -", "")}""".stripMargin
+          )
+        }
+        val logger = t.getLogger
+        logger.info(s"======== Starting ${t.name} ========")
+        val (timeMillis, annosx) = firrtl.Utils.time { t.transform(a) }
+        logger.info(s"""----------------------------${"-" * t.name.size}---------\n""")
+        logger.info(f"Time: $timeMillis%.1f ms")
+        logger.info(s"======== Finished ${t.name} ========")
+        val statex = (state + wrapperToClass(t)).map(dToO).filterNot(t.invalidates).map(oToD)
+        (annosx, statex)
     }._1
   }
 
