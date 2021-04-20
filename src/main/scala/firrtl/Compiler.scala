@@ -413,9 +413,6 @@ trait Emitter extends Transform {
 
   override def invalidates(a: Transform) = false
 
-  @deprecated("Use emission annotations instead", "FIRRTL 1.0")
-  def emit(state: CircuitState, writer: Writer): Unit
-
   /** An output suffix to use if the output of this [[Emitter]] was written to a file */
   def outputSuffix: String
 }
@@ -536,24 +533,6 @@ trait Compiler extends Transform with DependencyAPIMigration {
     s"Compiler transforms for '${this.getClass.getName}' must have at least ONE Transform! " +
       "Use IdentityTransform if you need an identity/no-op transform."
   )
-
-  /** Perform compilation
-    *
-    * @param state The Firrtl AST to compile
-    * @param writer The java.io.Writer where the output of compilation will be emitted
-    * @param customTransforms Any custom [[Transform]]s that will be inserted
-    *   into the compilation process by [[CompilerUtils.mergeTransforms]]
-    */
-  @deprecated(
-    "Migrate to '(new FirrtlStage).execute(args: Array[String], annotations: AnnotationSeq)'." +
-      "This will be removed in 1.4.",
-    "FIRRTL 1.0"
-  )
-  def compile(state: CircuitState, writer: Writer, customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
-    val finalState = compileAndEmit(state, customTransforms)
-    writer.write(finalState.getEmittedCircuit.value)
-    finalState
-  }
 
   /** Perform compilation and emit the whole Circuit
     *

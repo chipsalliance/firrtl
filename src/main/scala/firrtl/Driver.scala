@@ -52,19 +52,6 @@ object Driver {
   @deprecated("Use firrtl.options.StageUtils.dramaticWarning", "FIRRTL 1.2")
   def dramaticError(message: String): Unit = StageUtils.dramaticError(message)
 
-  /** Load annotation file based on options
-    * @param optionsManager use optionsManager config to load annotation file if it exists
-    *                       update the firrtlOptions with new annotations if it does
-    */
-  @deprecated("Use side-effect free getAnnotation instead", "FIRRTL 1.1")
-  def loadAnnotations(optionsManager: ExecutionOptionsManager with HasFirrtlOptions): Unit = {
-    val msg = "Driver.loadAnnotations is deprecated, use Driver.getAnnotations instead"
-    Driver.dramaticWarning(msg)
-    optionsManager.firrtlOptions = optionsManager.firrtlOptions.copy(
-      annotations = Driver.getAnnotations(optionsManager).toList
-    )
-  }
-
   /** Get annotations from specified files and options
     *
     * @param optionsManager use optionsManager config to load annotation files

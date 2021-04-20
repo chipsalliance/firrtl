@@ -35,78 +35,7 @@ case class Modifications(
                                           |""".stripMargin
 }
 
-/** A lineage tree representing the instance hierarchy in a design
-  */
-@deprecated("Use DiGraph/InstanceGraph", "FIRRTL 1.1.1")
-case class Lineage(
-  name:         String,
-  children:     Seq[(String, Lineage)] = Seq.empty,
-  source:       Boolean = false,
-  sink:         Boolean = false,
-  sourceParent: Boolean = false,
-  sinkParent:   Boolean = false,
-  sharedParent: Boolean = false,
-  addPort:      Option[(String, DecKind)] = None,
-  cons:         Seq[(String, String)] = Seq.empty) {
-
-  def map(f: Lineage => Lineage): Lineage =
-    this.copy(children = children.map { case (i, m) => (i, f(m)) })
-
-  override def toString: String = shortSerialize("")
-
-  def shortSerialize(tab: String): String = s"""
-                                               |$tab name: $name,
-                                               |$tab children: ${children.map(c =>
-    tab + "   " + c._2.shortSerialize(tab + "    ")
-  )}
-                                               |""".stripMargin
-
-  def foldLeft[B](z: B)(op: (B, (String, Lineage)) => B): B =
-    this.children.foldLeft(z)(op)
-
-  def serialize(tab: String): String = s"""
-                                          |$tab name: $name,
-                                          |$tab source: $source,
-                                          |$tab sink: $sink,
-                                          |$tab sourceParent: $sourceParent,
-                                          |$tab sinkParent: $sinkParent,
-                                          |$tab sharedParent: $sharedParent,
-                                          |$tab addPort: $addPort
-                                          |$tab cons: $cons
-                                          |$tab children: ${children.map(c =>
-    tab + "   " + c._2.serialize(tab + "    ")
-  )}
-                                          |""".stripMargin
-}
-
 object WiringUtils {
-  @deprecated("Use DiGraph/InstanceGraph", "FIRRTL 1.1.1")
-  type ChildrenMap = mutable.HashMap[String, Seq[(String, String)]]
-
-  /** Given a circuit, returns a map from module name to children
-    * instance/module names
-    */
-  @deprecated("Use DiGraph/InstanceGraph", "FIRRTL 1.1.1")
-  def getChildrenMap(c: Circuit): ChildrenMap = {
-    val childrenMap = new ChildrenMap()
-    def getChildren(mname: String)(s: Statement): Unit = s match {
-      case s: DefInstance =>
-        childrenMap(mname) = childrenMap(mname) :+ ((s.name, s.module))
-      case s => s.foreach(getChildren(mname))
-    }
-    c.modules.foreach { m =>
-      childrenMap(m.name) = Nil
-      m.foreach(getChildren(m.name))
-    }
-    childrenMap
-  }
-
-  /** Returns a module's lineage, containing all children lineages as well
-    */
-  @deprecated("Use DiGraph/InstanceGraph", "FIRRTL 1.1.1")
-  def getLineage(childrenMap: ChildrenMap, module: String): Lineage =
-    Lineage(module, childrenMap(module).map { case (i, m) => (i, getLineage(childrenMap, m)) })
-
   /** Return a map of sink instances to source instances that minimizes
     * distance
     *

@@ -324,17 +324,6 @@ case class FirrtlExecutionOptions(
     }
   }
 
-  /**
-    * build the annotation file name, taking overriding parameters
-    *
-    * @param optionsManager this is needed to access build function and its common options
-    * @return
-    */
-  @deprecated("Use FirrtlOptions.annotationFileNames instead", "FIRRTL 1.1")
-  def getAnnotationFileName(optionsManager: ExecutionOptionsManager): String = {
-    optionsManager.getBuildFileName("anno", annotationFileNameOverride)
-  }
-
   def toAnnotations: AnnotationSeq = {
     if (inferRW.nonEmpty) {
       StageUtils.dramaticWarning("User set FirrtlExecutionOptions.inferRW, but inferRW has no effect!")
