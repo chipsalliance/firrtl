@@ -63,7 +63,7 @@ object Driver {
     val firrtlConfig = optionsManager.firrtlOptions
 
     //noinspection ScalaDeprecation
-    val oldAnnoFileName = firrtlConfig.getAnnotationFileName(optionsManager)
+    val oldAnnoFileName = optionsManager.getBuildFileName("anno", firrtlConfig.annotationFileNameOverride)
     val oldAnnoFile = new File(oldAnnoFileName).getCanonicalFile
 
     val (annoFiles, usingImplicitAnnoFile) = {
