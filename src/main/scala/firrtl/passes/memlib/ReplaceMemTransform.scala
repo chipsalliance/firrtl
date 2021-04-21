@@ -153,14 +153,13 @@ class ReplSeqMem extends Transform with HasShellOptions with DependencyAPIMigrat
     )
   )
 
-  def transforms(inConfigFile: Option[YamlFileReader], outConfigFile: ConfWriter): Seq[Transform] =
+  def transforms(outConfigFile: ConfWriter): Seq[Transform] =
     Seq(
       new SimpleMidTransform(Legalize),
       new SimpleMidTransform(ToMemIR),
       new SimpleMidTransform(ResolveMaskGranularity),
       new SimpleMidTransform(RenameAnnotatedMemoryPorts),
       new ResolveMemoryReference,
-      new CreateMemoryAnnotations(inConfigFile),
       new ReplaceMemMacros(outConfigFile),
       new WiringTransform
     )
@@ -170,13 +169,16 @@ class ReplSeqMem extends Transform with HasShellOptions with DependencyAPIMigrat
     annos match {
       case Nil => state // Do nothing if there are no annotations
       case Seq(ReplSeqMemAnnotation(inputFileName, outputConfig)) =>
-        val inConfigFile = {
+        val pinAnnotation: Option[PinAnnotation] = {
           if (inputFileName.isEmpty) None
-          else if (new File(inputFileName).exists) Some(new YamlFileReader(inputFileName))
+          else if (new File(inputFileName).exists) {
+            import CustomYAMLProtocol._
+            Some(PinAnnotation(new YamlFileReader(inputFileName).parse[Config].map(_.pin.name)))
+          }
           else error("Input configuration file does not exist!")
         }
         val outConfigFile = new ConfWriter(outputConfig)
-        transforms(inConfigFile, outConfigFile).foldLeft(state) { (in, xform) => xform.runTransform(in) }
+        transforms(outConfigFile).foldLeft(state.copy(annotations = state.annotations ++ pinAnnotation)) { (in, xform) => xform.runTransform(in) }
       case _ => error("Unexpected transform annotation")
     }
   }
