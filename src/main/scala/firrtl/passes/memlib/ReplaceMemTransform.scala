@@ -5,7 +5,7 @@ package memlib
 
 import firrtl._
 import firrtl.annotations._
-import firrtl.options.{HasShellOptions, ShellOption}
+import firrtl.options.{CustomFileEmission, HasShellOptions, ShellOption}
 import Utils.error
 import java.io.{CharArrayWriter, File, PrintWriter}
 import wiring._
@@ -69,6 +69,27 @@ class ConfWriter(filename: String) {
 }
 
 case class ReplSeqMemAnnotation(inputFileName: String, outputConfig: String) extends NoTargetAnnotation
+
+/** Generate conf file for a sequence of [[DefAnnotatedMemory]]
+  * @note file already has its suffix adding by `--replSeqMem`
+  */
+case class MemLibOutConfigFileAnnotation(file: String, annotatedMemories: Seq[DefAnnotatedMemory]) extends NoTargetAnnotation with CustomFileEmission {
+  def baseFileName(annotations: AnnotationSeq) = file
+  def suffix = None
+  def getBytes = annotatedMemories.map{ m =>
+      require(bitWidth(m.dataType) <= Int.MaxValue)
+      m.maskGran.foreach(x => require(x <= Int.MaxValue))
+      MemConf(
+        m.name,
+        m.depth,
+        bitWidth(m.dataType).toInt,
+        m.readers.length,
+        m.writers.length,
+        m.readwriters.length,
+        m.maskGran.map(_.toInt)
+      ).toString
+    }.mkString("\n").getBytes
+}
 
 object ReplSeqMemAnnotation {
   def parse(t: String): ReplSeqMemAnnotation = {
