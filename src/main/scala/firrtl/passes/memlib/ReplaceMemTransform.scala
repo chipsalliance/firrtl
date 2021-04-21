@@ -3,13 +3,14 @@
 package firrtl.passes
 package memlib
 
+import firrtl.Utils.error
 import firrtl._
 import firrtl.annotations._
 import firrtl.options.{CustomFileEmission, HasShellOptions, ShellOption}
-import Utils.error
-import java.io.{CharArrayWriter, File, PrintWriter}
-import wiring._
+import firrtl.passes.wiring._
 import firrtl.stage.{Forms, RunFirrtlTransformAnnotation}
+
+import java.io.{CharArrayWriter, PrintWriter}
 
 sealed trait PassOption
 case object InputConfigFileName extends PassOption
@@ -73,9 +74,8 @@ case class ReplSeqMemAnnotation(inputFileName: String, outputConfig: String) ext
 /** Generate conf file for a sequence of [[DefAnnotatedMemory]]
   * @note file already has its suffix adding by `--replSeqMem`
   */
-case class MemLibOutConfigFileAnnotation(file: String)
+case class MemLibOutConfigFileAnnotation(file: String, annotatedMemories: Seq[DefAnnotatedMemory])
     extends NoTargetAnnotation
-    with HasAnnotatedMemories
     with CustomFileEmission {
   def baseFileName(annotations: AnnotationSeq) = file
   def suffix = None
@@ -94,8 +94,7 @@ case class MemLibOutConfigFileAnnotation(file: String)
   }.mkString("\n").getBytes
 }
 
-trait HasAnnotatedMemories {
-
+private[memlib] case class AnnotatedMemoriesCollectorAnnotation() extends NoTargetAnnotation {
   /** This is the place used by [[ReplaceMemMacros]] to write [[DefAnnotatedMemory]] during walking modules. */
   private val annotatedMemoriesBuffer: collection.mutable.ListBuffer[DefAnnotatedMemory] =
     collection.mutable.ListBuffer[DefAnnotatedMemory]()
@@ -104,13 +103,13 @@ trait HasAnnotatedMemories {
   private var safe: Boolean = false
 
   /** function to write to private val [[annotatedMemoriesBuffer]]. */
-  private[memlib] def insert(defAnnotatedMemory: DefAnnotatedMemory): Unit = {
+  def insert(defAnnotatedMemory: DefAnnotatedMemory): Unit = {
     require(!safe, throw new RuntimeException(s"cannot insert to annotatedMemoriesBuffer, since annotatedMemories has been evaluated."))
     annotatedMemoriesBuffer += defAnnotatedMemory
   }
 
   /** Need to guard [[annotatedMemories]] after writing to [[annotatedMemoriesBuffer]]. */
-  private[memlib] def done: Unit = {
+  def done: Unit = {
     safe = true
     annotatedMemories
   }
@@ -120,8 +119,6 @@ trait HasAnnotatedMemories {
     require(safe, throw new RuntimeException(s"not safe to evaluate annotatedMemories now."))
     annotatedMemoriesBuffer.toList
   }
-
-
 }
 
 object ReplSeqMemAnnotation {
@@ -165,7 +162,7 @@ class SimpleTransform(p: Pass, form: CircuitForm) extends Transform {
 class SimpleMidTransform(p: Pass) extends SimpleTransform(p, MidForm)
 
 // SimpleRun instead of PassBased because of the arguments to passSeq
-class ReplSeqMem extends Transform with HasShellOptions with DependencyAPIMigration {
+class ReplSeqMem extends SeqTransform with HasShellOptions with DependencyAPIMigration {
 
   override def prerequisites = Forms.MidForm
   override def optionalPrerequisites = Seq.empty
@@ -192,28 +189,10 @@ class ReplSeqMem extends Transform with HasShellOptions with DependencyAPIMigrat
       new SimpleMidTransform(ToMemIR),
       new SimpleMidTransform(ResolveMaskGranularity),
       new SimpleMidTransform(RenameAnnotatedMemoryPorts),
+      new CreateMemoryAnnotations,
       new ResolveMemoryReference,
       new ReplaceMemMacros,
-      new WiringTransform
+      new WiringTransform,
+      new DumpMemoryAnnotations
     )
-
-  def execute(state: CircuitState): CircuitState = {
-    val annos = state.annotations.collect { case a: ReplSeqMemAnnotation => a }
-    annos match {
-      case Nil => state // Do nothing if there are no annotations
-      case Seq(ReplSeqMemAnnotation(inputFileName, outputConfig)) =>
-        val pinAnnotation: Option[PinAnnotation] = {
-          if (inputFileName.isEmpty) None
-          else if (new File(inputFileName).exists) {
-            import CustomYAMLProtocol._
-            Some(PinAnnotation(new YamlFileReader(inputFileName).parse[Config].map(_.pin.name)))
-          } else error("Input configuration file does not exist!")
-        }
-        val outConfigFile = MemLibOutConfigFileAnnotation(outputConfig)
-        transforms.foldLeft(state.copy(annotations = state.annotations ++ pinAnnotation :+ outConfigFile)) {
-          (in, xform) => xform.runTransform(in)
-        }
-      case _ => error("Unexpected transform annotation")
-    }
-  }
 }
