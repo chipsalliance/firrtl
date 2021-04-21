@@ -275,7 +275,7 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
     val memMods = new Modules
     val nameMap = new NameMap
     val (insertFunc, updateDoneFunc) = state.annotations.collectFirst {
-      case m: MemLibOutConfigFileAnnotation => ((defAnnotatedMemory: DefAnnotatedMemory) => m.insert(defAnnotatedMemory), () => m.done)
+      case m: AnnotatedMemoriesCollectorAnnotation => ((defAnnotatedMemory: DefAnnotatedMemory) => m.insert(defAnnotatedMemory), () => m.done)
     }.get
     c.modules.map(m => m.map(constructNameMap(namespace, nameMap, m.name)))
     val modules = c.modules.map(updateMemMods(namespace, nameMap, memMods, insertFunc))
