@@ -15,15 +15,14 @@ class DumpMemoryAnnotations extends Transform with DependencyAPIMigration {
 
   def execute(state: CircuitState): CircuitState = {
     state.copy(annotations = state.annotations.flatMap {
-      // convert and remove AnnotatedMemoriesCollectorAnnotation to CustomFileEmission
-      case a: AnnotatedMemoriesCollectorAnnotation =>
+      // convert and remove AnnotatedMemoriesAnnotation to CustomFileEmission
+      case AnnotatedMemoriesAnnotation(annotatedMemories) =>
         state.annotations.collect {
-          // convert ReplSeqMemAnnotation to configurations.
-          case ReplSeqMemAnnotation(_, outputConfig) => MemLibOutConfigFileAnnotation(outputConfig, a.annotatedMemories)
+          case a: MemLibOutConfigFileAnnotation =>
+            a.copy(annotatedMemories = annotatedMemories)
           // todo convert xxx to verilogs here.
         }
-      // remove ReplSeqMemAnnotation
-      case _: ReplSeqMemAnnotation => Nil
+      case MemLibOutConfigFileAnnotation(_, Nil) => Nil
       case a => Seq(a)
     })
   }
