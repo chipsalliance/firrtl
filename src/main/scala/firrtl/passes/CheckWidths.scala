@@ -20,6 +20,7 @@ object CheckWidths extends Pass with PreservesAll[Transform] {
   /** The maximum allowed width for any circuit element */
   val MaxWidth = 1000000
   val DshlMaxWidth = getUIntWidth(MaxWidth)
+<<<<<<< HEAD
   class UninferredWidth (info: Info, target: String) extends PassException(
     s"""|$info : Uninferred width for target below.serialize}. (Did you forget to assign to it?)
         |$target""".stripMargin)
@@ -49,6 +50,43 @@ object CheckWidths extends Pass with PreservesAll[Transform] {
     s"$info: [target $mname] Parameter $n in tail operator is larger than input width $width.")
   class AttachWidthsNotEqual(info: Info, mname: String, eName: String, source: String) extends PassException(
     s"$info: [target $mname] Attach source $source and expression $eName must have identical widths.")
+=======
+  class UninferredWidth(info: Info, target: String)
+      extends PassException(s"""|$info : Uninferred width for target below. (Did you forget to assign to it?)
+                                |$target""".stripMargin)
+  class UninferredBound(info: Info, target: String, bound: String)
+      extends PassException(s"""|$info : Uninferred $bound bound for target. (Did you forget to assign to it?)
+                                |$target""".stripMargin)
+  class InvalidRange(info: Info, target: String, i: IntervalType)
+      extends PassException(s"""|$info : Invalid range ${i.serialize} for target below. (Are the bounds valid?)
+                                |$target""".stripMargin)
+  class WidthTooSmall(info: Info, mname: String, b: BigInt)
+      extends PassException(s"$info : [target $mname]  Width too small for constant $b.")
+  class WidthTooBig(info: Info, mname: String, b: BigInt)
+      extends PassException(s"$info : [target $mname]  Width $b greater than max allowed width of $MaxWidth bits")
+  class DshlTooBig(info: Info, mname: String)
+      extends PassException(
+        s"$info : [target $mname]  Width of dshl shift amount must be less than $DshlMaxWidth bits."
+      )
+  class MultiBitAsClock(info: Info, mname: String)
+      extends PassException(s"$info : [target $mname]  Cannot cast a multi-bit signal to a Clock.")
+  class MultiBitAsAsyncReset(info: Info, mname: String)
+      extends PassException(s"$info : [target $mname]  Cannot cast a multi-bit signal to an AsyncReset.")
+  class NegWidthException(info: Info, mname: String)
+      extends PassException(s"$info: [target $mname] Width cannot be negative or zero.")
+  class BitsWidthException(info: Info, mname: String, hi: BigInt, width: BigInt, exp: String)
+      extends PassException(
+        s"$info: [target $mname] High bit $hi in bits operator is larger than input width $width in $exp."
+      )
+  class HeadWidthException(info: Info, mname: String, n: BigInt, width: BigInt)
+      extends PassException(s"$info: [target $mname] Parameter $n in head operator is larger than input width $width.")
+  class TailWidthException(info: Info, mname: String, n: BigInt, width: BigInt)
+      extends PassException(s"$info: [target $mname] Parameter $n in tail operator is larger than input width $width.")
+  class AttachWidthsNotEqual(info: Info, mname: String, eName: String, source: String)
+      extends PassException(
+        s"$info: [target $mname] Attach source $source and expression $eName must have identical widths."
+      )
+>>>>>>> adc2ad9a... Fix CheckWidths error message for uninferred width (#2196)
   class DisjointSqueeze(info: Info, mname: String, squeeze: DoPrim)
     extends PassException({
       val toSqz = squeeze.args.head.serialize
