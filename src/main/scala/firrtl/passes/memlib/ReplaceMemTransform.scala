@@ -94,32 +94,7 @@ case class MemLibOutConfigFileAnnotation(file: String, annotatedMemories: Seq[De
   }.mkString("\n").getBytes
 }
 
-private[memlib] case class AnnotatedMemoriesCollectorAnnotation() extends NoTargetAnnotation {
-  /** This is the place used by [[ReplaceMemMacros]] to write [[DefAnnotatedMemory]] during walking modules. */
-  private val annotatedMemoriesBuffer: collection.mutable.ListBuffer[DefAnnotatedMemory] =
-    collection.mutable.ListBuffer[DefAnnotatedMemory]()
-
-  /** Flag to mark [[annotatedMemoriesBuffer]] is safe to insert. */
-  private var safe: Boolean = false
-
-  /** function to write to private val [[annotatedMemoriesBuffer]]. */
-  def insert(defAnnotatedMemory: DefAnnotatedMemory): Unit = {
-    require(!safe, throw new RuntimeException(s"cannot insert to annotatedMemoriesBuffer, since annotatedMemories has been evaluated."))
-    annotatedMemoriesBuffer += defAnnotatedMemory
-  }
-
-  /** Need to guard [[annotatedMemories]] after writing to [[annotatedMemoriesBuffer]]. */
-  def done: Unit = {
-    safe = true
-    annotatedMemories
-  }
-
-  /** This it the immutable [[DefAnnotatedMemory]] can be accessed after */
-  final lazy val annotatedMemories: List[DefAnnotatedMemory] = {
-    require(safe, throw new RuntimeException(s"not safe to evaluate annotatedMemories now."))
-    annotatedMemoriesBuffer.toList
-  }
-}
+private[memlib] case class AnnotatedMemoriesAnnotation(annotatedMemories: List[DefAnnotatedMemory]) extends NoTargetAnnotation
 
 object ReplSeqMemAnnotation {
   def parse(t: String): ReplSeqMemAnnotation = {

@@ -3,15 +3,15 @@
 package firrtl.passes
 package memlib
 
-import firrtl._
-import firrtl.ir._
-import firrtl.Utils._
 import firrtl.Mappers._
-import MemPortUtils.{MemPortMap, Modules}
-import MemTransformUtils._
+import firrtl.Utils._
+import firrtl._
 import firrtl.annotations._
+import firrtl.ir._
+import firrtl.passes.MemPortUtils.{MemPortMap, Modules}
+import firrtl.passes.memlib.MemTransformUtils._
+import firrtl.passes.wiring._
 import firrtl.stage.Forms
-import wiring._
 
 import scala.collection.mutable.ListBuffer
 
@@ -140,7 +140,7 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
   def createMemModule(
     m:                    DefAnnotatedMemory,
     wrapperName:          String,
-    insertFunc: DefAnnotatedMemory => Unit
+    annotatedMemoriesBuffer: ListBuffer[DefAnnotatedMemory]
   ): Seq[DefModule] = {
     assert(m.dataType != UnknownType)
     val wrapperIoType = memToBundle(m)
@@ -161,7 +161,7 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
     // TODO: Annotate? -- use actual annotation map
 
     // add to conf file
-    insertFunc(m)
+    annotatedMemoriesBuffer += m
     Seq(bb, wrapper)
   }
 
@@ -234,7 +234,7 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
     mname:                String,
     memPortMap:           MemPortMap,
     memMods:              Modules,
-    insertFunc: DefAnnotatedMemory => Unit,
+    annotatedMemoriesBuffer: ListBuffer[DefAnnotatedMemory]
   )(s:                    Statement
   ): Statement = s match {
     case m: DefAnnotatedMemory =>
@@ -248,49 +248,49 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
           val newWrapperName = nameMap(mname -> m.name)
           val newMemBBName = namespace.newName(s"${newWrapperName}_ext")
           val newMem = m.copy(name = newMemBBName)
-          memMods ++= createMemModule(newMem, newWrapperName, insertFunc)
+          memMods ++= createMemModule(newMem, newWrapperName, annotatedMemoriesBuffer)
           WDefInstance(m.info, m.name, newWrapperName, UnknownType)
         case Some((module, mem)) =>
           WDefInstance(m.info, m.name, nameMap(module -> mem), UnknownType)
       }
-    case sx => sx.map(updateMemStmts(namespace, nameMap, mname, memPortMap, memMods, insertFunc))
+    case sx => sx.map(updateMemStmts(namespace, nameMap, mname, memPortMap, memMods, annotatedMemoriesBuffer))
   }
 
   def updateMemMods(
     namespace:            Namespace,
     nameMap:              NameMap,
     memMods:              Modules,
-    insertFunc: DefAnnotatedMemory => Unit,
+    annotatedMemoriesBuffer: ListBuffer[DefAnnotatedMemory],
   )(m:                    DefModule
   ) = {
     val memPortMap = new MemPortMap
 
-    (m.map(updateMemStmts(namespace, nameMap, m.name, memPortMap, memMods, insertFunc))
+    (m.map(updateMemStmts(namespace, nameMap, m.name, memPortMap, memMods, annotatedMemoriesBuffer))
       .map(updateStmtRefs(memPortMap)))
   }
 
   def execute(state: CircuitState): CircuitState = {
+    val annotatedMemoriesBuffer: collection.mutable.ListBuffer[DefAnnotatedMemory] = ListBuffer[DefAnnotatedMemory]()
     val c = state.circuit
     val namespace = Namespace(c)
     val memMods = new Modules
     val nameMap = new NameMap
-    val (insertFunc, updateDoneFunc) = state.annotations.collectFirst {
-      case m: AnnotatedMemoriesCollectorAnnotation => ((defAnnotatedMemory: DefAnnotatedMemory) => m.insert(defAnnotatedMemory), () => m.done)
-    }.get
     c.modules.map(m => m.map(constructNameMap(namespace, nameMap, m.name)))
-    val modules = c.modules.map(updateMemMods(namespace, nameMap, memMods, insertFunc))
-    updateDoneFunc()
-    val pannos = state.annotations.collect { case a: PinAnnotation => a }
-    val pins = pannos match {
-      case Seq()                    => Nil
-      case Seq(PinAnnotation(pins)) => pins
-      case _                        => throwInternalError("Something went wrong")
-    }
-    val annos = pins.foldLeft(Seq[Annotation]()) { (seq, pin) =>
-      seq ++ memMods.collect {
-        case m: ExtModule => SinkAnnotation(ModuleName(m.name, CircuitName(c.main)), pin)
-      }
-    } ++ state.annotations
-    state.copy(circuit = c.copy(modules = modules ++ memMods), annotations = annos)
+    val modules = c.modules.map(updateMemMods(namespace, nameMap, memMods, annotatedMemoriesBuffer))
+    state.copy(
+      circuit = c.copy(modules = modules ++ memMods),
+      annotations =
+        state.annotations ++
+          (state.annotations.collectFirst { case a: PinAnnotation => a } match {
+            case None => Nil
+            case Some(PinAnnotation(pins)) =>
+              pins.foldLeft(Seq[Annotation]()) { (seq, pin) =>
+                seq ++ memMods.collect {
+                  case m: ExtModule => SinkAnnotation(ModuleName(m.name, CircuitName(c.main)), pin)
+                }
+              }
+          }) :+
+          AnnotatedMemoriesAnnotation(annotatedMemoriesBuffer.toList)
+    )
   }
 }
