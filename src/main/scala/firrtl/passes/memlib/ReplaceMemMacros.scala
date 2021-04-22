@@ -122,12 +122,13 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
     })
   )
 
-  def memToBundle(s: DefAnnotatedMemory) = BundleType(
+  private def memToBundle(s: DefAnnotatedMemory) = BundleType(
     s.readers.map(Field(_, Flip, rPortToBundle(s))) ++
       s.writers.map(Field(_, Flip, wPortToBundle(s))) ++
       s.readwriters.map(Field(_, Flip, rwPortToBundle(s)))
   )
-  def memToFlattenBundle(s: DefAnnotatedMemory) = BundleType(
+
+  private def memToFlattenBundle(s: DefAnnotatedMemory) = BundleType(
     s.readers.map(Field(_, Flip, rPortToFlattenBundle(s))) ++
       s.writers.map(Field(_, Flip, wPortToFlattenBundle(s))) ++
       s.readwriters.map(Field(_, Flip, rwPortToFlattenBundle(s)))
@@ -137,7 +138,7 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
     *  The wrapper module has the same type as the memory it replaces
     *  The external module
     */
-  def createMemModule(
+  private def createMemModule(
     m:                    DefAnnotatedMemory,
     wrapperName:          String,
     annotatedMemoriesBuffer: ListBuffer[DefAnnotatedMemory]
@@ -167,19 +168,19 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
 
   // TODO(shunshou): get rid of copy pasta
   // Connects the clk, en, and addr fields from the wrapperPort to the bbPort
-  def defaultConnects(wrapperPort: WRef, bbPort: WSubField): Seq[Connect] =
+  private def defaultConnects(wrapperPort: WRef, bbPort: WSubField): Seq[Connect] =
     Seq("clk", "en", "addr").map(f => connectFields(bbPort, f, wrapperPort, f))
 
   // Generates mask bits (concatenates an aggregate to ground type)
   // depending on mask granularity (# bits = data width / mask granularity)
-  def maskBits(mask: WSubField, dataType: Type, fillMask: Boolean): Expression =
+  private def maskBits(mask: WSubField, dataType: Type, fillMask: Boolean): Expression =
     if (fillMask) toBitMask(mask, dataType) else toBits(mask)
 
-  def adaptReader(wrapperPort: WRef, bbPort: WSubField): Seq[Statement] =
+  private def adaptReader(wrapperPort: WRef, bbPort: WSubField): Seq[Statement] =
     defaultConnects(wrapperPort, bbPort) :+
       fromBits(WSubField(wrapperPort, "data"), WSubField(bbPort, "data"))
 
-  def adaptWriter(wrapperPort: WRef, bbPort: WSubField, hasMask: Boolean, fillMask: Boolean): Seq[Statement] = {
+  private def adaptWriter(wrapperPort: WRef, bbPort: WSubField, hasMask: Boolean, fillMask: Boolean): Seq[Statement] = {
     val wrapperData = WSubField(wrapperPort, "data")
     val defaultSeq = defaultConnects(wrapperPort, bbPort) :+
       Connect(NoInfo, WSubField(bbPort, "data"), toBits(wrapperData))
@@ -194,7 +195,7 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
     }
   }
 
-  def adaptReadWriter(wrapperPort: WRef, bbPort: WSubField, hasMask: Boolean, fillMask: Boolean): Seq[Statement] = {
+  private def adaptReadWriter(wrapperPort: WRef, bbPort: WSubField, hasMask: Boolean, fillMask: Boolean): Seq[Statement] = {
     val wrapperWData = WSubField(wrapperPort, "wdata")
     val defaultSeq = defaultConnects(wrapperPort, bbPort) ++ Seq(
       fromBits(WSubField(wrapperPort, "rdata"), WSubField(bbPort, "rdata")),
@@ -216,7 +217,7 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
   private type NameMap = collection.mutable.HashMap[(String, String), String]
 
   /** Construct NameMap by assigning unique names for each memory blackbox */
-  def constructNameMap(namespace: Namespace, nameMap: NameMap, mname: String)(s: Statement): Statement = {
+  private def constructNameMap(namespace: Namespace, nameMap: NameMap, mname: String)(s: Statement): Statement = {
     s match {
       case m: DefAnnotatedMemory =>
         m.memRef match {
@@ -228,7 +229,7 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
     s.map(constructNameMap(namespace, nameMap, mname))
   }
 
-  def updateMemStmts(
+  private def updateMemStmts(
     namespace:            Namespace,
     nameMap:              NameMap,
     mname:                String,
@@ -256,7 +257,7 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
     case sx => sx.map(updateMemStmts(namespace, nameMap, mname, memPortMap, memMods, annotatedMemoriesBuffer))
   }
 
-  def updateMemMods(
+  private def updateMemMods(
     namespace:            Namespace,
     nameMap:              NameMap,
     memMods:              Modules,
