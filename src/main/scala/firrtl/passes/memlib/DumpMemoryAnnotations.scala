@@ -23,7 +23,7 @@ class DumpMemoryAnnotations extends Transform with DependencyAPIMigration {
           // todo convert xxx to verilogs here.
         }
       case MemLibOutConfigFileAnnotation(_, Nil) => Nil
-      case a => Seq(a)
+      case a                                     => Seq(a)
     })
   }
 }

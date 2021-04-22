@@ -139,8 +139,8 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
     *  The external module
     */
   private def createMemModule(
-    m:                    DefAnnotatedMemory,
-    wrapperName:          String,
+    m:                       DefAnnotatedMemory,
+    wrapperName:             String,
     annotatedMemoriesBuffer: ListBuffer[DefAnnotatedMemory]
   ): Seq[DefModule] = {
     assert(m.dataType != UnknownType)
@@ -195,7 +195,12 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
     }
   }
 
-  private def adaptReadWriter(wrapperPort: WRef, bbPort: WSubField, hasMask: Boolean, fillMask: Boolean): Seq[Statement] = {
+  private def adaptReadWriter(
+    wrapperPort: WRef,
+    bbPort:      WSubField,
+    hasMask:     Boolean,
+    fillMask:    Boolean
+  ): Seq[Statement] = {
     val wrapperWData = WSubField(wrapperPort, "wdata")
     val defaultSeq = defaultConnects(wrapperPort, bbPort) ++ Seq(
       fromBits(WSubField(wrapperPort, "rdata"), WSubField(bbPort, "rdata")),
@@ -230,13 +235,13 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
   }
 
   private def updateMemStmts(
-    namespace:            Namespace,
-    nameMap:              NameMap,
-    mname:                String,
-    memPortMap:           MemPortMap,
-    memMods:              Modules,
+    namespace:               Namespace,
+    nameMap:                 NameMap,
+    mname:                   String,
+    memPortMap:              MemPortMap,
+    memMods:                 Modules,
     annotatedMemoriesBuffer: ListBuffer[DefAnnotatedMemory]
-  )(s:                    Statement
+  )(s:                       Statement
   ): Statement = s match {
     case m: DefAnnotatedMemory =>
       if (m.maskGran.isEmpty) {
@@ -258,11 +263,11 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
   }
 
   private def updateMemMods(
-    namespace:            Namespace,
-    nameMap:              NameMap,
-    memMods:              Modules,
-    annotatedMemoriesBuffer: ListBuffer[DefAnnotatedMemory],
-  )(m:                    DefModule
+    namespace:               Namespace,
+    nameMap:                 NameMap,
+    memMods:                 Modules,
+    annotatedMemoriesBuffer: ListBuffer[DefAnnotatedMemory]
+  )(m:                       DefModule
   ) = {
     val memPortMap = new MemPortMap
 

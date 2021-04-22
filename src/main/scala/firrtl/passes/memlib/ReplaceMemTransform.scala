@@ -94,7 +94,8 @@ case class MemLibOutConfigFileAnnotation(file: String, annotatedMemories: Seq[De
   }.mkString("\n").getBytes
 }
 
-private[memlib] case class AnnotatedMemoriesAnnotation(annotatedMemories: List[DefAnnotatedMemory]) extends NoTargetAnnotation
+private[memlib] case class AnnotatedMemoriesAnnotation(annotatedMemories: List[DefAnnotatedMemory])
+    extends NoTargetAnnotation
 
 object ReplSeqMemAnnotation {
   def parse(t: String): ReplSeqMemAnnotation = {
