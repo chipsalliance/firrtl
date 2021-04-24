@@ -43,6 +43,7 @@ object PassConfigUtil {
   }
 }
 
+@deprecated("ConfWriter will be removed in 1.5.", "1.4")
 class ConfWriter(filename: String) {
   val outputBuffer = new CharArrayWriter
   def append(m: DefAnnotatedMemory) = {
