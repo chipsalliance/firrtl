@@ -8,10 +8,14 @@ import firrtl.ir._
 import firrtl.Mappers._
 import MemPortUtils._
 import MemTransformUtils._
+import firrtl.options.Dependency
 
 /** Changes memory port names to standard port names (i.e. RW0 instead T_408)
   */
 object RenameAnnotatedMemoryPorts extends Pass {
+  override def prerequisites = Seq(Dependency(ToMemIR))
+
+  override def invalidates(a: Transform): Boolean = false
 
   /** Renames memory ports to a standard naming scheme:
     *    - R0, R1, ... for each read port

@@ -10,6 +10,7 @@ import firrtl.Mappers._
 import WrappedExpression.weq
 import AnalysisUtils._
 import MemTransformUtils._
+import firrtl.options.Dependency
 
 object AnalysisUtils {
   type Connects = collection.mutable.HashMap[String, Expression]
@@ -85,6 +86,9 @@ object AnalysisUtils {
   * TODO(shunshou): Add floorplan info?
   */
 object ResolveMaskGranularity extends Pass {
+  override def prerequisites = Seq(Dependency(ToMemIR))
+
+  override def invalidates(a: Transform): Boolean = false
 
   /** Returns the number of mask bits, if used
     */

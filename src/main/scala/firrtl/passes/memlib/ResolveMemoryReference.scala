@@ -6,6 +6,7 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.annotations._
+import firrtl.options.Dependency
 import firrtl.stage.Forms
 
 /** A component, e.g. register etc. Must be declared only once under the TopAnnotation */
@@ -17,9 +18,7 @@ case class NoDedupMemAnnotation(target: ComponentName) extends SingleTargetAnnot
   */
 class ResolveMemoryReference extends Transform with DependencyAPIMigration {
 
-  override def prerequisites = Forms.MidForm
-  override def optionalPrerequisites = Seq.empty
-  override def optionalPrerequisiteOf = Forms.MidEmitters
+  override def prerequisites = Seq(Dependency(ToMemIR))
   override def invalidates(a: Transform) = false
 
   /** Helper class for determining when two memories are equivalent while igoring

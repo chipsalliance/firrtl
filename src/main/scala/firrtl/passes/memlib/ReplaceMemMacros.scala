@@ -8,6 +8,7 @@ import firrtl.Utils._
 import firrtl._
 import firrtl.annotations._
 import firrtl.ir._
+import firrtl.options.Dependency
 import firrtl.passes.MemPortUtils.{MemPortMap, Modules}
 import firrtl.passes.memlib.MemTransformUtils._
 import firrtl.passes.wiring._
@@ -27,8 +28,17 @@ object ReplaceMemMacros {
   * Creates the minimum # of black boxes needed by the design.
   */
 class ReplaceMemMacros extends Transform with DependencyAPIMigration {
-  override def prerequisites = Forms.MidForm
-  override def optionalPrerequisites = Seq.empty
+  override def prerequisites = Seq(
+    Dependency(ResolveMaskGranularity),
+    Dependency(RenameAnnotatedMemoryPorts),
+    Dependency[CreateMemoryAnnotations],
+    Dependency[ResolveMemoryReference]
+  )
+
+  override def optionalPrerequisites = Seq(
+    Dependency[WiringTransform],
+    Dependency[DumpMemoryAnnotations]
+  )
   override def optionalPrerequisiteOf = Forms.MidEmitters
   override def invalidates(a: Transform) = false
 

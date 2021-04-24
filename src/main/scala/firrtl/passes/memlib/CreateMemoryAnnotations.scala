@@ -10,10 +10,6 @@ import firrtl.stage.Forms
 import java.io.File
 
 class CreateMemoryAnnotations extends Transform with DependencyAPIMigration {
-
-  override def prerequisites = Forms.MidForm
-  override def optionalPrerequisites = Seq.empty
-  override def optionalPrerequisiteOf = Forms.MidEmitters
   override def invalidates(a: Transform) = false
 
   def execute(state: CircuitState): CircuitState = {

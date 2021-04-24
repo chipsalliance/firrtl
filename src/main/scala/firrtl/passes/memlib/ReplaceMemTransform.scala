@@ -6,11 +6,9 @@ package memlib
 import firrtl.Utils.error
 import firrtl._
 import firrtl.annotations._
-import firrtl.options.{CustomFileEmission, HasShellOptions, ShellOption}
+import firrtl.options.{CustomFileEmission, Dependency, HasShellOptions, ShellOption}
 import firrtl.passes.wiring._
-import firrtl.stage.{Forms, RunFirrtlTransformAnnotation}
-
-import java.io.{CharArrayWriter, PrintWriter}
+import firrtl.stage.{Forms, RunFirrtlTransformAnnotation, TransformManager}
 
 sealed trait PassOption
 case object InputConfigFileName extends PassOption
@@ -134,16 +132,10 @@ class ReplSeqMem extends SeqTransform with HasShellOptions with DependencyAPIMig
     )
   )
 
-  val transforms: Seq[Transform] =
-    Seq(
-      new SimpleMidTransform(Legalize),
-      new SimpleMidTransform(ToMemIR),
-      new SimpleMidTransform(ResolveMaskGranularity),
-      new SimpleMidTransform(RenameAnnotatedMemoryPorts),
-      new CreateMemoryAnnotations,
-      new ResolveMemoryReference,
-      new ReplaceMemMacros,
-      new WiringTransform,
-      new DumpMemoryAnnotations
-    )
+  val transforms: Seq[Transform] = new TransformManager(Seq(
+    Dependency[ReplaceMemMacros],
+    Dependency[WiringTransform],
+    Dependency[DumpMemoryAnnotations]
+  ), Forms.MidForm).flattenedTransformOrder
+
 }

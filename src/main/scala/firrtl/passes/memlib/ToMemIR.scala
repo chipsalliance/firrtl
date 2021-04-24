@@ -4,7 +4,9 @@ package firrtl.passes
 package memlib
 
 import firrtl.Mappers._
+import firrtl.Transform
 import firrtl.ir._
+import firrtl.options.Dependency
 
 /** Annotates sequential memories that are candidates for macro replacement.
   * Requirements for macro replacement:
@@ -14,6 +16,9 @@ import firrtl.ir._
   *   - undefined read-under-write behavior
   */
 object ToMemIR extends Pass {
+  override def prerequisites = Seq(Dependency(Legalize))
+
+  override def invalidates(a: Transform): Boolean = false
 
   /** Only annotate memories that are candidates for memory macro replacements
     * i.e. rw, w + r (read, write 1 cycle delay) and read-under-write "undefined."
