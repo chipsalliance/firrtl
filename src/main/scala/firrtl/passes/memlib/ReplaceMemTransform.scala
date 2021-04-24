@@ -111,6 +111,7 @@ class SimpleTransform(p: Pass, form: CircuitForm) extends Transform {
 class SimpleMidTransform(p: Pass) extends SimpleTransform(p, MidForm)
 
 // SimpleRun instead of PassBased because of the arguments to passSeq
+@deprecated("Migrate to a SeqTransform. API will be changed in 1.5.", "1.4")
 class ReplSeqMem extends Transform with HasShellOptions with DependencyAPIMigration {
 
   override def prerequisites = Forms.MidForm
@@ -132,6 +133,7 @@ class ReplSeqMem extends Transform with HasShellOptions with DependencyAPIMigrat
     )
   )
 
+  @deprecated("API will be replaced with a val in 1.5.", "1.4")
   def transforms(inConfigFile: Option[YamlFileReader], outConfigFile: ConfWriter): Seq[Transform] =
     Seq(
       new SimpleMidTransform(Legalize),
@@ -144,6 +146,7 @@ class ReplSeqMem extends Transform with HasShellOptions with DependencyAPIMigrat
       new WiringTransform
     )
 
+  @deprecated("API will be removed in 1.5.", "1.4")
   def execute(state: CircuitState): CircuitState = {
     val annos = state.annotations.collect { case a: ReplSeqMemAnnotation => a }
     annos match {
