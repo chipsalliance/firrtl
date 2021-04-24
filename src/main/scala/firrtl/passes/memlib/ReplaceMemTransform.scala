@@ -44,31 +44,6 @@ object PassConfigUtil {
   }
 }
 
-class ConfWriter(filename: String) {
-  val outputBuffer = new CharArrayWriter
-  def append(m: DefAnnotatedMemory) = {
-    // legacy
-    // assert that we don't overflow going from BigInt to Int conversion
-    require(bitWidth(m.dataType) <= Int.MaxValue)
-    m.maskGran.foreach { case x => require(x <= Int.MaxValue) }
-    val conf = MemConf(
-      m.name,
-      m.depth,
-      bitWidth(m.dataType).toInt,
-      m.readers.length,
-      m.writers.length,
-      m.readwriters.length,
-      m.maskGran.map(_.toInt)
-    )
-    outputBuffer.append(conf.toString)
-  }
-  def serialize() = {
-    val outputFile = new PrintWriter(filename)
-    outputFile.write(outputBuffer.toString)
-    outputFile.close()
-  }
-}
-
 case class ReplSeqMemAnnotation(inputFileName: String, outputConfig: String) extends NoTargetAnnotation
 
 /** Generate conf file for a sequence of [[DefAnnotatedMemory]]
