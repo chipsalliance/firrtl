@@ -45,6 +45,22 @@ class ReplSeqMemSpec extends SimpleTransformSpec {
     )
   }
 
+  def checkGenMemVerilog(input: String, mems: Set[MemConf], additionalAnnos: Annotation*): Unit = {
+    Seq(true, false).foreach{ genBlackBox =>
+      val annos = Seq(GenVerilogMemBehaviorModelAnno(genBlackBox = genBlackBox)) ++ additionalAnnos
+      val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+      // Check correctness of firrtl
+      parse(res.getEmittedCircuit.value)
+      // Check the emitted Verilog
+      mems.foreach { mem =>
+        val file = new java.io.File(mem.name + ".v")
+        require(file.exists(), s"${file.getName} should be emitted!")
+        // todo check content (using verilator?)
+        file.delete()
+      }
+    }
+  }
+
   "ReplSeqMem" should "generate blackbox wrappers for mems of bundle type" in {
     val input = """
 circuit Top : 
@@ -77,6 +93,8 @@ circuit Top :
     // Check the emitted conf
     checkMemConf(res, mems)
     (new java.io.File(confLoc)).delete()
+
+    checkGenMemVerilog(input, mems)
   }
 
   "ReplSeqMem" should "not infinite loop if control signals are derived from registered versions of themselves" in {
@@ -102,6 +120,8 @@ circuit Top :
     // Check the emitted conf
     checkMemConf(res, mems)
     (new java.io.File(confLoc)).delete()
+
+    checkGenMemVerilog(input, mems)
   }
 
   "ReplSeqMem" should "not fail with FixedPoint types " in {
@@ -130,6 +150,8 @@ circuit CustomMemory :
     // Check the emitted conf
     checkMemConf(res, mems)
     (new java.io.File(confLoc)).delete()
+
+    checkGenMemVerilog(input, mems)
   }
 
   "ReplSeqMem" should "not fail with Signed types " in {
@@ -158,6 +180,8 @@ circuit CustomMemory :
     // Check the emitted conf
     checkMemConf(res, mems)
     (new java.io.File(confLoc)).delete()
+
+    checkGenMemVerilog(input, mems)
   }
 
   "ReplSeqMem Utility -- getConnectOrigin" should
@@ -232,9 +256,10 @@ circuit CustomMemory :
       MemConf("mem_1_ext", 7, 16, Map(WritePort -> 1, ReadPort -> 1), None)
     )
     val confLoc = "ReplSeqMemTests.confTEMP"
+    val noDedupMemAnnotation = NoDedupMemAnnotation(ComponentName("mem_0", ModuleName("CustomMemory", CircuitName("CustomMemory"))))
     val annos = Seq(
       ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:" + confLoc),
-      NoDedupMemAnnotation(ComponentName("mem_0", ModuleName("CustomMemory", CircuitName("CustomMemory"))))
+      noDedupMemAnnotation
     )
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
@@ -247,6 +272,8 @@ circuit CustomMemory :
     // Check the emitted conf
     checkMemConf(res, mems)
     (new java.io.File(confLoc)).delete()
+
+    checkGenMemVerilog(input, mems, noDedupMemAnnotation)
   }
 
   "ReplSeqMem" should "only not de-duplicate memories with the nodedupe annotation " in {
@@ -279,9 +306,10 @@ circuit CustomMemory :
       MemConf("mem_1_ext", 7, 16, Map(WritePort -> 1, ReadPort -> 1), None)
     )
     val confLoc = "ReplSeqMemTests.confTEMP"
+    val noDedupMemAnnotation = NoDedupMemAnnotation(ComponentName("mem_1", ModuleName("CustomMemory", CircuitName("CustomMemory"))))
     val annos = Seq(
       ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:" + confLoc),
-      NoDedupMemAnnotation(ComponentName("mem_1", ModuleName("CustomMemory", CircuitName("CustomMemory"))))
+      noDedupMemAnnotation
     )
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
@@ -294,6 +322,8 @@ circuit CustomMemory :
     // Check the emitted conf
     checkMemConf(res, mems)
     (new java.io.File(confLoc)).delete()
+
+    checkGenMemVerilog(input, mems, noDedupMemAnnotation)
   }
 
   "ReplSeqMem" should "dedup mems with the same instance name as other mems (in other modules) marked NoDedup" in {
@@ -337,9 +367,10 @@ circuit CustomMemory :
       MemConf("mem_0_0_ext", 7, 16, Map(WritePort -> 1, ReadPort -> 1), None)
     )
     val confLoc = "ReplSeqMemTests.confTEMP"
+    val noDedupMemAnnotation = NoDedupMemAnnotation(ComponentName("mem_0", ModuleName("ChildMemory", CircuitName("CustomMemory"))))
     val annos = Seq(
       ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:" + confLoc),
-      NoDedupMemAnnotation(ComponentName("mem_0", ModuleName("ChildMemory", CircuitName("CustomMemory"))))
+      noDedupMemAnnotation
     )
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     // Check correctness of firrtl
@@ -356,6 +387,8 @@ circuit CustomMemory :
     // Check the emitted conf
     checkMemConf(res, mems)
     (new java.io.File(confLoc)).delete()
+
+    checkGenMemVerilog(input, mems, noDedupMemAnnotation)
   }
 
   "ReplSeqMem" should "de-duplicate memories without an annotation " in {
@@ -391,6 +424,8 @@ circuit CustomMemory :
     }
     require(numExtMods == 1)
     (new java.io.File(confLoc)).delete()
+
+    checkGenMemVerilog(input, mems)
   }
 
   "ReplSeqMem" should "not have a mask if there is none" in {
@@ -416,6 +451,8 @@ circuit CustomMemory :
     // Check the emitted conf
     checkMemConf(res, mems)
     (new java.io.File(confLoc)).delete()
+
+    checkGenMemVerilog(input, mems)
   }
 
   "ReplSeqMem" should "not conjoin enable signal with mask condition" in {
@@ -446,6 +483,8 @@ circuit CustomMemory :
     // Check the emitted conf
     checkMemConf(res, mems)
     (new java.io.File(confLoc)).delete()
+
+    checkGenMemVerilog(input, mems)
   }
 
   "ReplSeqMem" should "not conjoin enable signal with wmask condition (RW Port)" in {
@@ -480,6 +519,8 @@ circuit CustomMemory :
     // Check the emitted conf
     checkMemConf(res, mems)
     (new java.io.File(confLoc)).delete()
+
+    checkGenMemVerilog(input, mems)
   }
 
   "ReplSeqMem" should "produce an empty conf file with no SeqMems" in {
@@ -501,6 +542,8 @@ circuit NoMemsHere :
     // Check the emitted conf
     checkMemConf(res, mems)
     (new java.io.File(confLoc)).delete()
+
+    checkGenMemVerilog(input, mems)
   }
 
   "ReplSeqMem" should "throw an exception when encountering masks with variable granularity" in {
@@ -529,6 +572,10 @@ circuit Top :
       val annos = Seq(ReplSeqMemAnnotation.parse("-c:Top:-o:" + confLoc))
       val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     }
+
+    intercept[ReplaceMemMacros.UnsupportedBlackboxMemoryException] {
+      checkGenMemVerilog(input, Set.empty)
+    }
   }
 
   "ReplSeqMem" should "not run a buggy Uniquify" in {
@@ -551,6 +598,8 @@ circuit Top :
     // Just check that it doesn't crash
     compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     (new java.io.File(confLoc)).delete()
+
+    checkGenMemVerilog(input, Set.empty)
   }
 
 }
