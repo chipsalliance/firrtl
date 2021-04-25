@@ -46,6 +46,8 @@ object PassConfigUtil {
 
 case class ReplSeqMemAnnotation(inputFileName: String, outputConfig: String) extends NoTargetAnnotation
 
+case class GenVerilogMemBehaviorModelAnno(genBlackBox: Boolean) extends NoTargetAnnotation
+
 /** Generate conf file for a sequence of [[DefAnnotatedMemory]]
   * @note file already has its suffix adding by `--replSeqMem`
   */
