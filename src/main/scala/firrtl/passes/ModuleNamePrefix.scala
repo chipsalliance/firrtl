@@ -6,45 +6,30 @@ import firrtl.transforms.DedupModules
 import firrtl.annotations.NoTargetAnnotation
 import firrtl.stage.RunFirrtlTransformAnnotation
 
-////////////////
-// Pass
-////////////////
-
 /** Specifies a global prefix for all module names. */
-case class ModulePrefix(prefix: String = "abcdefg") extends NoTargetAnnotation
+case class ModuleNamePrefixAnnotation(prefix: String) extends NoTargetAnnotation
 
+class ModuleNamePrefixTransform extends Transform with DependencyAPIMigration with RegisteredTransform {
 
-class PrefixModulesPass extends Transform with DependencyAPIMigration with RegisteredTransform {
-  // we run after deduplication to save some work
   override def prerequisites = Seq(Dependency[DedupModules])
+  // override def optionalPrerequisiteOf = Seq(Dependency[VerilogEmitter])
 
-  // we do not invalidate the results of any prior passes
   override def invalidates(a: Transform) = false
 
   val options = Seq(
     new ShellOption[String](
       longOption = "module-name-prefix",
       toAnnotationSeq = (a: String) =>
-        Seq(ModulePrefix("abcdefg"), RunFirrtlTransformAnnotation(new PrefixModulesPass)),
+        Seq(ModuleNamePrefixAnnotation(a), RunFirrtlTransformAnnotation(new ModuleNamePrefixTransform)),
       helpText = "Global prefix to every modules",
       shortOption = Some("prefix"),
       helpValueName = Some("<prefix>")
     )
   )
 
-  override protected def execute(state: CircuitState): CircuitState = {
-    val prefixes = state.annotations.collect{ case a: ModulePrefix => a.prefix }.distinct
-    prefixes match {
-      case Seq() =>
-        logger.info("[PrefixModulesPass] No ModulePrefix annotation found.")
-        state
-      case Seq("") => state
-      case Seq(prefix) =>
-        val c = state.circuit.mapModule(onModule(_, prefix))
-        state.copy(circuit = c.copy(main = prefix + c.main))
-      case other =>
-        throw new PassException(s"[PrefixModulesPass] found more than one prefix annotation: $other")
-    }
+  private def onStmt(s: ir.Statement, prefix: String): ir.Statement = s match {
+    case i : ir.DefInstance => i.copy(module = prefix + i.module)
+    case other => other.mapStmt(onStmt(_, prefix))
   }
 
   private def onModule(m: ir.DefModule, prefix: String): ir.DefModule = m match {
@@ -55,8 +40,21 @@ class PrefixModulesPass extends Transform with DependencyAPIMigration with Regis
       mod.copy(name=name, body=body)
   }
 
-  private def onStmt(s: ir.Statement, prefix: String): ir.Statement = s match {
-    case i : ir.DefInstance => i.copy(module = prefix + i.module)
-    case other => other.mapStmt(onStmt(_, prefix))
+  override protected def execute(state: CircuitState): CircuitState = {
+    val annos = state.annotations.collect{ case a: ModuleNamePrefixAnnotation => a.prefix }.distinct
+    annos match {
+      case Seq() =>
+        logger.info("[ModuleNamePrefixAnnotation] No ModuleNamePrefixAnnotation annotation found.")
+        state
+      case Seq("") =>
+        logger.info("[ModuleNamePrefixAnnotation] Empty string received?")
+        state
+      case Seq(prefix) =>
+        logger.info("[ModuleNamePrefixAnnotation] Actually doing something?")
+        val c = state.circuit.mapModule(onModule(_, prefix))
+        state.copy(circuit = c.copy(main = prefix + c.main))
+      case other =>
+        throw new PassException(s"[ModuleNamePrefixAnnotation] found more than one prefix annotation: $other")
+    }
   }
 }
