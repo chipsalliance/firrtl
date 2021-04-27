@@ -7,7 +7,7 @@ import firrtl.annotations.NoTargetAnnotation
 import firrtl.stage.RunFirrtlTransformAnnotation
 
 /** Specifies a global prefix for all module names. */
-case class ModuleNamePrefixAnnotation(prefix: String) extends NoTargetAnnotation
+case class ModuleNamePrefixAnnotation(prefix: String = "") extends NoTargetAnnotation
 
 class ModuleNamePrefixTransform extends Transform with DependencyAPIMigration with RegisteredTransform {
 
@@ -21,7 +21,7 @@ class ModuleNamePrefixTransform extends Transform with DependencyAPIMigration wi
       longOption = "module-name-prefix",
       toAnnotationSeq = (a: String) =>
         Seq(ModuleNamePrefixAnnotation(a), RunFirrtlTransformAnnotation(new ModuleNamePrefixTransform)),
-      helpText = "Add global prefix to every verilog module",
+      helpText = "Add global prefix to every verilog module (default: \"\")",
       shortOption = Some("prefix"),
       helpValueName = Some("<prefix>")
     )
