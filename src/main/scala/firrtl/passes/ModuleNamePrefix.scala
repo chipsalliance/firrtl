@@ -12,7 +12,7 @@ case class ModuleNamePrefixAnnotation(prefix: String) extends NoTargetAnnotation
 class ModuleNamePrefixTransform extends Transform with DependencyAPIMigration with RegisteredTransform {
 
   override def prerequisites = Seq(Dependency[DedupModules])
-  // override def optionalPrerequisiteOf = Seq(Dependency[VerilogEmitter])
+  override def optionalPrerequisiteOf = Seq(Dependency[VerilogEmitter])
 
   override def invalidates(a: Transform) = false
 
@@ -21,7 +21,7 @@ class ModuleNamePrefixTransform extends Transform with DependencyAPIMigration wi
       longOption = "module-name-prefix",
       toAnnotationSeq = (a: String) =>
         Seq(ModuleNamePrefixAnnotation(a), RunFirrtlTransformAnnotation(new ModuleNamePrefixTransform)),
-      helpText = "Global prefix to every modules",
+      helpText = "Add global prefix to every verilog module",
       shortOption = Some("prefix"),
       helpValueName = Some("<prefix>")
     )
@@ -46,11 +46,8 @@ class ModuleNamePrefixTransform extends Transform with DependencyAPIMigration wi
       case Seq() =>
         logger.info("[ModuleNamePrefixAnnotation] No ModuleNamePrefixAnnotation annotation found.")
         state
-      case Seq("") =>
-        logger.info("[ModuleNamePrefixAnnotation] Empty string received?")
-        state
+      case Seq("") => state
       case Seq(prefix) =>
-        logger.info("[ModuleNamePrefixAnnotation] Actually doing something?")
         val c = state.circuit.mapModule(onModule(_, prefix))
         state.copy(circuit = c.copy(main = prefix + c.main))
       case other =>
