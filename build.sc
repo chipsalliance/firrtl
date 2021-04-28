@@ -48,7 +48,7 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
       ivy"com.google.protobuf:protobuf-java:$protocVersion"
     ) ++ {
       if (majorVersion == 13)
-        Agg(ivy"org.scala-lang.modules::scala-parallel-collections:0.2.0")
+        Agg(ivy"org.scala-lang.modules::scala-parallel-collections:1.0.2")
       else
         Agg()
     }
@@ -59,7 +59,7 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
   object test extends Tests {
     override def ivyDeps = T {
       Agg(
-        ivy"org.scalatest::scalatest:3.2.0",
+        ivy"org.scalatest::scalatest:3.2.8",
         ivy"org.scalatestplus::scalacheck-1-14:3.1.3.0"
       )
     }
