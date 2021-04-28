@@ -17,7 +17,7 @@ class DumpMemoryAnnotations extends Transform with DependencyAPIMigration {
 
   private def vlsiMemGen(annotatedMemory: DefAnnotatedMemory, genBlackBox: Boolean): (String, String) = {
     // MaskedWritePort => WritePort with masked = true
-    case class Port(prefix: String, `type`: MemPort)
+    case class Port(prefix: String, portType: MemPort)
 
     val masked = annotatedMemory.maskGran.isDefined
 
@@ -39,7 +39,7 @@ class DumpMemoryAnnotations extends Transform with DependencyAPIMigration {
       annotatedMemory.readwriters.indices.map(number => Port(s"RW${number}_", ReadWritePort))
 
     val addrWidth = math.max(math.ceil(math.log(depth) / math.log(2)).toInt, 1)
-    val readPorts = ports.filter(port => port.`type` == ReadPort || port.`type` == ReadWritePort)
+    val readPorts = ports.filter(port => port.portType == ReadPort || port.portType == ReadWritePort)
 
     def genPortSpec(port: Port): Seq[String] = {
       Seq(s"input ${port.prefix}clk", s"input [${addrWidth - 1}:0] ${port.prefix}addr", s"input ${port.prefix}en") ++
@@ -97,7 +97,7 @@ class DumpMemoryAnnotations extends Transform with DependencyAPIMigration {
         s"    ${mask}ram[${port.prefix}addr][$ram_range] <= ${port.prefix}$inputData[$ram_range];"
       } ++ Seq("  end")
 
-      port.`type` match {
+      port.portType match {
         case ReadPort  => genReadSequential(port.prefix + "en")
         case WritePort => genWriteSequential(port.prefix + "en", "data")
         case ReadWritePort =>
@@ -108,7 +108,7 @@ class DumpMemoryAnnotations extends Transform with DependencyAPIMigration {
     val sequential = ports.flatMap(genSequential)
 
     def genCombinational(port: Port): Seq[String] = {
-      val data = port.prefix + (if (port.`type` == ReadWritePort) "rdata" else "data")
+      val data = port.prefix + (if (port.portType == ReadWritePort) "rdata" else "data")
       Seq(
         "`ifdef RANDOMIZE_GARBAGE_ASSIGN",
         s"reg [${((width - 1) / 32 + 1) * 32 - 1}:0] ${port.prefix}random;",
@@ -147,19 +147,14 @@ class DumpMemoryAnnotations extends Transform with DependencyAPIMigration {
     state.copy(annotations = state.annotations.flatMap {
       // convert and remove AnnotatedMemoriesAnnotation to CustomFileEmission
       case AnnotatedMemoriesAnnotation(annotatedMemories) =>
-        val memLibOutConfigFileAnnotation = state.annotations.collect {
+        state.annotations.collect {
           case a: MemLibOutConfigFileAnnotation =>
-            a.copy(annotatedMemories = annotatedMemories)
-        }
-        // one GenVerilogMemBehaviorModelAnno generates multiple BlackBoxInlineAnno
-        // so I can’t move this block into the `state.annotations.collect` block above
-        val blackBoxInlineAnnos = state.annotations.collectFirst { case a: GenVerilogMemBehaviorModelAnno => a }.map {
+            Seq(a.copy(annotatedMemories = annotatedMemories))
           case GenVerilogMemBehaviorModelAnno(genBlackBox) =>
             annotatedMemories.map(vlsiMemGen(_, genBlackBox)).map {
-              case (name, content) => BlackBoxInlineAnno(ModuleName(name, CircuitName(name)), name + ".v", content)
+              case (name, content) => BlackBoxInlineAnno(ModuleName(name, CircuitName(state.circuit.main)), name + ".v", content)
             }
-        }
-        memLibOutConfigFileAnnotation ++ blackBoxInlineAnnos.getOrElse(Seq())
+        }.flatten
       case MemLibOutConfigFileAnnotation(_, Nil) => Nil
       case GenVerilogMemBehaviorModelAnno(_)     => Nil
       case a                                     => Seq(a)
