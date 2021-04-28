@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.transforms
 
@@ -44,7 +44,7 @@ class RenameModules extends Transform with DependencyAPIMigration {
       moduleOrder.foreach(collectNameMapping(namespace.get, nameMappings))
 
       val modulesx = state.circuit.modules.map {
-        case mod: Module => mod.mapStmt(onStmt(nameMappings)).mapString(nameMappings)
+        case mod: Module    => mod.mapStmt(onStmt(nameMappings)).mapString(nameMappings)
         case ext: ExtModule => ext
       }
 

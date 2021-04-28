@@ -1,4 +1,4 @@
-// See LICENSE for license details.
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.options.phases
 
@@ -6,7 +6,7 @@ import firrtl.AnnotationSeq
 import firrtl.annotations.{Annotation, DeletedAnnotation, JsonProtocol}
 import firrtl.options.{CustomFileEmission, Dependency, Phase, PhaseException, StageOptions, Unserializable, Viewer}
 
-import java.io.{BufferedWriter, File, FileWriter, PrintWriter}
+import java.io.{BufferedOutputStream, File, FileOutputStream, PrintWriter}
 
 import scala.collection.mutable
 
@@ -16,10 +16,7 @@ import scala.collection.mutable
 class WriteOutputAnnotations extends Phase {
 
   override def prerequisites =
-    Seq( Dependency[GetIncludes],
-         Dependency[ConvertLegacyAnnotations],
-         Dependency[AddDefaults],
-         Dependency[Checks] )
+    Seq(Dependency[GetIncludes], Dependency[AddDefaults], Dependency[Checks])
 
   override def optionalPrerequisiteOf = Seq.empty
 
@@ -30,16 +27,21 @@ class WriteOutputAnnotations extends Phase {
     val sopts = Viewer[StageOptions].view(annotations)
     val filesWritten = mutable.HashMap.empty[String, Annotation]
     val serializable: AnnotationSeq = annotations.toSeq.flatMap {
-      case _: Unserializable     => None
-      case a: DeletedAnnotation  => if (sopts.writeDeleted) { Some(a) } else { None }
+      case _: Unserializable => None
+      case a: DeletedAnnotation =>
+        if (sopts.writeDeleted) { Some(a) }
+        else { None }
       case a: CustomFileEmission =>
         val filename = a.filename(annotations)
         val canonical = filename.getCanonicalPath()
 
         filesWritten.get(canonical) match {
           case None =>
-            val w = new BufferedWriter(new FileWriter(filename))
-            a.getBytes.foreach( w.write(_) )
+            val w = new BufferedOutputStream(new FileOutputStream(filename))
+            a.getBytes match {
+              case arr: mutable.WrappedArray[Byte] => w.write(arr.array.asInstanceOf[Array[Byte]])
+              case other => other.foreach(w.write(_))
+            }
             w.close()
             filesWritten(canonical) = a
           case Some(first) =>

@@ -1,4 +1,4 @@
-// See LICENSE for license details
+// SPDX-License-Identifier: Apache-2.0
 
 package firrtl.options
 
@@ -10,7 +10,7 @@ import java.io.File
 
 import scopt.OptionParser
 
-sealed trait StageOption { this: Annotation => }
+sealed trait StageOption extends Unserializable { this: Annotation => }
 
 /** An annotation that should not be serialized automatically [[phases.WriteOutputAnnotations WriteOutputAnnotations]].
   * This usually means that this is an annotation that is used only internally to a [[Stage]].
@@ -89,7 +89,9 @@ object TargetDirAnnotation extends HasShellOptions {
       toAnnotationSeq = (a: String) => Seq(TargetDirAnnotation(a)),
       helpText = "Work directory (default: '.')",
       shortOption = Some("td"),
-      helpValueName = Some("<directory>") ) )
+      helpValueName = Some("<directory>")
+    )
+  )
 
 }
 
@@ -101,10 +103,11 @@ case class ProgramArgsAnnotation(arg: String) extends NoTargetAnnotation with St
 
 object ProgramArgsAnnotation {
 
-  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p.arg[String]("<arg>...")
+  def addOptions(p: OptionParser[AnnotationSeq]): Unit = p
+    .arg[String]("<arg>...")
     .unbounded()
     .optional()
-    .action( (x, c) => ProgramArgsAnnotation(x) +: c )
+    .action((x, c) => ProgramArgsAnnotation(x) +: c)
     .text("optional unbounded args")
 }
 
@@ -123,7 +126,9 @@ object InputAnnotationFileAnnotation extends HasShellOptions {
       toAnnotationSeq = (a: String) => Seq(InputAnnotationFileAnnotation(a)),
       helpText = "An input annotation file",
       shortOption = Some("faf"),
-      helpValueName = Some("<file>") ) )
+      helpValueName = Some("<file>")
+    )
+  )
 
 }
 
@@ -141,7 +146,9 @@ object OutputAnnotationFileAnnotation extends HasShellOptions {
       toAnnotationSeq = (a: String) => Seq(OutputAnnotationFileAnnotation(a)),
       helpText = "An output annotation file",
       shortOption = Some("foaf"),
-      helpValueName = Some("<file>") ) )
+      helpValueName = Some("<file>")
+    )
+  )
 
 }
 
@@ -156,6 +163,8 @@ case object WriteDeletedAnnotation extends NoTargetAnnotation with StageOption w
     new ShellOption[Unit](
       longOption = "write-deleted",
       toAnnotationSeq = (_: Unit) => Seq(WriteDeletedAnnotation),
-      helpText = "Include deleted annotations in the output annotation file" ) )
+      helpText = "Include deleted annotations in the output annotation file"
+    )
+  )
 
 }
