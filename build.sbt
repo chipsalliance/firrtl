@@ -29,8 +29,8 @@ lazy val firrtlSettings = Seq(
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
   libraryDependencies ++= Seq(
     "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-    "org.scalatest" %% "scalatest" % "3.2.0" % "test",
-    "org.scalatestplus" %% "scalacheck-1-14" % "3.1.4.0" % "test",
+    "org.scalatest" %% "scalatest" % "3.2.8" % "test",
+    "org.scalatestplus" %% "scalacheck-1-14" % "3.1.3.0" % "test",
     "com.github.scopt" %% "scopt" % "3.7.1",
     "net.jcazevedo" %% "moultingyaml" % "0.4.2",
     "org.json4s" %% "json4s-native" % "3.6.9",
@@ -50,7 +50,7 @@ lazy val firrtlSettings = Seq(
   libraryDependencies ++= {
     CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, major)) if major <= 12 => Seq()
-      case _ => Seq("org.scala-lang.modules" %% "scala-parallel-collections" % "0.2.0")
+      case _ => Seq("org.scala-lang.modules" %% "scala-parallel-collections" % "1.0.2")
     }
   },
   resolvers ++= Seq(
