@@ -46,7 +46,7 @@ class ReplSeqMemSpec extends SimpleTransformSpec {
   }
 
   def checkGenMemVerilog(input: String, mems: Set[MemConf], additionalAnnos: Annotation*): Unit = {
-    Seq(true, false).foreach{ genBlackBox =>
+    Seq(true, false).foreach { genBlackBox =>
       val annos = Seq(GenVerilogMemBehaviorModelAnno(genBlackBox = genBlackBox)) ++ additionalAnnos
       val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
       // Check correctness of firrtl
@@ -256,7 +256,8 @@ circuit CustomMemory :
       MemConf("mem_1_ext", 7, 16, Map(WritePort -> 1, ReadPort -> 1), None)
     )
     val confLoc = "ReplSeqMemTests.confTEMP"
-    val noDedupMemAnnotation = NoDedupMemAnnotation(ComponentName("mem_0", ModuleName("CustomMemory", CircuitName("CustomMemory"))))
+    val noDedupMemAnnotation =
+      NoDedupMemAnnotation(ComponentName("mem_0", ModuleName("CustomMemory", CircuitName("CustomMemory"))))
     val annos = Seq(
       ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:" + confLoc),
       noDedupMemAnnotation
@@ -306,7 +307,8 @@ circuit CustomMemory :
       MemConf("mem_1_ext", 7, 16, Map(WritePort -> 1, ReadPort -> 1), None)
     )
     val confLoc = "ReplSeqMemTests.confTEMP"
-    val noDedupMemAnnotation = NoDedupMemAnnotation(ComponentName("mem_1", ModuleName("CustomMemory", CircuitName("CustomMemory"))))
+    val noDedupMemAnnotation =
+      NoDedupMemAnnotation(ComponentName("mem_1", ModuleName("CustomMemory", CircuitName("CustomMemory"))))
     val annos = Seq(
       ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:" + confLoc),
       noDedupMemAnnotation
@@ -367,7 +369,8 @@ circuit CustomMemory :
       MemConf("mem_0_0_ext", 7, 16, Map(WritePort -> 1, ReadPort -> 1), None)
     )
     val confLoc = "ReplSeqMemTests.confTEMP"
-    val noDedupMemAnnotation = NoDedupMemAnnotation(ComponentName("mem_0", ModuleName("ChildMemory", CircuitName("CustomMemory"))))
+    val noDedupMemAnnotation =
+      NoDedupMemAnnotation(ComponentName("mem_0", ModuleName("ChildMemory", CircuitName("CustomMemory"))))
     val annos = Seq(
       ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:" + confLoc),
       noDedupMemAnnotation
