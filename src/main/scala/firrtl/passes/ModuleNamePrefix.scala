@@ -19,8 +19,8 @@ class ModuleNamePrefixTransform extends Transform with DependencyAPIMigration wi
   val options = Seq(
     new ShellOption[String](
       longOption = "module-name-prefix",
-      toAnnotationSeq = (a: String) =>
-        Seq(ModuleNamePrefixAnnotation(a), RunFirrtlTransformAnnotation(new ModuleNamePrefixTransform)),
+      toAnnotationSeq =
+        (a: String) => Seq(ModuleNamePrefixAnnotation(a), RunFirrtlTransformAnnotation(new ModuleNamePrefixTransform)),
       helpText = "Add global prefix to every verilog module (default: \"\")",
       shortOption = Some("prefix"),
       helpValueName = Some("<prefix>")
@@ -28,20 +28,20 @@ class ModuleNamePrefixTransform extends Transform with DependencyAPIMigration wi
   )
 
   private def onStmt(s: ir.Statement, prefix: String): ir.Statement = s match {
-    case i : ir.DefInstance => i.copy(module = prefix + i.module)
+    case i: ir.DefInstance => i.copy(module = prefix + i.module)
     case other => other.mapStmt(onStmt(_, prefix))
   }
 
   private def onModule(m: ir.DefModule, prefix: String): ir.DefModule = m match {
-    case e : ir.ExtModule => e.copy(name = prefix + e.name)
+    case e:   ir.ExtModule => e.copy(name = prefix + e.name)
     case mod: ir.Module =>
       val name = prefix + mod.name
       val body = onStmt(mod.body, prefix)
-      mod.copy(name=name, body=body)
+      mod.copy(name = name, body = body)
   }
 
   override protected def execute(state: CircuitState): CircuitState = {
-    val annos = state.annotations.collect{ case a: ModuleNamePrefixAnnotation => a.prefix }.distinct
+    val annos = state.annotations.collect { case a: ModuleNamePrefixAnnotation => a.prefix }.distinct
     annos match {
       case Seq() =>
         logger.info("[ModuleNamePrefixAnnotation] No ModuleNamePrefixAnnotation annotation found.")
