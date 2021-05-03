@@ -35,6 +35,7 @@ case class FileInfo(escaped: String) extends Info {
   override def toString: String = " @[" + escaped + "]"
   def ++(that: Info): Info = if (that == NoInfo) this else MultiInfo(Seq(this, that))
   def unescaped: String = FileInfo.unescape(escaped)
+  def split: (String, String, String) = FileInfo.split(escaped)
   @deprecated("Use FileInfo.unescaped instead. FileInfo.info will be removed in FIRRTL 1.5.", "FIRRTL 1.4")
   def info: StringLit = StringLit(this.unescaped)
 }
@@ -88,6 +89,13 @@ object FileInfo {
     JavaUnicodeEscaper.outsideOf(32, 0x7f)
   )
 
+  // Splits the FileInfo into its corresponding file, line, and column strings
+  private def split(s: String): (String, String, String) = {
+    val FileInfoRegex(file, line, column) = s
+    (file, line, column)
+  }
+
+  private val FileInfoRegex = """(.+\.scala) (\d+)\:(\d+)""".r
 }
 
 case class MultiInfo(infos: Seq[Info]) extends Info {
@@ -102,7 +110,7 @@ case class MultiInfo(infos: Seq[Info]) extends Info {
     else ""
   }
   def ++(that: Info): Info = if (that == NoInfo) this else MultiInfo(infos :+ that)
-  def flatten: Seq[FileInfo] = MultiInfo.flattenInfo(infos)
+  def flatten: Seq[FileInfo] = MultiInfo.compressInfo(MultiInfo.flattenInfo(infos))
 }
 object MultiInfo {
   def apply(infos: Info*) = {
@@ -125,6 +133,76 @@ object MultiInfo {
     case NoInfo => Seq()
     case f: FileInfo => Seq(f)
     case MultiInfo(infos) => flattenInfo(infos)
+  }
+
+  private def compressInfo(infos: Seq[FileInfo]): Seq[FileInfo] = {
+    // Sort infos by file name, then line number, then column number
+    val sorted = infos.sortWith((A, B) => {A.split._1 <= B.split._1 && A.split._2 <= B.split._2 && A.split._3 <= B.split._3})
+
+    // Holds the current file/line being parsed.
+    var currentFile = ""
+    var currentLine = ""
+
+    // Holds any compressed line/column numbers to be appended after the file name
+    var locators = new StringBuilder
+    // Holds all encountered columns that exist within the current line
+    var columns: Seq[String] = Seq()
+
+    var out: Seq[FileInfo] = Seq()
+
+    // Helper function to append the contents of the columns Seq to the locators buffer.
+    def serializeColumns: Unit = {
+      if (columns.size == 0)
+        return
+
+      var columnsList = columns.mkString(",")
+      // Wrap the columns in curly braces if it contains more than one entry
+      if(columns.size > 1)
+        columnsList = '{' + columnsList + '}'
+
+      // If there already exists line/column numbers in the buffer, delimit the new
+      // info with a space
+      if(locators.nonEmpty)
+        locators ++= " "
+      
+      locators ++= s"$currentLine:$columnsList"
+    }
+    
+    for(info <- sorted) {
+      val (file, line, col) = info.split
+
+      // If we encounter a new file, yield the current compressed info
+      if(file != currentFile) {
+        if(currentFile.nonEmpty) {
+          serializeColumns
+          out :+= FileInfo.fromEscaped(s"$currentFile $locators")
+        }
+
+        // Reset all tracking variables to now track the new file
+        currentFile = file
+        currentLine = ""
+        locators.clear()
+        columns = Seq()
+      }
+
+      // If we encounter a new line, append the current columns to the line buffer.
+      if(line != currentLine) {
+        if(currentLine.nonEmpty) 
+          serializeColumns
+        // Track the new current line
+        currentLine = line
+        columns = Seq()
+      }
+
+      columns :+= col
+    }
+
+    // Serialize any remaining column info that was parsed by the loop
+    serializeColumns
+
+    // Append the remaining FileInfo
+    out :+= FileInfo.fromEscaped(s"$currentFile $locators")
+    out
   }
 }
 
