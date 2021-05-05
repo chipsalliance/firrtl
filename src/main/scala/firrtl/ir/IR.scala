@@ -95,7 +95,7 @@ object FileInfo {
     (file, line, column)
   }
 
-  private val FileInfoRegex = """(.+\.scala) (\d+)\:(\d+)""".r
+  private val FileInfoRegex = """(.+) (\d+)\:(\d+)""".r
 }
 
 case class MultiInfo(infos: Seq[Info]) extends Info {
