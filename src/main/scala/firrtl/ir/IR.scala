@@ -202,8 +202,10 @@ object MultiInfo {
     // Serialize any remaining column info that was parsed by the loop
     serializeColumns
 
-    // Append the remaining FileInfo
-    out :+= FileInfo.fromEscaped(s"$currentFile $locators")
+    // Append the remaining FileInfo if one was parsed
+    if (currentFile.nonEmpty)
+      out :+= FileInfo.fromEscaped(s"$currentFile $locators")
+
     out
   }
 }
