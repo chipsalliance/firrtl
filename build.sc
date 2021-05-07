@@ -41,14 +41,14 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
       ivy"${scalaOrganization()}:scala-reflect:${scalaVersion()}",
       ivy"com.github.scopt::scopt:3.7.1",
       ivy"net.jcazevedo::moultingyaml:0.4.2",
-      ivy"org.json4s::json4s-native:3.6.9",
+      ivy"org.json4s::json4s-native:3.6.11",
       ivy"org.apache.commons:commons-text:1.8",
       ivy"io.github.alexarchambault::data-class:0.2.5",
       ivy"org.antlr:antlr4-runtime:$antlr4Version",
       ivy"com.google.protobuf:protobuf-java:$protocVersion"
     ) ++ {
       if (majorVersion == 13)
-        Agg(ivy"org.scala-lang.modules::scala-parallel-collections:0.2.0")
+        Agg(ivy"org.scala-lang.modules::scala-parallel-collections:1.0.2")
       else
         Agg()
     }
@@ -59,7 +59,7 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
   object test extends Tests {
     override def ivyDeps = T {
       Agg(
-        ivy"org.scalatest::scalatest:3.2.0",
+        ivy"org.scalatest::scalatest:3.2.8",
         ivy"org.scalatestplus::scalacheck-1-14:3.1.3.0"
       )
     }
@@ -90,7 +90,7 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
   }
 
   /* antlr4 */
-  def antlr4Version = "4.8"
+  def antlr4Version = "4.9.2"
 
   def antlrSource = T.source {
     millSourcePath / "src" / "main" / "antlr4" / "FIRRTL.g4"
