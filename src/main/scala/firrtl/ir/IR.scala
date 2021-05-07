@@ -95,7 +95,7 @@ object FileInfo {
     (file, line, column)
   }
 
-  private val FileInfoRegex = """(.+) (\d+)\:(\d+)""".r
+  private val FileInfoRegex = """([^\s]+)(?: (\d+)\:(\d+))?""".r
 }
 
 case class MultiInfo(infos: Seq[Info]) extends Info {
@@ -138,7 +138,19 @@ object MultiInfo {
   private def compressInfo(infos: Seq[FileInfo]): Seq[FileInfo] = {
     // Sort infos by file name, then line number, then column number
     val sorted = infos.sortWith((A, B) => {
-      A.split._1 <= B.split._1 && A.split._2 <= B.split._2 && A.split._3 <= B.split._3
+      val (fileA, lineA, colA) = A.split
+      val (fileB, lineB, colB) = B.split
+
+      // A FileInfo with no line nor column number should be sorted to the beginning of
+      // the sequence of FileInfos that share its fileName. This way, they can be immediately
+      // skipped by the algorithm
+      if (lineA == null || lineB == null)
+        fileA <= fileB && lineA == null
+      else
+        // Default comparison
+        fileA <= fileB &&
+        lineA <= lineB &&
+        colA <= colB
     })
 
     // Holds the current file/line being parsed.
@@ -173,30 +185,38 @@ object MultiInfo {
     for (info <- sorted) {
       val (file, line, col) = info.split
 
-      // If we encounter a new file, yield the current compressed info
-      if (file != currentFile) {
-        if (currentFile.nonEmpty) {
-          serializeColumns
-          out :+= FileInfo.fromEscaped(s"$currentFile $locators")
+      // Only process file infos that match the pattern *fully*, so that all 3 capture groups were
+      // matched
+      // TODO: Enforce a specific format for FileInfos (file.name line1:{col1,col2} line2:{col3,col4}...),
+      // so that this code can run with the assumption that all FileInfos obey that format.
+      if (line != null && col != null) {
+        // If we encounter a new file, yield the current compressed info
+        if (file != currentFile) {
+          if (currentFile.nonEmpty) {
+            serializeColumns
+            out :+= FileInfo.fromEscaped(s"$currentFile $locators")
+          }
+
+          // Reset all tracking variables to now track the new file
+          currentFile = file
+          currentLine = ""
+          locators.clear()
+          columns = Seq()
         }
 
-        // Reset all tracking variables to now track the new file
-        currentFile = file
-        currentLine = ""
-        locators.clear()
-        columns = Seq()
-      }
+        // If we encounter a new line, append the current columns to the line buffer.
+        if (line != currentLine) {
+          if (currentLine.nonEmpty)
+            serializeColumns
+          // Track the new current line
+          currentLine = line
+          columns = Seq()
+        }
 
-      // If we encounter a new line, append the current columns to the line buffer.
-      if (line != currentLine) {
-        if (currentLine.nonEmpty)
-          serializeColumns
-        // Track the new current line
-        currentLine = line
-        columns = Seq()
-      }
-
-      columns :+= col
+        columns :+= col
+      } else
+        // Add in the uncompressed FileInfo
+        out :+= info
     }
 
     // Serialize any remaining column info that was parsed by the loop
