@@ -10,6 +10,8 @@ import firrtl.passes.memlib._
 import firrtl.testutils.FirrtlCheckers._
 import firrtl.testutils._
 import firrtl.transforms._
+import firrtl.util.BackendCompilationUtilities.loggingProcessLogger
+import scala.sys.process._
 
 class ReplSeqMemSpec extends SimpleTransformSpec {
   def emitter = new LowFirrtlEmitter
@@ -55,7 +57,8 @@ class ReplSeqMemSpec extends SimpleTransformSpec {
       mems.foreach { mem =>
         val file = new java.io.File(mem.name + ".v")
         require(file.exists(), s"${file.getName} should be emitted!")
-        // todo check content (using verilator?)
+        val cmd = Seq("verilator", "--lint-only", file.getAbsolutePath)
+        assert(cmd.!(loggingProcessLogger) == 0, "Generated Verilog is not valid.")
         file.delete()
       }
     }

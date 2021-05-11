@@ -145,7 +145,7 @@ class ReplSeqMem extends SeqTransform with HasShellOptions with DependencyAPIMig
           },
           RunFirrtlTransformAnnotation(new ReplSeqMem)
         ),
-      helpText = "Blackbox and emit a Verilog file for each sequential memory",
+      helpText = "Blackbox and emit a Verilog behavior model for each sequential memory",
       shortOption = Some("gmv"),
       helpValueName = Some("<blackbox|full>")
     )

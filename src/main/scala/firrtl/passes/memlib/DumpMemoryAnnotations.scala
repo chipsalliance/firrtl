@@ -41,7 +41,7 @@ class DumpMemoryAnnotations extends Transform with DependencyAPIMigration {
     val addrWidth = math.max(math.ceil(math.log(depth) / math.log(2)).toInt, 1)
     val readPorts = ports.filter(port => port.portType == ReadPort || port.portType == ReadWritePort)
 
-    def genPortSpec(port: Port): Seq[String] = {
+    val portSpec = ports.flatMap(port =>
       Seq(s"input ${port.prefix}clk", s"input [${addrWidth - 1}:0] ${port.prefix}addr", s"input ${port.prefix}en") ++
         ((port, masked) match {
           case (Port(prefix, ReadPort), _)      => Seq(s"output [${width - 1}:0] ${prefix}data")
@@ -62,10 +62,9 @@ class DumpMemoryAnnotations extends Transform with DependencyAPIMigration {
               s"output [${width - 1}:0] ${prefix}rdata"
             )
         })
-    }
-    val portSpec = ports.flatMap(genPortSpec)
+    )
 
-    def genDecl(): Seq[String] = readPorts.flatMap(port =>
+    val decl = readPorts.flatMap(port =>
       Seq(s"reg reg_${port.prefix}ren;", s"reg [${addrWidth - 1}:0] reg_${port.prefix}addr;")
     ) ++ Seq(
       s"reg [${width - 1}:0] ram [${depth - 1}:0];",
@@ -79,35 +78,34 @@ class DumpMemoryAnnotations extends Transform with DependencyAPIMigration {
       "  end",
       "`endif"
     )
-    val decl = genDecl()
 
-    def genSequential(port: Port): Seq[String] = {
-      def genReadSequential(en: String) = Seq(
-        s"always @(posedge ${port.prefix}clk)",
-        s"  reg_${port.prefix}ren <= $en;",
-        s"always @(posedge ${port.prefix}clk)",
-        s"  if ($en) reg_${port.prefix}addr <= ${port.prefix}addr;"
+    val sequential = {
+      def genReadSequential(en: String, prefix: String): Seq[String] = Seq(
+        s"always @(posedge ${prefix}clk)",
+        s"  reg_${prefix}ren <= $en;",
+        s"always @(posedge ${prefix}clk)",
+        s"  if ($en) reg_${prefix}addr <= ${prefix}addr;"
       )
-      def genWriteSequential(en: String, inputData: String): Seq[String] = Seq(
-        s"always @(posedge ${port.prefix}clk)",
+      def genWriteSequential(en: String, prefix: String, inputData: String): Seq[String] = Seq(
+        s"always @(posedge ${prefix}clk)",
         s"  if ($en) begin"
       ) ++ (0 until maskSeg).map { i =>
-        val mask = if (masked) s"if (${port.prefix}mask[$i]) " else ""
+        val mask = if (masked) s"if (${prefix}mask[$i]) " else ""
         val ram_range = s"${(i + 1) * maskGran - 1}:${i * maskGran}"
-        s"    ${mask}ram[${port.prefix}addr][$ram_range] <= ${port.prefix}$inputData[$ram_range];"
+        s"    ${mask}ram[${prefix}addr][$ram_range] <= ${prefix}$inputData[$ram_range];"
       } ++ Seq("  end")
-
-      port.portType match {
-        case ReadPort  => genReadSequential(port.prefix + "en")
-        case WritePort => genWriteSequential(port.prefix + "en", "data")
-        case ReadWritePort =>
-          genReadSequential(s"${port.prefix}en && !${port.prefix}wmode") ++
-            genWriteSequential(s"${port.prefix}en && ${port.prefix}wmode", "wdata")
-      }
+      ports.flatMap(port =>
+        port.portType match {
+          case ReadPort  => genReadSequential(port.prefix + "en", port.prefix)
+          case WritePort => genWriteSequential(port.prefix + "en", port.prefix, "data")
+          case ReadWritePort =>
+            genReadSequential(s"${port.prefix}en && !${port.prefix}wmode", port.prefix) ++
+              genWriteSequential(s"${port.prefix}en && ${port.prefix}wmode", port.prefix, "wdata")
+        }
+      )
     }
-    val sequential = ports.flatMap(genSequential)
 
-    def genCombinational(port: Port): Seq[String] = {
+    val combinational = readPorts.flatMap { port =>
       val data = port.prefix + (if (port.portType == ReadWritePort) "rdata" else "data")
       Seq(
         "`ifdef RANDOMIZE_GARBAGE_ASSIGN",
@@ -126,14 +124,13 @@ class DumpMemoryAnnotations extends Transform with DependencyAPIMigration {
         "`endif"
       )
     }
-    val combinational = readPorts.flatMap(genCombinational)
 
     val body = if (genBlackBox) "" else s"""
                                            |  ${decl.mkString("\n  ")}
                                            |  ${sequential.mkString("\n  ")}
                                            |  ${combinational.mkString("\n  ")}""".stripMargin
 
-    (name, s"""
+    (name, s"""// name:$name depth:$depth width:$width masked:$masked maskGran:$maskGran maskSeg:$maskSeg
               |module $name(
               |  ${portSpec.mkString(",\n  ")}
               |);
