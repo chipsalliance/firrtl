@@ -91,11 +91,15 @@ object FileInfo {
 
   // Splits the FileInfo into its corresponding file, line, and column strings
   private def split(s: String): (String, String, String) = {
-    val FileInfoRegex(file, line, column) = s
-    (file, line, column)
+    s match {
+      // Yield the three
+      case FileInfoRegex(file, line, col) => (file, line, col)
+      // Otherwise, just return the string itself and null for the other values
+      case _ => (s, null, null)
+    }
   }
 
-  private val FileInfoRegex = """([^\s]+)(?: (\d+)\:(\d+))?""".r
+  private val FileInfoRegex = """(?:([^\s]+)(?: (\d+)\:(\d+)))""".r
 }
 
 case class MultiInfo(infos: Seq[Info]) extends Info {
