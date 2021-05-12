@@ -166,11 +166,11 @@ class InfoSpec extends FirrtlFlatSpec with FirrtlMatchers {
       """.stripMargin
 
     val result = (new LowFirrtlCompiler).compileAndEmit(CircuitState(parse(input), ChirrtlForm), List.empty)
-    result should containLine("node _GEN_0 = mux(_T_14, _T_16, x) @[GCD.scala 17:18 GCD.scala 17:22 GCD.scala 15:14]")
-    result should containLine("node _GEN_2 = mux(io_e, io_a, _GEN_0) @[GCD.scala 19:15 GCD.scala 19:19]")
+    result should containLine("node _GEN_0 = mux(_T_14, _T_16, x) @[GCD.scala 15:14 17:{18,22}]")
+    result should containLine("node _GEN_2 = mux(io_e, io_a, _GEN_0) @[GCD.scala 19:{15,19}]")
     result should containLine("x <= _GEN_2")
-    result should containLine("node _GEN_1 = mux(_T_18, _T_20, y) @[GCD.scala 18:18 GCD.scala 18:22 GCD.scala 16:14]")
-    result should containLine("node _GEN_3 = mux(io_e, io_b, _GEN_1) @[GCD.scala 19:15 GCD.scala 19:30]")
+    result should containLine("node _GEN_1 = mux(_T_18, _T_20, y) @[GCD.scala 16:14 18:{18,22}]")
+    result should containLine("node _GEN_3 = mux(io_e, io_b, _GEN_1) @[GCD.scala 19:{15,30}]")
     result should containLine("y <= _GEN_3")
   }
 
