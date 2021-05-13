@@ -279,6 +279,17 @@ class InfoSpec extends FirrtlFlatSpec with FirrtlMatchers {
     // Compress three (or more...) columns from the same line into one FileInfo
     result("A 1:2", "A 1:3", "A 1:4") should containLine("  wire [31:0] a = c ? b : d; // @[A 1:{2,3,4}]")
 
+    // Ignore already-compressed MultiInfos - for when someone may serialize a module first and compile the parsed firrtl into Verilog
+    result("A 1:{2,3,4}", "", "") should containLine(
+      "  wire [31:0] a = c ? b : d; // @[A 1:{2,3,4}]"
+    )
+    // Merge additional FileInfos together, but ignore compressed MultiInfos if they are present
+    result("A 1:{2,3,4}", "B 2:3", "B 4:5") should containLine(
+      "  wire [31:0] a = c ? b : d; // @[A 1:{2,3,4} B 2:3 4:5]"
+    )
+    result("A 2:3", "B 1:{2,3,4}", "C 4:5") should containLine(
+      "  wire [31:0] a = c ? b : d; // @[B 1:{2,3,4} A 2:3 C 4:5]"
+    )
   }
 
   it should "not be compressed if it has a non-conforming format" in {
