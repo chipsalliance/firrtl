@@ -168,3 +168,17 @@ case object WriteDeletedAnnotation extends NoTargetAnnotation with StageOption w
   )
 
 }
+
+/** If this [[firrtl.annotations.Annotation Annotation]] exists in an [[firrtl.AnnotationSeq AnnotationSeq]], then
+  * Dump the raw [[firrtl.AnnotationSeq AnnotationSeq]] to a file on an error
+  */
+case object DumpOnCrashAnnotation extends NoTargetAnnotation with StageOption with HasShellOptions {
+
+  val options = Seq(
+    new ShellOption[Unit](
+      longOption =  "dump-on-crash",
+      toAnnotationSeq = { _ => Seq(this) },
+      helpText = "Dump raw Annotations to error.anno.json on error"
+    )
+  )
+}
