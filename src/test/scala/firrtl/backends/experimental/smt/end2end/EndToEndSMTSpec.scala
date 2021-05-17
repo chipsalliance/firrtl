@@ -171,13 +171,14 @@ private object Z3ModelChecker extends LazyLogging {
 
   def bmc(testDir: Path, main: String, kmax: Int): MCResult = {
     assert(kmax >= 0 && kmax < 50, "Trying to keep kmax in a reasonable range.")
-    Seq.tabulate(kmax + 1) { k =>
+    (0 to kmax).foreach { k =>
       val stepFile = testDir / s"${main}_step$k.smt2"
       os.copy(testDir / s"$main.smt2", stepFile)
       os.write.append(stepFile, s"""${step(main, k)}
                                    |(check-sat)
                                    |""".stripMargin)
-      if (!executeStep(stepFile)) return MCFail(k)
+      val success = executeStep(stepFile)
+      if (!success) return MCFail(k)
     }
     MCSuccess
   }
