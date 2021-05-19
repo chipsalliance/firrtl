@@ -65,7 +65,9 @@ lazy val mimaSettings = Seq(
     ProblemFilters.exclude[IncompatibleMethTypeProblem]("firrtl.passes.DestructTypes.destructInstance"),
     ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.FirrtlProtos#Firrtl#StatementOrBuilder.hasVerification"),
     ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.FirrtlProtos#Firrtl#StatementOrBuilder.getVerification"),
-    ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.FirrtlProtos#Firrtl#StatementOrBuilder.getVerificationOrBuilder")
+    ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.FirrtlProtos#Firrtl#StatementOrBuilder.getVerificationOrBuilder"),
+    // Constructor is private, but companion object being able to invoke it makes it public in bytecode
+    ProblemFilters.exclude[DirectMissingMethodProblem]("firrtl.RenameMap.this")
   )
 )
 
