@@ -1,7 +1,5 @@
 package firrtl
 
-import java.io.Writer
-
 import firrtl.ir._
 import firrtl.PrimOps._
 import firrtl.Utils._
@@ -134,7 +132,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
       case _ => tab
     }
   }
-  def emit(x: Any)(implicit w: Writer): Unit = {
+  // @todo deprecate java.io
+  def emit(x: Any)(implicit w: java.io.Writer): Unit = {
     emitCol(x, 0, getLeadingTabs(x), 0)
   }
   private def emitCast(e: Expression): Any = e.tpe match {
@@ -144,11 +143,13 @@ class VerilogEmitter extends SeqTransform with Emitter {
     case AnalogType(_) => e
     case _             => throwInternalError(s"unrecognized cast: $e")
   }
-  def emit(x: Any, top: Int)(implicit w: Writer): Unit = {
+  // @todo deprecate java.io
+  def emit(x: Any, top: Int)(implicit w: java.io.Writer): Unit = {
     emitCol(x, top, "", 0)
   }
   private val maxCol = 120
-  private def emitCol(x: Any, top: Int, tabs: String, colNum: Int)(implicit w: Writer): Int = {
+  // @todo deprecate java.io
+  private def emitCol(x: Any, top: Int, tabs: String, colNum: Int)(implicit w: java.io.Writer): Int = {
     def writeCol(contents: String): Int = {
       if ((contents.size + colNum) > maxCol) {
         w.write("\n")
@@ -221,7 +222,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
   }
 
   //;------------- PASS -----------------
-  def v_print(e: Expression, colNum: Int)(implicit w: Writer) = e match {
+  // @todo deprecate java.io
+  def v_print(e: Expression, colNum: Int)(implicit w: java.io.Writer) = e match {
     case UIntLiteral(value, IntWidth(width)) =>
       val contents = s"$width'h${value.toString(16)}"
       w.write(contents)
@@ -398,7 +400,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
     * @param writer    where rendering will be placed
     * @return          the render reference
     */
-  def getRenderer(m: Module, moduleMap: Map[String, DefModule])(implicit writer: Writer): VerilogRender = {
+  // @todo deprecate java.io
+  def getRenderer(m: Module, moduleMap: Map[String, DefModule])(implicit writer: java.io.Writer): VerilogRender = {
     new VerilogRender(m, moduleMap)(writer)
   }
 
@@ -417,8 +420,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
     descriptions: Seq[DescriptionAnnotation],
     m:            Module,
     moduleMap:    Map[String, DefModule]
-  )(
-    implicit writer: Writer
+  )(// @todo deprecate java.io
+    implicit writer: java.io.Writer
   ): VerilogRender = {
     val newMod = new AddDescriptionNodes().executeModule(m, descriptions)
 
@@ -551,20 +554,21 @@ class VerilogEmitter extends SeqTransform with Emitter {
     moduleMap:        Map[String, DefModule],
     circuitName:      String,
     emissionOptions:  EmissionOptions
-  )(
-    implicit writer: Writer) {
+  )(// @todo deprecate java.io
+    implicit writer: java.io.Writer) {
 
     def this(
       m:               Module,
       moduleMap:       Map[String, DefModule],
       circuitName:     String,
       emissionOptions: EmissionOptions
-    )(
-      implicit writer: Writer
+    )(// @todo deprecate java.io
+      implicit writer: java.io.Writer
     ) = {
       this(Seq(), Map.empty, m, moduleMap, circuitName, emissionOptions)(writer)
     }
-    def this(m: Module, moduleMap: Map[String, DefModule])(implicit writer: Writer) = {
+    // @todo deprecate java.io
+    def this(m: Module, moduleMap: Map[String, DefModule])(implicit writer: java.io.Writer) = {
       this(Seq(), Map.empty, m, moduleMap, "", new EmissionOptions(Seq.empty))(writer)
     }
 
@@ -1330,7 +1334,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
   /** Preamble for every emitted Verilog file */
   def transforms = new TransformManager(firrtl.stage.Forms.VerilogOptimized, prerequisites).flattenedTransformOrder
 
-  def emit(state: CircuitState, writer: Writer): Unit = {
+  // @todo deprecate java.io
+  def emit(state: CircuitState, writer: java.io.Writer): Unit = {
     val cs = runTransforms(state)
     val emissionOptions = new EmissionOptions(cs.annotations)
     val moduleMap = cs.circuit.modules.map(m => m.name -> m).toMap

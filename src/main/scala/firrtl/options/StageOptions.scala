@@ -2,8 +2,6 @@
 
 package firrtl.options
 
-import java.io.File
-
 /** Options that every stage shares
   * @param targetDirName a target (build) directory
   * @param an input annotation file
@@ -52,14 +50,17 @@ class StageOptions private[firrtl] (
      */
     val file = {
       val f = if (suffix.nonEmpty && !filename.endsWith(suffix.get)) {
-        new File(filename + suffix.get)
+        // @todo remove java.io.File
+        new java.io.File(filename + suffix.get)
       } else {
-        new File(filename)
+        // @todo remove java.io.File
+        new java.io.File(filename)
       }
       if (f.isAbsolute) {
         f
       } else {
-        new File(targetDir + "/" + f)
+        // @todo remove java.io.File
+        new java.io.File(targetDir + "/" + f)
       }
     }.toPath.normalize.toFile
 

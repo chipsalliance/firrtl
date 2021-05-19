@@ -5,8 +5,6 @@ package firrtlTests
 import firrtl._
 import firrtl.testutils._
 
-import java.io.File
-
 class GCDExecutionTest extends ExecutionTest("GCDTester", "/integration")
 class RightShiftExecutionTest extends ExecutionTest("RightShiftTester", "/integration")
 class MemExecutionTest extends ExecutionTest("MemTester", "/integration")
@@ -17,7 +15,8 @@ class GCDSplitEmissionExecutionTest extends FirrtlFlatSpec {
   "GCDTester" should "work even when the modules are emitted to different files" in {
     val top = "GCDTester"
     val testDir = createTestDirectory("GCDTesterSplitEmission")
-    val sourceFile = new File(testDir, s"$top.fir")
+    // @todo remove java.io.File
+    val sourceFile = new java.io.File(testDir, s"$top.fir")
     copyResourceToFile(s"/integration/$top.fir", sourceFile)
 
     val optionsManager = new ExecutionOptionsManager("GCDTesterSplitEmission") with HasFirrtlOptions {
@@ -32,13 +31,16 @@ class GCDSplitEmissionExecutionTest extends FirrtlFlatSpec {
     firrtl.Driver.execute(optionsManager)
 
     // expected filenames
-    val dutFile = new File(testDir, "DecoupledGCD.v")
-    val topFile = new File(testDir, s"$top.v")
+    // @todo remove java.io.File
+    val dutFile = new java.io.File(testDir, "DecoupledGCD.v")
+    // @todo remove java.io.File
+    val topFile = new java.io.File(testDir, s"$top.v")
     dutFile should exist
     topFile should exist
 
     // Copy harness over
-    val harness = new File(testDir, s"testTop.cpp")
+    // @todo remove java.io.File
+    val harness = new java.io.File(testDir, s"testTop.cpp")
     copyResourceToFile(cppHarnessResourceName, harness)
 
     // topFile will be compiled by Verilator command by default but we need to also include dutFile

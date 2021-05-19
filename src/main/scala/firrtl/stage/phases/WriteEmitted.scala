@@ -6,8 +6,6 @@ import firrtl.{AnnotationSeq, EmittedCircuitAnnotation, EmittedModuleAnnotation}
 import firrtl.options.{Phase, StageOptions, Viewer}
 import firrtl.stage.FirrtlOptions
 
-import java.io.PrintWriter
-
 /** [[firrtl.options.Phase Phase]] that writes any [[EmittedAnnotation]]s in an input [[AnnotationSeq]] to one or more
   * files. The input [[AnnotationSeq]] is viewed as both [[FirrtlOptions]] and [[firrtl.options.StageOptions
   * StageOptions]] to determine the output filenames in the following way:
@@ -44,12 +42,14 @@ class WriteEmitted extends Phase {
 
     annotations.flatMap {
       case a: EmittedModuleAnnotation[_] =>
-        val pw = new PrintWriter(sopts.getBuildFileName(a.value.name, Some(a.value.outputSuffix)))
+        // @todo remove java.io
+        val pw = new java.io.PrintWriter(sopts.getBuildFileName(a.value.name, Some(a.value.outputSuffix)))
         pw.write(a.value.value)
         pw.close()
         None
       case a: EmittedCircuitAnnotation[_] =>
-        val pw = new PrintWriter(
+        // @todo remove java.io
+        val pw = new java.io.PrintWriter(
           sopts.getBuildFileName(fopts.outputFileName.getOrElse(a.value.name), Some(a.value.outputSuffix))
         )
         pw.write(a.value.value)

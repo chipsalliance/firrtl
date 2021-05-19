@@ -6,8 +6,6 @@ import org.scalatest.GivenWhenThen
 import org.scalatest.featurespec.AnyFeatureSpec
 import org.scalatest.matchers.should.Matchers
 
-import java.io.{File, PrintWriter}
-
 import firrtl.{BuildInfo, FileUtils}
 
 import firrtl.stage.{FirrtlMain, WarnNoScalaVersionDeprecation}
@@ -67,16 +65,19 @@ class FirrtlMainSpec
       val inputFile: Array[String] = p.circuit match {
         case Some(c) =>
           And("some input FIRRTL IR")
-          val in = new File(td.dir, c.main)
-          val pw = new PrintWriter(in)
+          // @todo remove java.io
+          val in = new java.io.File(td.dir, c.main)
+          val pw = new java.io.PrintWriter(in)
           pw.write(c.input)
           pw.close()
           Array("-i", in.toString)
         case None => Array.empty
       }
 
-      p.files.foreach(f => new File(td.buildDir + s"/$f").delete())
-      p.notFiles.foreach(f => new File(td.buildDir + s"/$f").delete())
+      // @todo remove java.io
+      p.files.foreach(f => new java.io.File(td.buildDir + s"/$f").delete())
+      // @todo remove java.io
+      p.notFiles.foreach(f => new java.io.File(td.buildDir + s"/$f").delete())
 
       When(s"""the user tries to compile with '${p.argsString}'""")
       val (stdout, stderr, result) =
@@ -111,13 +112,15 @@ class FirrtlMainSpec
 
       p.files.foreach { f =>
         And(s"file '$f' should be emitted in the target directory")
-        val out = new File(td.buildDir + s"/$f")
+        // @todo remove java.io
+        val out = new java.io.File(td.buildDir + s"/$f")
         out should (exist)
       }
 
       p.notFiles.foreach { f =>
         And(s"file '$f' should NOT be emitted in the target directory")
-        val out = new File(td.buildDir + s"/$f")
+        // @todo remove java.io
+        val out = new java.io.File(td.buildDir + s"/$f")
         out should not(exist)
       }
     }
@@ -135,8 +138,10 @@ class FirrtlMainSpec
     * @param dirName the name of the base directory; a `build` directory is created under this
     */
   class TargetDirectoryFixture(dirName: String) {
-    val dir = new File(s"test_run_dir/FirrtlMainSpec/$dirName")
-    val buildDir = new File(dir + "/build")
+    // @todo remove java.io
+    val dir = new java.io.File(s"test_run_dir/FirrtlMainSpec/$dirName")
+    // @todo remove java.io
+    val buildDir = new java.io.File(dir + "/build")
     dir.mkdirs()
   }
 
@@ -275,7 +280,8 @@ class FirrtlMainSpec
 
       When("the user doesn't specify a target directory")
       val outName = "FirrtlMainSpecNoTargetDirectory"
-      val out = new File(s"$outName.hi.fir")
+      // @todo remove java.io
+      val out = new java.io.File(s"$outName.hi.fir")
       out.delete()
       val result = catchStatus {
         f.stage.main(
@@ -296,7 +302,8 @@ class FirrtlMainSpec
       val td = new TargetDirectoryFixture("protobuf-works")
 
       And("some Protocol Buffer input")
-      val protobufIn = new File(td.dir + "/Foo.pb")
+      // @todo remove java.io
+      val protobufIn = new java.io.File(td.dir + "/Foo.pb")
       copyResourceToFile("/integration/GCDTester.pb", protobufIn)
 
       When("the user tries to compile to High FIRRTL")
@@ -305,7 +312,8 @@ class FirrtlMainSpec
       )
 
       Then("the output should be the same as using FIRRTL input")
-      new File(td.buildDir + "/Foo.hi.fir") should (exist)
+      // @todo remove java.io
+      new java.io.File(td.buildDir + "/Foo.hi.fir") should (exist)
     }
 
   }

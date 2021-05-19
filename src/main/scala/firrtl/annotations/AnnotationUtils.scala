@@ -3,14 +3,14 @@
 package firrtl
 package annotations
 
-import java.io.File
-
 import firrtl.ir._
 
-case class InvalidAnnotationFileException(file: File, cause: FirrtlUserException = null)
+// @todo deprecate java.io.File
+case class InvalidAnnotationFileException(file: java.io.File, cause: FirrtlUserException = null)
     extends FirrtlUserException(s"$file", cause)
 case class InvalidAnnotationJSONException(msg: String) extends FirrtlUserException(msg)
-case class AnnotationFileNotFoundException(file: File)
+// @todo deprecate java.io.File
+case class AnnotationFileNotFoundException(file: java.io.File)
     extends FirrtlUserException(
       s"Annotation file $file not found!"
     )

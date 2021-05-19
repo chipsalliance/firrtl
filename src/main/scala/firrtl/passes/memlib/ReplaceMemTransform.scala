@@ -11,8 +11,6 @@ import firrtl.passes.wiring._
 import firrtl.stage.{Forms, RunFirrtlTransformAnnotation}
 import firrtl.transforms.BlackBoxSourceHelper
 
-import java.io.{CharArrayWriter, PrintWriter}
-
 sealed trait PassOption
 case object InputConfigFileName extends PassOption
 case object OutputConfigFileName extends PassOption

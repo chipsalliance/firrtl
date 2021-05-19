@@ -4,7 +4,6 @@ package firrtl
 
 import scala.collection._
 import scala.util.{Failure, Try}
-import java.io.{File, FileNotFoundException}
 import annotations._
 import firrtl.transforms._
 import firrtl.Utils.throwInternalError
@@ -12,6 +11,8 @@ import firrtl.stage.{FirrtlExecutionResultView, FirrtlStage}
 import firrtl.stage.phases.DriverCompatibility
 import firrtl.options.{Dependency, Phase, PhaseManager, StageUtils, Viewer}
 import firrtl.options.phases.DeletedWrapper
+
+import java.io.FileNotFoundException
 
 /**
   * The driver provides methods to access the firrtl compiler.
@@ -77,11 +78,13 @@ object Driver {
 
     //noinspection ScalaDeprecation
     val oldAnnoFileName = firrtlConfig.getAnnotationFileName(optionsManager)
-    val oldAnnoFile = new File(oldAnnoFileName).getCanonicalFile
+    // @todo remove java.io
+    val oldAnnoFile = new java.io.File(oldAnnoFileName).getCanonicalFile
 
     val (annoFiles, usingImplicitAnnoFile) = {
       val afs = firrtlConfig.annotationFileNames.map { x =>
-        new File(x).getCanonicalFile
+        // @todo remove java.io
+        new java.io.File(x).getCanonicalFile
       }
       // Implicit anno file could be included explicitly, only include it and
       // warn if it's not also explicit

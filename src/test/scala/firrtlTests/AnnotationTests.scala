@@ -2,8 +2,6 @@
 
 package firrtlTests
 
-import java.io.{File, FileWriter}
-
 import firrtl.annotations._
 import firrtl._
 import firrtl.FileUtils
@@ -506,8 +504,10 @@ class JsonAnnotationTests extends AnnotationTests {
       PinAnnotation(Seq("sea-lion", "monk-seal"))
     ).toArray
 
-    val annoFile = new File("temp-anno")
-    val writer = new FileWriter(annoFile)
+    // @todo remove java.io.File
+    val annoFile = new java.io.File("temp-anno")
+    // @todo remove java.io
+    val writer = new java.io.FileWriter(annoFile)
     writer.write(JsonProtocol.serialize(annos))
     writer.close()
 
@@ -528,10 +528,12 @@ class JsonAnnotationTests extends AnnotationTests {
                    |    z <= x
                    |    node y = x""".stripMargin
     val testDir = BackendCompilationUtilities.createTestDirectory(this.getClass.getSimpleName)
-    val annoFile = new File(testDir, "anno.json")
+    // @todo remove java.io.File
+    val annoFile = new java.io.File(testDir, "anno.json")
 
     annoFileText.foreach { text =>
-      val w = new FileWriter(annoFile)
+      // @todo remove java.io
+      val w = new java.io.FileWriter(annoFile)
       w.write(text)
       w.close()
     }

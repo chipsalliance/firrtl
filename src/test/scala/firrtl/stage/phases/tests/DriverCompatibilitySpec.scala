@@ -3,7 +3,6 @@
 package firrtl.stage.phases.tests
 
 import org.scalatest.PrivateMethodTester
-import java.io.File
 
 import firrtl._
 import firrtl.stage.phases.DriverCompatibility._
@@ -68,7 +67,8 @@ class DriverCompatibilitySpec extends AnyFlatSpec with Matchers with PrivateMeth
   }
 
   def createFile(name: String): Unit = {
-    val file = new File(name)
+    // @todo remove java.io.File
+    val file = new java.io.File(name)
     file.getParentFile.getCanonicalFile.mkdirs()
     file.createNewFile()
   }
@@ -125,8 +125,9 @@ class DriverCompatibilitySpec extends AnyFlatSpec with Matchers with PrivateMeth
   it should "add an FirrtlFileAnnotation if a TopNameAnnotation is present" in
     new PhaseFixture(new AddImplicitFirrtlFile) {
       val annotations = Seq(TopNameAnnotation("foo"))
+      // @todo remove java.io.File
       val expected = annotations.toSet +
-        FirrtlFileAnnotation(new File("foo.fir").getPath())
+        FirrtlFileAnnotation(new java.io.File("foo.fir").getPath())
 
       phase.transform(annotations).toSet should be(expected)
     }

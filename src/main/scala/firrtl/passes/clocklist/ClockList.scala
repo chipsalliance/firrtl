@@ -6,7 +6,6 @@ package clocklist
 import firrtl._
 import firrtl.ir._
 import annotations._
-import java.io.{CharArrayWriter, Writer}
 import wiring.WiringUtils.{getChildrenMap, getLineage}
 import ClockListUtils._
 import Utils._
@@ -14,14 +13,16 @@ import memlib.AnalysisUtils._
 
 /** Starting with a top module, determine the clock origins of each child instance.
   *  Write the result to writer.
+  *  @todo deprecate java.io
   */
-class ClockList(top: String, writer: Writer) extends Pass {
+class ClockList(top: String, writer: java.io.Writer) extends Pass {
   def run(c: Circuit): Circuit = {
     // Build useful datastructures
     val childrenMap = getChildrenMap(c)
     val moduleMap = c.modules.foldLeft(Map[String, DefModule]())((map, m) => map + (m.name -> m))
     val lineages = getLineage(childrenMap, top)
-    val outputBuffer = new CharArrayWriter
+    // @todo remove java.io
+    val outputBuffer = new java.io.CharArrayWriter
 
     // === Checks ===
     // TODO(izraelevitz): Check all registers/memories use "clock" clock port

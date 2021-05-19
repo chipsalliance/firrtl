@@ -2,8 +2,6 @@
 
 package logger
 
-import java.io.{ByteArrayOutputStream, File, FileOutputStream, PrintStream}
-
 import firrtl.{AnnotationSeq, ExecutionOptionsManager}
 import firrtl.options.Viewer.view
 import logger.phases.{AddDefaults, Checks}
@@ -59,7 +57,8 @@ private class LoggerState {
   val classLevels = new scala.collection.mutable.HashMap[String, LogLevel.Value]
   val classToLevelCache = new scala.collection.mutable.HashMap[String, LogLevel.Value]
   var logClassNames = false
-  var stream:             PrintStream = Console.out
+  // @todo remove java.io
+  var stream:             java.io.PrintStream = Console.out
   var fromInvoke:         Boolean = false // this is used to not have invokes re-create run-state
   var stringBufferOption: Option[Logger.OutputCaptor] = None
 
@@ -95,8 +94,10 @@ object Logger {
     * a class for managing capturing logging output in a string buffer
     */
   class OutputCaptor {
-    val byteArrayOutputStream = new ByteArrayOutputStream()
-    val printStream = new PrintStream(byteArrayOutputStream)
+    // @todo remove java.io
+    val byteArrayOutputStream = new java.io.ByteArrayOutputStream()
+    // @todo remove java.io
+    val printStream = new java.io.PrintStream(byteArrayOutputStream)
 
     /**
       * Get logged messages to this captor as a string
@@ -321,14 +322,16 @@ object Logger {
     * @param fileName destination name
     */
   def setOutput(fileName: String): Unit = {
-    state.stream = new PrintStream(new FileOutputStream(new File(fileName)))
+    // @todo remove java.io
+    state.stream = new java.io.PrintStream(new java.io.FileOutputStream(new java.io.File(fileName)))
   }
 
   /**
     * Set the logging destination to a print stream
     * @param stream destination stream
+    * @todo deprecate java.io
     */
-  def setOutput(stream: PrintStream): Unit = {
+  def setOutput(stream: java.io.PrintStream): Unit = {
     state.stream = stream
   }
 

@@ -6,8 +6,6 @@ package clocklist
 import firrtl._
 import annotations._
 import Utils.error
-import java.io.{PrintWriter, Writer}
-import Utils._
 import memlib._
 import firrtl.options.{RegisteredTransform, ShellOption}
 import firrtl.stage.{Forms, RunFirrtlTransformAnnotation}
@@ -67,13 +65,15 @@ class ClockListTransform extends Transform with DependencyAPIMigration with Regi
     )
   )
 
-  def passSeq(top: String, writer: Writer): Seq[Pass] =
+  // @todo remove java.io
+  def passSeq(top: String, writer: java.io.Writer): Seq[Pass] =
     Seq(new ClockList(top, writer))
   def execute(state: CircuitState): CircuitState = {
     val annos = state.annotations.collect { case a: ClockListAnnotation => a }
     annos match {
       case Seq(ClockListAnnotation(ModuleName(top, CircuitName(state.circuit.main)), out)) =>
-        val outputFile = new PrintWriter(out)
+        // @todo remove java.io
+        val outputFile = new java.io.PrintWriter(out)
         val newC = (new ClockList(top, outputFile)).run(state.circuit)
         outputFile.close()
         CircuitState(newC, state.form, state.annotations)

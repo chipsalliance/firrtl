@@ -6,8 +6,6 @@ import firrtl._
 import firrtl.transforms._
 import firrtl.testutils._
 import annotations._
-import java.io.File
-import java.nio.file.Paths
 
 import firrtl.options.Dependency
 import firrtl.stage.FirrtlStage
@@ -290,8 +288,10 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
 class CheckCombLoopsCommandLineSpec extends FirrtlFlatSpec {
 
   val testDir = createTestDirectory("CombLoopChecker")
-  val inputFile = Paths.get(getClass.getResource("/features/HasLoops.fir").toURI()).toFile()
-  val outFile = new File(testDir, "HasLoops.v")
+  // @todo remove java.nio.file.Paths
+  val inputFile = java.nio.file.Paths.get(getClass.getResource("/features/HasLoops.fir").toURI()).toFile()
+  // @todo remove java.io.File
+  val outFile = new java.io.File(testDir, "HasLoops.v")
   val args = Array("-i", inputFile.getAbsolutePath, "-o", outFile.getAbsolutePath, "-X", "verilog")
 
   "Combinational loops detection" should "run by default" in {

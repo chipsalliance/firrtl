@@ -2,13 +2,9 @@
 
 package firrtl.util
 
-import java.io._
-import java.nio.file.Files
 import java.text.SimpleDateFormat
 import java.util.Calendar
-
 import logger.LazyLogging
-
 import firrtl.FileUtils
 
 import scala.sys.process.{ProcessBuilder, ProcessLogger, _}
@@ -16,7 +12,8 @@ import scala.sys.process.{ProcessBuilder, ProcessLogger, _}
 object BackendCompilationUtilities extends LazyLogging {
 
   /** Parent directory for tests */
-  lazy val TestDirectory = new File("test_run_dir")
+  // @todo remove java.io.File
+  lazy val TestDirectory = new java.io.File("test_run_dir")
 
   def timeStamp: String = {
     val format = new SimpleDateFormat("yyyyMMddHHmmss")
@@ -31,13 +28,15 @@ object BackendCompilationUtilities extends LazyLogging {
     * Copy the contents of a resource to a destination file.
     * @param name the name of the resource
     * @param file the file to write it into
+    * @todo deprecate java.io.File
     */
-  def copyResourceToFile(name: String, file: File): Unit = {
+  def copyResourceToFile(name: String, file: java.io.File): Unit = {
     val in = getClass.getResourceAsStream(name)
     if (in == null) {
-      throw new FileNotFoundException(s"Resource '$name'")
+      throw new java.io.FileNotFoundException(s"Resource '$name'")
     }
-    val out = new FileOutputStream(file)
+    // @todo remove java.io
+    val out = new java.io.FileOutputStream(file)
     Iterator.continually(in.read).takeWhile(-1 != _).foreach(out.write)
     out.close()
   }
@@ -46,17 +45,22 @@ object BackendCompilationUtilities extends LazyLogging {
     *
     * Will create outer directory called testName then inner directory based on
     * the current time
+    * @todo deprecate java.io.File
     */
-  def createTestDirectory(testName: String): File = {
-    val outer = new File(TestDirectory, testName)
+  def createTestDirectory(testName: String): java.io.File = {
+    val outer = new java.io.File(TestDirectory, testName)
     outer.mkdirs()
-    Files.createTempDirectory(outer.toPath, timeStamp).toFile
+    // @todo remove java.io.File
+    java.nio.file.Files.createTempDirectory(outer.toPath, timeStamp).toFile
   }
 
-  def makeHarness(template: String => String, post: String)(f: File): File = {
+  // @todo deprecate java.io.File
+  def makeHarness(template: String => String, post: String)(f: java.io.File): java.io.File = {
     val prefix = f.toString.split("/").last
-    val vf = new File(f.toString + post)
-    val w = new FileWriter(vf)
+    // @todo remove java.io.File
+    val vf = new java.io.File(f.toString + post)
+    // @todo remove java.io
+    val w = new java.io.FileWriter(vf)
     w.write(template(prefix))
     w.close()
     vf
@@ -68,8 +72,9 @@ object BackendCompilationUtilities extends LazyLogging {
     * @param prefix basename of the file
     * @param dir    directory where file lives
     * @return       true if compiler completed successfully
+    * @todo deprecate java.io.File
     */
-  def firrtlToVerilog(prefix: String, dir: File): ProcessBuilder = {
+  def firrtlToVerilog(prefix: String, dir: java.io.File): ProcessBuilder = {
     Process(Seq("firrtl", "-i", s"$prefix.fir", "-o", s"$prefix.v", "-X", "verilog"), dir)
   }
 
@@ -99,10 +104,13 @@ object BackendCompilationUtilities extends LazyLogging {
     * @param extraCmdLineArgs list of additional command line arguments
     */
   def verilogToCpp(
-    dutFile:          String,
-    dir:              File,
-    vSources:         Seq[File],
-    cppHarness:       File,
+    dutFile: String,
+    // @todo deprecate java.io.File
+    dir: java.io.File,
+    // @todo deprecate java.io.File
+    vSources: Seq[java.io.File],
+    // @todo deprecate java.io.File
+    cppHarness:       java.io.File,
     suppressVcd:      Boolean = false,
     resourceFileName: String = firrtl.transforms.BlackBoxSourceHelper.defaultFileListName,
     extraCmdLineArgs: Seq[String] = Seq.empty
@@ -110,7 +118,8 @@ object BackendCompilationUtilities extends LazyLogging {
 
     val topModule = dutFile
 
-    val list_file = new File(dir, resourceFileName)
+    // @todo remove java.io.File
+    val list_file = new java.io.File(dir, resourceFileName)
     val blackBoxVerilogList = {
       if (list_file.exists()) {
         Seq("-f", list_file.getAbsolutePath)
@@ -160,12 +169,14 @@ object BackendCompilationUtilities extends LazyLogging {
     command
   }
 
-  def cppToExe(prefix: String, dir: File): ProcessBuilder =
+  // @todo deprecate java.io.File
+  def cppToExe(prefix: String, dir: java.io.File): ProcessBuilder =
     Seq("make", "-C", dir.toString, "-j", "-f", s"V$prefix.mk", s"V$prefix")
 
   def executeExpectingFailure(
-    prefix:       String,
-    dir:          File,
+    prefix: String,
+    // @todo deprecate java.io.File
+    dir:          java.io.File,
     assertionMsg: String = ""
   ): Boolean = {
     var triggered = false
@@ -183,7 +194,8 @@ object BackendCompilationUtilities extends LazyLogging {
     triggered || (e != 0 && (e != 134 || !assertionMessageSupplied))
   }
 
-  def executeExpectingSuccess(prefix: String, dir: File): Boolean = {
+  // @todo deprecate java.io.File
+  def executeExpectingSuccess(prefix: String, dir: java.io.File): Boolean = {
     !executeExpectingFailure(prefix, dir)
   }
 
@@ -200,8 +212,14 @@ object BackendCompilationUtilities extends LazyLogging {
     * @param testDir      directory containing verilog files
     * @param timesteps    the maximum number of timesteps for Yosys equivalence
     *                     checking to consider
+    * @todo deprecate java.io.File
     */
-  def yosysExpectSuccess(customTop: String, referenceTop: String, testDir: File, timesteps: Int = 1): Boolean = {
+  def yosysExpectSuccess(
+    customTop:    String,
+    referenceTop: String,
+    testDir:      java.io.File,
+    timesteps:    Int = 1
+  ): Boolean = {
     !yosysExpectFailure(customTop, referenceTop, testDir, timesteps)
   }
 
@@ -218,11 +236,18 @@ object BackendCompilationUtilities extends LazyLogging {
     * @param testDir      directory containing verilog files
     * @param timesteps    the maximum number of timesteps for Yosys equivalence
     *                     checking to consider
+    * @todo deprecate java.io.File
     */
-  def yosysExpectFailure(customTop: String, referenceTop: String, testDir: File, timesteps: Int = 1): Boolean = {
+  def yosysExpectFailure(
+    customTop:    String,
+    referenceTop: String,
+    testDir:      java.io.File,
+    timesteps:    Int = 1
+  ): Boolean = {
 
     val scriptFileName = s"${testDir.getAbsolutePath}/yosys_script"
-    val yosysScriptWriter = new PrintWriter(scriptFileName)
+    // @todo remove java.io
+    val yosysScriptWriter = new java.io.PrintWriter(scriptFileName)
     yosysScriptWriter.write(s"""read_verilog ${testDir.getAbsolutePath}/$customTop.v
                                |prep -flatten -top $customTop; proc; opt; memory
                                |design -stash custom
@@ -242,7 +267,8 @@ object BackendCompilationUtilities extends LazyLogging {
     yosysScriptWriter.close()
 
     val resultFileName = testDir.getAbsolutePath + "/yosys_results"
-    val command = s"yosys -s $scriptFileName" #> new File(resultFileName)
+    // @todo remove java.io.File
+    val command = s"yosys -s $scriptFileName" #> new java.io.File(resultFileName)
     command.! != 0
   }
 }
@@ -252,30 +278,41 @@ trait BackendCompilationUtilities extends LazyLogging {
   lazy val TestDirectory = BackendCompilationUtilities.TestDirectory
   def timeStamp:            String = BackendCompilationUtilities.timeStamp
   def loggingProcessLogger: ProcessLogger = BackendCompilationUtilities.loggingProcessLogger
-  def copyResourceToFile(name:      String, file: File): Unit = BackendCompilationUtilities.copyResourceToFile(name, file)
-  def createTestDirectory(testName: String): File = BackendCompilationUtilities.createTestDirectory(testName)
-  def makeHarness(template:         String => String, post: String)(f: File): File =
+  // @todo deprecate java.io.File
+  def copyResourceToFile(name: String, file: java.io.File): Unit =
+    BackendCompilationUtilities.copyResourceToFile(name, file)
+  // @todo deprecate java.io.File
+  def createTestDirectory(testName: String): java.io.File = BackendCompilationUtilities.createTestDirectory(testName)
+  // @todo deprecate java.io.File
+  def makeHarness(template: String => String, post: String)(f: java.io.File): java.io.File =
     BackendCompilationUtilities.makeHarness(template, post)(f)
-  def firrtlToVerilog(prefix: String, dir: File): ProcessBuilder =
+  // @todo deprecate java.io.File
+  def firrtlToVerilog(prefix: String, dir: java.io.File): ProcessBuilder =
     BackendCompilationUtilities.firrtlToVerilog(prefix, dir)
   def verilogToCpp(
-    dutFile:          String,
-    dir:              File,
-    vSources:         Seq[File],
-    cppHarness:       File,
+    dutFile: String,
+    // @todo deprecate java.io.File
+    dir: java.io.File,
+    // @todo deprecate java.io.File
+    vSources: Seq[java.io.File],
+    // @todo deprecate java.io.File
+    cppHarness:       java.io.File,
     suppressVcd:      Boolean = false,
     resourceFileName: String = firrtl.transforms.BlackBoxSourceHelper.defaultFileListName
   ): ProcessBuilder = {
     BackendCompilationUtilities.verilogToCpp(dutFile, dir, vSources, cppHarness, suppressVcd, resourceFileName)
   }
-  def cppToExe(prefix: String, dir: File): ProcessBuilder = BackendCompilationUtilities.cppToExe(prefix, dir)
+  // @todo deprecate java.io.File
+  def cppToExe(prefix: String, dir: java.io.File): ProcessBuilder = BackendCompilationUtilities.cppToExe(prefix, dir)
   def executeExpectingFailure(
-    prefix:       String,
-    dir:          File,
+    prefix: String,
+    // @todo deprecate java.io.File
+    dir:          java.io.File,
     assertionMsg: String = ""
   ): Boolean = {
     BackendCompilationUtilities.executeExpectingFailure(prefix, dir, assertionMsg)
   }
-  def executeExpectingSuccess(prefix: String, dir: File): Boolean =
+  // @todo deprecate java.io.File
+  def executeExpectingSuccess(prefix: String, dir: java.io.File): Boolean =
     BackendCompilationUtilities.executeExpectingSuccess(prefix, dir)
 }

@@ -7,8 +7,6 @@ import firrtl.annotations.{AnnotationFileNotFoundException, JsonProtocol}
 import firrtl.options.{InputAnnotationFileAnnotation, Phase, StageUtils}
 import firrtl.FileUtils
 
-import java.io.File
-
 import scala.collection.mutable
 import scala.util.{Failure, Try}
 
@@ -26,7 +24,8 @@ class GetIncludes extends Phase {
     * @throws annotations.AnnotationFileNotFoundException if the file does not exist
     */
   private def readAnnotationsFromFile(filename: String): AnnotationSeq = {
-    val file = new File(filename).getCanonicalFile
+    // @todo remove java.io.File
+    val file = new java.io.File(filename).getCanonicalFile
     if (!file.exists) { throw new AnnotationFileNotFoundException(file) }
     JsonProtocol.deserialize(file)
   }

@@ -2,8 +2,6 @@
 
 package firrtl.annotations
 
-import java.io.File
-
 import firrtl.FirrtlUserException
 
 /** Representation of the two types of `readmem` statements available in Verilog.
@@ -46,7 +44,8 @@ case class LoadMemoryAnnotation(
       case "" :: name :: Nil => // this case handles a filename that begins with dot and has no suffix
         ("." + name, "")
       case other => {
-        if (other.last.indexOf(File.separator) != -1) {
+        // @todo remove java.io.File
+        if (other.last.indexOf(java.io.File.separator) != -1) {
           (fileName, "")
         } else {
           (other.reverse.tail.reverse.mkString("."), "." + other.last)

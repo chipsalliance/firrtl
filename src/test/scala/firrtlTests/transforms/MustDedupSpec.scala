@@ -2,22 +2,19 @@
 
 package firrtlTests.transforms
 
-import org.scalatest.featurespec.AnyFeatureSpec
-import org.scalatest.GivenWhenThen
-import firrtl.testutils.FirrtlMatchers
-import java.io.File
-
-import firrtl.graph.DiGraph
 import firrtl.analyses.InstanceKeyGraph
 import firrtl.annotations.CircuitTarget
 import firrtl.annotations.TargetToken.OfModule
-import firrtl.transforms._
-import firrtl.transforms.MustDeduplicateTransform._
-import firrtl.transforms.MustDeduplicateTransform.DisjointChildren._
-import firrtl.util.BackendCompilationUtilities.createTestDirectory
+import firrtl.graph.DiGraph
+import firrtl.options.TargetDirAnnotation
 import firrtl.stage.{FirrtlSourceAnnotation, RunFirrtlTransformAnnotation}
-import firrtl.options.{TargetDirAnnotation}
-import logger.{LogLevel, LogLevelAnnotation, Logger}
+import firrtl.testutils.FirrtlMatchers
+import firrtl.transforms.MustDeduplicateTransform.DisjointChildren._
+import firrtl.transforms.MustDeduplicateTransform._
+import firrtl.transforms._
+import firrtl.util.BackendCompilationUtilities.createTestDirectory
+import org.scalatest.GivenWhenThen
+import org.scalatest.featurespec.AnyFeatureSpec
 
 class MustDedupSpec extends AnyFeatureSpec with FirrtlMatchers with GivenWhenThen {
 
@@ -52,7 +49,8 @@ class MustDedupSpec extends AnyFeatureSpec with FirrtlMatchers with GivenWhenThe
 
     Scenario("Full compilation should fail and dump reports to disk") {
       val testDir = createTestDirectory("must_dedup")
-      val reportDir = new File(testDir, "reports")
+      // @todo remove java.io.File
+      val reportDir = new java.io.File(testDir, "reports")
       val annos = Seq(
         TargetDirAnnotation(testDir.toString),
         FirrtlSourceAnnotation(text),
@@ -67,12 +65,14 @@ class MustDedupSpec extends AnyFeatureSpec with FirrtlMatchers with GivenWhenThe
 
       reportDir should exist
 
-      val report0 = new File(reportDir, "report_0.rpt")
+      // @todo remove java.io.File
+      val report0 = new java.io.File(reportDir, "report_0.rpt")
       report0 should exist
 
       val expectedModules = Seq("B", "B_1", "C", "C_1")
       for (mod <- expectedModules) {
-        new File(reportDir, s"modules/$mod.fir") should exist
+        // @todo remove java.io.File
+        new java.io.File(reportDir, s"modules/$mod.fir") should exist
       }
     }
 
@@ -252,7 +252,8 @@ class MustDedupSpec extends AnyFeatureSpec with FirrtlMatchers with GivenWhenThe
 
     Scenario("Full compilation should succeed") {
       val testDir = createTestDirectory("must_dedup")
-      val reportDir = new File(testDir, "reports")
+      // @todo remove java.io.File
+      val reportDir = new java.io.File(testDir, "reports")
       val annos = Seq(
         TargetDirAnnotation(testDir.toString),
         FirrtlSourceAnnotation(text),

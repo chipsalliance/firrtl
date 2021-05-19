@@ -1,7 +1,5 @@
 package firrtl
 
-import java.io.Writer
-
 import firrtl.Utils._
 import firrtl.ir._
 import firrtl.traversals.Foreachers._
@@ -57,7 +55,8 @@ sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Em
   }
 
   // Old style, deprecated
-  def emit(state: CircuitState, writer: Writer): Unit = writer.write(state.circuit.serialize)
+  // @todo remove java.io.File
+  def emit(state: CircuitState, writer: java.io.Writer): Unit = writer.write(state.circuit.serialize)
 }
 
 class ChirrtlEmitter extends FirrtlEmitter(CircuitForm.ChirrtlForm)

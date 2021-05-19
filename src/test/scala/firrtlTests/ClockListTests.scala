@@ -2,7 +2,6 @@
 
 package firrtlTests
 
-import java.io._
 import firrtl._
 import firrtl.ir.Circuit
 import firrtl.passes._
@@ -81,7 +80,8 @@ class ClockListTests extends FirrtlFlatSpec {
         p.runTransform(c)
       }
       .circuit
-    val writer = new StringWriter()
+    // @todo remove java.io
+    val writer = new java.io.StringWriter()
     val retC = new ClockList("HTop", writer).run(c)
     (writer.toString) should be(check)
   }
@@ -114,7 +114,8 @@ class ClockListTests extends FirrtlFlatSpec {
         p.runTransform(c)
       }
       .circuit
-    val writer = new StringWriter()
+    // @todo remove java.io
+    val writer = new java.io.StringWriter()
     val retC = new ClockList("A", writer).run(c)
     (writer.toString) should be(check)
   }
@@ -149,7 +150,8 @@ class ClockListTests extends FirrtlFlatSpec {
         p.runTransform(c)
       }
       .circuit
-    val writer = new StringWriter()
+    // @todo remove java.io
+    val writer = new java.io.StringWriter()
     val retC = new ClockList("B", writer).run(c)
     (writer.toString) should be(check)
   }

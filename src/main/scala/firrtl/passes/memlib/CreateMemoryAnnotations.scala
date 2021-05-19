@@ -7,8 +7,6 @@ package memlib
 import firrtl.Utils.error
 import firrtl.stage.Forms
 
-import java.io.File
-
 class CreateMemoryAnnotations extends Transform with DependencyAPIMigration {
 
   override def prerequisites = Forms.MidForm
@@ -21,8 +19,9 @@ class CreateMemoryAnnotations extends Transform with DependencyAPIMigration {
       case ReplSeqMemAnnotation(inputFileName, outputConfig) =>
         Seq(MemLibOutConfigFileAnnotation(outputConfig, Nil)) ++ {
           if (inputFileName.isEmpty) None
-          else if (new File(inputFileName).exists) {
-            import CustomYAMLProtocol._
+          // @todo remove java.io.File
+          else if (new java.io.File(inputFileName).exists) {
+            import CustomYAMLProtocol._ // implicit parameter for ↓
             Some(PinAnnotation(new YamlFileReader(inputFileName).parse[Config].map(_.pin.name)))
           } else error("Input configuration file does not exist!")
         }

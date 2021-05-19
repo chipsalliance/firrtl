@@ -6,8 +6,6 @@ import firrtl.AnnotationSeq
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
 import firrtl.options.Viewer.view
 
-import java.io.File
-
 import scopt.OptionParser
 
 sealed trait StageOption extends Unserializable { this: Annotation => }
@@ -60,16 +58,19 @@ trait CustomFileEmission { this: Annotation =>
     * how to deserialize the information that was serialized to a separate file. For example, if a FIRRTL circuit is
     * serialized to a separate file, this method could include an input file annotation that a later stage can use to
     * read the serialized FIRRTL circuit back in.
+    *
+    * @todo deprecate java.io.File
     */
-  def replacements(file: File): AnnotationSeq = Seq.empty
+  def replacements(file: java.io.File): AnnotationSeq = Seq.empty
 
   /** Method that returns the filename where this annotation will be serialized.
     *
     * @param annotations the annotations at the time of serialization
+    * @todo deprecate java.io.File
     */
-  final def filename(annotations: AnnotationSeq): File = {
+  final def filename(annotations: AnnotationSeq): java.io.File = {
     val name = view[StageOptions](annotations).getBuildFileName(baseFileName(annotations), suffix)
-    new File(name)
+    new java.io.File(name)
   }
 
 }

@@ -2,22 +2,16 @@
 
 package firrtlTests
 
-import java.io.{File, FileWriter}
-
-import org.scalatest.freespec.AnyFreeSpec
-import org.scalatest.matchers.should.Matchers
+import firrtl.{FileUtils, _}
 import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.{InferReadWriteAnnotation, ReplSeqMemAnnotation}
-import firrtl.transforms.BlackBoxTargetDirAnno
-import firrtl._
-import firrtl.FileUtils
-import firrtl.annotations._
-import firrtl.util.BackendCompilationUtilities
 import firrtl.testutils.FirrtlFlatSpec
-
-import scala.util.Success
+import firrtl.transforms.BlackBoxTargetDirAnno
+import firrtl.util.BackendCompilationUtilities
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
+
+import scala.util.Success
 
 class ExceptingTransform extends Transform {
   def inputForm = HighForm
@@ -212,7 +206,8 @@ class DriverSpec extends AnyFreeSpec with Matchers with BackendCompilationUtilit
         annotationFileNames = List.fill(2)(filename) // just read the safe file twice
       )
     }
-    val annotationsTestFile = new File(optionsManager.commonOptions.targetDirName, filename)
+    // @todo remove java.io
+    val annotationsTestFile = new java.io.File(optionsManager.commonOptions.targetDirName, filename)
     copyResourceToFile(s"/annotations/$filename", annotationsTestFile)
     optionsManager.firrtlOptions.annotations.length should be(0)
     val annos = Driver.getAnnotations(optionsManager)
@@ -223,8 +218,10 @@ class DriverSpec extends AnyFreeSpec with Matchers with BackendCompilationUtilit
 
   "Annotations can be created from the command line and read from a file at the same time" in {
     val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions
-    val targetDir = new File(optionsManager.commonOptions.targetDirName)
-    val annoFile = new File(targetDir, "annotations.anno")
+    // @todo remove java.io
+    val targetDir = new java.io.File(optionsManager.commonOptions.targetDirName)
+    // @todo remove java.io
+    val annoFile = new java.io.File(targetDir, "annotations.anno")
 
     optionsManager.parse(
       Array("--infer-rw", "-faf", annoFile.toString)
@@ -284,7 +281,8 @@ class DriverSpec extends AnyFreeSpec with Matchers with BackendCompilationUtilit
               fail(s"Got a FirrtlExecutionFailure! Expected FirrtlExecutionSuccess. Full message:\n${a.message}")
           }
 
-          val file = new File(expectedOutputFileName)
+          // @todo remove java.io
+          val file = new java.io.File(expectedOutputFileName)
           file.exists() should be(true)
           file.delete()
       }
@@ -318,7 +316,8 @@ class DriverSpec extends AnyFreeSpec with Matchers with BackendCompilationUtilit
           }
 
           for (name <- expectedOutputFileNames) {
-            val file = new File(name)
+            // @todo remove java.io
+            val file = new java.io.File(name)
             file.exists() should be(true)
             file.delete()
           }
@@ -329,16 +328,20 @@ class DriverSpec extends AnyFreeSpec with Matchers with BackendCompilationUtilit
   "The Driver is sensitive to the file extension of input files" - {
     val design = "GCDTester"
     val outputDir = createTestDirectory("DriverFileExtensionSensitivity")
-    val verilogFromFir = new File(outputDir, s"$design.fromfir.v")
-    val verilogFromPb = new File(outputDir, s"$design.frompb.v")
+    // @todo remove java.io
+    val verilogFromFir = new java.io.File(outputDir, s"$design.fromfir.v")
+    // @todo remove java.io
+    val verilogFromPb = new java.io.File(outputDir, s"$design.frompb.v")
     val commonArgs = Array("-X", "verilog", "--info-mode", "use")
     ".fir means FIRRTL file" in {
-      val inFile = new File(getClass.getResource(s"/integration/$design.fir").getFile)
+      // @todo remove java.io
+      val inFile = new java.io.File(getClass.getResource(s"/integration/$design.fir").getFile)
       val args = Array("-i", inFile.getAbsolutePath, "-o", verilogFromFir.getAbsolutePath) ++ commonArgs
       Driver.execute(args)
     }
     ".pb means ProtoBuf file" in {
-      val inFile = new File(getClass.getResource(s"/integration/$design.pb").getFile)
+      // @todo remove java.io
+      val inFile = new java.io.File(getClass.getResource(s"/integration/$design.pb").getFile)
       val args = Array("-i", inFile.getAbsolutePath, "-o", verilogFromPb.getAbsolutePath) ++ commonArgs
       Driver.execute(args)
     }
@@ -352,7 +355,8 @@ class DriverSpec extends AnyFreeSpec with Matchers with BackendCompilationUtilit
   "Directory deleter is handy for cleaning up after tests" - {
     "for example making a directory tree, and deleting it looks like" in {
       FileUtils.makeDirectory("dog/fox/wolf")
-      val dir = new File("dog/fox/wolf")
+      // @todo remove java.io
+      val dir = new java.io.File("dog/fox/wolf")
       dir.exists() should be(true)
       dir.isDirectory should be(true)
 
@@ -371,7 +375,8 @@ class VcdSuppressionSpec extends FirrtlFlatSpec {
       val optionsManager = new ExecutionOptionsManager("test") with HasFirrtlOptions
 
       val testDir = compileFirrtlTest(prefix, "/features", Seq.empty, Seq.empty)
-      val harness = new File(testDir, s"top.cpp")
+      // @todo remove java.io
+      val harness = new java.io.File(testDir, s"top.cpp")
       copyResourceToFile(cppHarnessResourceName, harness)
 
       verilogToCpp(prefix, testDir, Seq.empty, harness, suppress) #&&
@@ -379,7 +384,8 @@ class VcdSuppressionSpec extends FirrtlFlatSpec {
 
       assert(executeExpectingSuccess(prefix, testDir))
 
-      val vcdFile = new File(s"$testDir/dump.vcd")
+      // @todo remove java.io
+      val vcdFile = new java.io.File(s"$testDir/dump.vcd")
       vcdFile.exists() should be(!suppress)
     }
 

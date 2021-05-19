@@ -3,8 +3,6 @@
 package firrtl
 package proto
 
-import java.io.OutputStream
-
 import FirrtlProtos._
 import Firrtl.Statement.{Formal, ReadUnderWrite}
 import Firrtl.Expression.PrimOp.Op
@@ -19,8 +17,9 @@ object ToProto {
     *
     * @param ostream Output stream that will be written
     * @param circuit The Circuit to serialize
+    * @todo deprecate java.io
     */
-  def writeToStream(ostream: OutputStream, circuit: ir.Circuit): Unit = {
+  def writeToStream(ostream: java.io.OutputStream, circuit: ir.Circuit): Unit = {
     writeToStreamFast(ostream, circuit.info, circuit.modules.map(() => _), circuit.main)
   }
 
@@ -33,10 +32,11 @@ object ToProto {
     * @param info Info of Circuit
     * @param modules Functions to generate Modules lazily
     * @param main Top-level module of the Circuit
+    * @todo deprecate java.io
     */
   // Note this function is sensitive to changes to the Firrtl and Circuit protobuf message definitions
   def writeToStreamFast(
-    ostream: OutputStream,
+    ostream: java.io.OutputStream,
     info:    ir.Info,
     modules: Seq[() => ir.DefModule],
     main:    String
