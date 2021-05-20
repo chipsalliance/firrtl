@@ -200,7 +200,10 @@ class InlineInstances extends Transform with DependencyAPIMigration with Registe
               renameMap.record(currentModule.ofModuleTarget.ref(name), nextModule.ref(prefix + name))
               renameMap.record(currentModule.ref(name), nextModule.ref(prefix + name))
             case Some(ofModule) =>
-              renameMap.record(currentModule.ofModuleTarget.instOf(name, ofModule), nextModule.instOf(prefix + name, ofModule))
+              renameMap.record(
+                currentModule.ofModuleTarget.instOf(name, ofModule),
+                nextModule.instOf(prefix + name, ofModule)
+              )
               renameMap.record(currentModule.instOf(name, ofModule), nextModule.instOf(prefix + name, ofModule))
           }
           renames(name) = prefix + name

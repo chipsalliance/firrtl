@@ -596,7 +596,7 @@ class InlineInstancesTests extends LowTransformSpec {
         DummyAnno(innerNestedInlined.ref("b")),
         DummyAnno(inlineModuleTarget.instOf("bar", "NestedNoInline")),
         DummyAnno(inlineModuleTarget.ref("a"), inlineModuleTarget.ref("b")),
-        DummyAnno(nestedInlineModuleTarget.ref("a")),
+        DummyAnno(nestedInlineModuleTarget.ref("a"))
       ),
       Seq(
         DummyAnno(top.ref("i_a")),
@@ -609,7 +609,7 @@ class InlineInstancesTests extends LowTransformSpec {
         DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("foo_b")),
         DummyAnno(top.instOf("i_bar", "NestedNoInline")),
         DummyAnno(top.ref("i_a"), top.ref("i_b")),
-        DummyAnno(top.ref("i_foo_a"), top.copy(module = "NestedNoInline").ref("foo_a")),
+        DummyAnno(top.ref("i_foo_a"), top.copy(module = "NestedNoInline").ref("foo_a"))
       )
     )
   }
