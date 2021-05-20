@@ -13,7 +13,14 @@ import firrtl.transforms._
 import firrtl.util.BackendCompilationUtilities.loggingProcessLogger
 import scala.sys.process._
 
+object ReplSeqMemSpec {
+  private case class DummyAnnotation(target: Target) extends SingleTargetAnnotation[Target] {
+    override def duplicate(n: Target): Annotation = DummyAnnotation(n)
+  }
+}
+
 class ReplSeqMemSpec extends SimpleTransformSpec {
+  import ReplSeqMemSpec._
   def emitter = new LowFirrtlEmitter
   def transforms = Seq(
     new ChirrtlToHighFirrtl(),
@@ -608,4 +615,45 @@ circuit Top :
     checkGenMemVerilog(input, Set.empty)
   }
 
+  "ReplSeqMem" should "rename reference targets to blackbox instance targets" in {
+    val input = """
+circuit Top :
+  module Top :
+    input clock : Clock
+    input reset : UInt<1>
+    input head_ptr : UInt<5>
+    input tail_ptr : UInt<5>
+    input wmask : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}
+    output io : {backend : {flip allocate : {valid : UInt<1>, bits : {info : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}}}}, commit_entry : {valid : UInt<1>, bits : {info : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}}}}
+
+    io is invalid
+
+    smem entries_info : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}[24]
+    when io.backend.allocate.valid :
+      write mport W = entries_info[tail_ptr], clock
+      W <- io.backend.allocate.bits.info
+
+    read mport R = entries_info[head_ptr], clock
+    io.commit_entry.bits.info <- R
+""".stripMargin
+    val mems = Set(
+      MemConf("entries_info_ext", 24, 30, Map(WritePort -> 1, ReadPort -> 1), None)
+    )
+    val confLoc = "ReplSeqMemTests.confTEMP"
+    val annos = Seq(
+      ReplSeqMemAnnotation.parse("-c:Top:-o:" + confLoc),
+      DummyAnnotation(CircuitTarget("Top").module("Top").ref("entries_info"))
+    )
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+    (res.annotations.collect {
+      case DummyAnnotation(t) => t
+    }) should be(
+      Seq(
+        CircuitTarget("Top")
+          .module("Top")
+          .instOf("entries_info", "entries_info")
+          .instOf("entries_info_ext", "entries_info_ext")
+      )
+    )
+  }
 }
