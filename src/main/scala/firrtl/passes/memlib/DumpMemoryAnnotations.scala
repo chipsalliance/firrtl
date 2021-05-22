@@ -86,21 +86,21 @@ class DumpMemoryAnnotations extends Transform with DependencyAPIMigration {
         s"always @(posedge ${prefix}clk)",
         s"  if ($en) reg_${prefix}addr <= ${prefix}addr;"
       )
-      def genWriteSequential(en: String, prefix: String, inputData: String): Seq[String] = Seq(
+      def genWriteSequential(en: String, prefix: String, inputData: String, maskName: String): Seq[String] = Seq(
         s"always @(posedge ${prefix}clk)",
         s"  if ($en) begin"
       ) ++ (0 until maskSeg).map { i =>
-        val mask = if (masked) s"if (${prefix}mask[$i]) " else ""
+        val ifMask = if (masked) s"if (${prefix}${maskName}[$i]) " else ""
         val ram_range = s"${(i + 1) * maskGran - 1}:${i * maskGran}"
-        s"    ${mask}ram[${prefix}addr][$ram_range] <= ${prefix}$inputData[$ram_range];"
+        s"    ${ifMask}ram[${prefix}addr][$ram_range] <= ${prefix}$inputData[$ram_range];"
       } ++ Seq("  end")
       ports.flatMap(port =>
         port.portType match {
           case ReadPort  => genReadSequential(port.prefix + "en", port.prefix)
-          case WritePort => genWriteSequential(port.prefix + "en", port.prefix, "data")
+          case WritePort => genWriteSequential(port.prefix + "en", port.prefix, "data", "mask")
           case ReadWritePort =>
             genReadSequential(s"${port.prefix}en && !${port.prefix}wmode", port.prefix) ++
-              genWriteSequential(s"${port.prefix}en && ${port.prefix}wmode", port.prefix, "wdata")
+              genWriteSequential(s"${port.prefix}en && ${port.prefix}wmode", port.prefix, "wdata", "wmask")
         }
       )
     }
