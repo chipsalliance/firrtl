@@ -217,8 +217,8 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform with DependencyAPIM
     }
   }
 
-  /** Mapping from (module, memory name) pairs to blackbox names */
-  private type NameMap = collection.mutable.HashMap[(String, String), String]
+  /** Mapping from (module, memory name) pairs to pair of blackbox wrapper name and blackbox name */
+  private type NameMap = collection.mutable.HashMap[(String, String), (String, String)]
 
   /** Construct NameMap by assigning unique names for each memory blackbox */
   @deprecated("constructNameMap will become private in 1.5.", "FIRRTL 1.4")
@@ -226,7 +226,10 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform with DependencyAPIM
     s match {
       case m: DefAnnotatedMemory =>
         m.memRef match {
-          case None    => nameMap(mname -> m.name) = namespace.newName(m.name)
+          case None    =>
+            val wrapperName = namespace.newName(m.name)
+            val blackboxName = namespace.newName(s"${wrapperName}_ext")
+            nameMap(mname -> m.name) = (wrapperName, blackboxName)
           case Some(_) =>
         }
       case _ =>
@@ -254,18 +257,17 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform with DependencyAPIM
       m.memRef match {
         case None =>
           // prototype mem
-          val newWrapperName = nameMap(mname -> m.name)
-          val newMemBBName = namespace.newName(s"${newWrapperName}_ext")
+          val (newWrapperName, newMemBBName) = nameMap(mname -> m.name)
           val newMem = m.copy(name = newMemBBName)
           memMods ++= createMemModule(newMem, newWrapperName)
           val renameFrom = moduleTarget.ref(m.name)
-          val renameTo = moduleTarget.instOf(m.name, newWrapperName).instOf(newMem.name, newMem.name)
+          val renameTo = moduleTarget.instOf(m.name, newWrapperName).instOf(newMemBBName, newMemBBName)
           renameMap.record(renameFrom, renameTo)
           WDefInstance(m.info, m.name, newWrapperName, UnknownType)
         case Some((module, mem)) =>
-          val memModuleName = nameMap(module -> mem)
+          val (memModuleName, newMemBBName) = nameMap(module -> mem)
           val renameFrom = moduleTarget.ref(m.name)
-          val renameTo = moduleTarget.instOf(m.name, memModuleName)
+          val renameTo = moduleTarget.instOf(m.name, memModuleName).instOf(newMemBBName, newMemBBName)
           renameMap.record(renameFrom, renameTo)
           WDefInstance(m.info, m.name, memModuleName, UnknownType)
       }
