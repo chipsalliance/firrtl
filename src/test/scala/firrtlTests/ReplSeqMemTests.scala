@@ -617,42 +617,47 @@ circuit Top :
 
   "ReplSeqMem" should "rename reference targets to blackbox instance targets" in {
     val input = """
-circuit Top :
-  module Top :
+circuit CustomMemory :
+  module CustomMemory :
     input clock : Clock
     input reset : UInt<1>
-    input head_ptr : UInt<5>
-    input tail_ptr : UInt<5>
-    input wmask : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}
-    output io : {backend : {flip allocate : {valid : UInt<1>, bits : {info : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}}}}, commit_entry : {valid : UInt<1>, bits : {info : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}}}}
+    output io : {flip rClk : Clock, flip rAddr : UInt<3>, dO : UInt<16>, flip wClk : Clock, flip wAddr : UInt<3>, flip wEn : UInt<1>, flip dI : UInt<16>}
 
     io is invalid
-
-    smem entries_info : {takens : UInt<2>, history : UInt<14>, info : UInt<14>}[24]
-    when io.backend.allocate.valid :
-      write mport W = entries_info[tail_ptr], clock
-      W <- io.backend.allocate.bits.info
-
-    read mport R = entries_info[head_ptr], clock
-    io.commit_entry.bits.info <- R
-""".stripMargin
+    smem mem_0 : UInt<16>[7]
+    smem mem_1 : UInt<16>[7]
+    read mport _T_17 = mem_0[io.rAddr], clock
+    read mport _T_19 = mem_1[io.rAddr], clock
+    io.dO <= and(_T_17, _T_19)
+    when io.wEn :
+      write mport _T_18 = mem_0[io.wAddr], clock
+      write mport _T_20 = mem_1[io.wAddr], clock
+      _T_18 <= io.dI
+      _T_20 <= io.dI
+      skip
+"""
     val mems = Set(
-      MemConf("entries_info_ext", 24, 30, Map(WritePort -> 1, ReadPort -> 1), None)
+      MemConf("mem_0_ext", 7, 16, Map(WritePort -> 1, ReadPort -> 1), None)
     )
     val confLoc = "ReplSeqMemTests.confTEMP"
     val annos = Seq(
-      ReplSeqMemAnnotation.parse("-c:Top:-o:" + confLoc),
-      DummyAnnotation(CircuitTarget("Top").module("Top").ref("entries_info"))
+      ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:" + confLoc),
+      DummyAnnotation(CircuitTarget("CustomMemory").module("CustomMemory").ref("mem_0")),
+      DummyAnnotation(CircuitTarget("CustomMemory").module("CustomMemory").ref("mem_1"))
     )
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     (res.annotations.collect {
       case DummyAnnotation(t) => t
     }) should be(
       Seq(
-        CircuitTarget("Top")
-          .module("Top")
-          .instOf("entries_info", "entries_info")
-          .instOf("entries_info_ext", "entries_info_ext")
+        CircuitTarget("CustomMemory")
+          .module("CustomMemory")
+          .instOf("mem_0", "mem_0")
+          .instOf("mem_0_ext", "mem_0_ext"),
+        CircuitTarget("CustomMemory")
+          .module("CustomMemory")
+          .instOf("mem_1", "mem_0")
+          .instOf("mem_0_ext", "mem_0_ext")
       )
     )
   }
