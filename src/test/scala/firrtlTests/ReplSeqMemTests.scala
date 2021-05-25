@@ -14,8 +14,12 @@ import firrtl.util.BackendCompilationUtilities.loggingProcessLogger
 import scala.sys.process._
 
 object ReplSeqMemSpec {
-  private case class DummyAnnotation(target: Target) extends SingleTargetAnnotation[Target] {
-    override def duplicate(n: Target): Annotation = DummyAnnotation(n)
+  private case class DummyAnno(targets: CompleteTarget*) extends Annotation {
+    override def update(renames: RenameMap): Seq[Annotation] = {
+      Seq(DummyAnno(targets.flatMap { t =>
+        renames.get(t).getOrElse(Seq(t))
+      }: _*))
+    }
   }
 }
 
@@ -642,12 +646,15 @@ circuit CustomMemory :
     val confLoc = "ReplSeqMemTests.confTEMP"
     val annos = Seq(
       ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:" + confLoc),
-      DummyAnnotation(CircuitTarget("CustomMemory").module("CustomMemory").ref("mem_0")),
-      DummyAnnotation(CircuitTarget("CustomMemory").module("CustomMemory").ref("mem_1"))
+      DummyAnno(
+        CircuitTarget("CustomMemory").module("CustomMemory").ref("mem_0"),
+        CircuitTarget("CustomMemory").module("CustomMemory").ref("mem_1")
+      )
     )
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
-    (res.annotations.collect {
-      case DummyAnnotation(t) => t
+    (res.annotations.flatMap {
+      case a: DummyAnno => a.targets
+      case _ => Seq.empty
     }) should be(
       Seq(
         CircuitTarget("CustomMemory")
