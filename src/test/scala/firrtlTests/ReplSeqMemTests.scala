@@ -652,7 +652,7 @@ circuit Top :
       )
     )
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
-    val resAnnos = res.annotations.collect { case a: DummyAnno => a.targets }
+    val resAnnos = res.annotations.collect { case a: DummyAnno => a.targets }.flatten
     val expected = Seq(
       CircuitTarget("CustomMemory")
         .module("CustomMemory")
