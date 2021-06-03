@@ -217,12 +217,26 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform with DependencyAPIM
     }
   }
 
+  /** Mapping from (module, memory name) pairs to blackbox names */
+  private type NameMap = collection.mutable.HashMap[(String, String), String]
+
   /** Mapping from (module, memory name) pairs to pair of blackbox wrapper name and blackbox name */
-  private type NameMap = collection.mutable.HashMap[(String, String), (String, String)]
+  private type NameMapNew = collection.mutable.HashMap[(String, String), (String, String)]
 
   /** Construct NameMap by assigning unique names for each memory blackbox */
   @deprecated("constructNameMap will become private in 1.5.", "FIRRTL 1.4")
   def constructNameMap(namespace: Namespace, nameMap: NameMap, mname: String)(s: Statement): Statement = {
+    val nameMapNew = new NameMapNew
+    constructNameMapNew(namespace, nameMapNew, mname)(s)
+    nameMapNew.foreach {
+      case (k, v) =>
+        nameMap(k) = v._2
+    }
+    s
+  }
+
+  /** Version of constructNameMap that accepts a [[NameMapNew]] instead of [[NameMap]] */
+  private def constructNameMapNew(namespace: Namespace, nameMap: NameMapNew, mname: String)(s: Statement): Statement = {
     s match {
       case m: DefAnnotatedMemory =>
         m.memRef match {
@@ -234,13 +248,41 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform with DependencyAPIM
         }
       case _ =>
     }
-    s.map(constructNameMap(namespace, nameMap, mname))
+    s.map(constructNameMapNew(namespace, nameMap, mname))
   }
 
   @deprecated("updateMemStmts will be private in 1.5.", "FIRRTL 1.4")
   def updateMemStmts(
     namespace:  Namespace,
     nameMap:    NameMap,
+    mname:      String,
+    memPortMap: MemPortMap,
+    memMods:    Modules
+  )(s:          Statement
+  ): Statement = {
+    val nameMapNew = new NameMapNew
+    nameMap.foreach {
+      case (k, v) =>
+        val wrapperName = namespace.newName(k._2)
+        nameMapNew(k) = (wrapperName -> v)
+    }
+    updateMemStmtsNew(
+      namespace,
+      new NameMapNew(),
+      mname,
+      memPortMap,
+      memMods,
+      RenameMap(),
+      "dummy"
+    )(s)
+  }
+
+  /** Version of updateMemStmts that accepts a [[NameMapNew]] instead of
+    * [[NameMap]] and also takes renameMap and a circuit arguments.
+    */
+  private def updateMemStmtsNew(
+    namespace:  Namespace,
+    nameMap:    NameMapNew,
     mname:      String,
     memPortMap: MemPortMap,
     memMods:    Modules,
@@ -271,13 +313,26 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform with DependencyAPIM
           renameMap.record(renameFrom, renameTo)
           WDefInstance(m.info, m.name, memModuleName, UnknownType)
       }
-    case sx => sx.map(updateMemStmts(namespace, nameMap, mname, memPortMap, memMods, renameMap, circuit))
+    case sx => sx.map(updateMemStmtsNew(namespace, nameMap, mname, memPortMap, memMods, renameMap, circuit))
   }
 
   @deprecated("updateMemMods will be private in 1.5.", "FIRRTL 1.4")
-  def updateMemMods(
+  def updateMemMods(namespace: Namespace, nameMap: NameMap, memMods: Modules)(m: DefModule) = {
+    val nameMapNew = new NameMapNew
+    nameMap.foreach {
+      case (k, v) =>
+        val wrapperName = namespace.newName(k._2)
+        nameMapNew(k) = (wrapperName -> v)
+    }
+    updateMemModsNew(namespace, nameMapNew, memMods, RenameMap(), "dummy")(m)
+  }
+
+  /** Version of updateMemMods that accepts a [[NameMapNew]] instead of
+    * [[NameMap]] and also takes renameMap and a circuit arguments.
+    */
+  private def updateMemModsNew(
     namespace: Namespace,
-    nameMap:   NameMap,
+    nameMap:   NameMapNew,
     memMods:   Modules,
     renameMap: RenameMap,
     circuit:   String
@@ -285,7 +340,7 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform with DependencyAPIM
   ) = {
     val memPortMap = new MemPortMap
 
-    (m.map(updateMemStmts(namespace, nameMap, m.name, memPortMap, memMods, renameMap, circuit))
+    (m.map(updateMemStmtsNew(namespace, nameMap, m.name, memPortMap, memMods, renameMap, circuit))
       .map(updateStmtRefs(memPortMap)))
   }
 
@@ -293,10 +348,10 @@ class ReplaceMemMacros(writer: ConfWriter) extends Transform with DependencyAPIM
     val c = state.circuit
     val namespace = Namespace(c)
     val memMods = new Modules
-    val nameMap = new NameMap
-    c.modules.map(m => m.map(constructNameMap(namespace, nameMap, m.name)))
+    val nameMap = new NameMapNew
+    c.modules.map(m => m.map(constructNameMapNew(namespace, nameMap, m.name)))
     val renameMap = RenameMap()
-    val modules = c.modules.map(updateMemMods(namespace, nameMap, memMods, renameMap, c.main))
+    val modules = c.modules.map(updateMemModsNew(namespace, nameMap, memMods, renameMap, c.main))
     // print conf
     writer.serialize()
     val pannos = state.annotations.collect { case a: PinAnnotation => a }
