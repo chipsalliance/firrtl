@@ -8,8 +8,6 @@ import firrtl.testutils._
 
 import org.scalatest.flatspec.AnyFlatSpec
 
-import java.io.File
-
 object LegalizeAndReductionsTransformSpec extends FirrtlRunners {
   private case class Test(
     name:       String,
@@ -68,7 +66,8 @@ circuit $name :
     val outputFilename = resultAnnos.collectFirst { case OutputFileAnnotation(f) => f }
     outputFilename.toRight(s"Output file not found!")
     // Copy Verilator harness
-    val harness = new File(testDir, "top.cpp")
+    // @todo remove java.io.File
+    val harness = new java.io.File(testDir, "top.cpp")
     copyResourceToFile(cppHarnessResourceName, harness)
     // Run Verilator
     verilogToCpp(prefix, testDir, Nil, harness, suppressVcd = true) #&&

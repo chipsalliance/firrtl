@@ -2,8 +2,6 @@
 
 package firrtl
 
-import java.io.File
-
 import firrtl.annotations.NoTargetAnnotation
 import firrtl.backends.experimental.smt.{Btor2Emitter, SMTLibEmitter}
 import firrtl.options.Viewer.view
@@ -135,7 +133,8 @@ case class EmittedFirrtlModuleAnnotation(value: EmittedFirrtlModule)
 case class EmittedFirrtlCircuitAnnotation(value: EmittedFirrtlCircuit)
     extends EmittedCircuitAnnotation[EmittedFirrtlCircuit] {
 
-  override def replacements(file: File): AnnotationSeq = Seq(FirrtlFileAnnotation(file.toString))
+  // @todo deprecate java.io.File
+  override def replacements(file: java.io.File): AnnotationSeq = Seq(FirrtlFileAnnotation(file.toString))
 }
 
 final case class EmittedFirrtlCircuit(name: String, value: String, outputSuffix: String) extends EmittedCircuit

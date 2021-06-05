@@ -14,7 +14,6 @@ import firrtl.stage.{
 }
 import firrtl.stage.phases.AddCircuit
 
-import java.io.{File, FileWriter}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -51,9 +50,11 @@ class AddCircuitSpec extends AnyFlatSpec with Matchers {
   val (file, fileCircuit) = {
     val source = firrtlSource("foo")
     val fileName = "test_run_dir/AddCircuitSpec.fir"
-    val srcFile = new File(fileName)
+    // @todo remove java.io
+    val srcFile = new java.io.File(fileName)
     srcFile.getParentFile.mkdirs()
-    val fw = new FileWriter(srcFile)
+    // @todo remove java.io
+    val fw = new java.io.FileWriter(srcFile)
     fw.write(source)
     fw.close()
     (fileName, Parser.parse(source))

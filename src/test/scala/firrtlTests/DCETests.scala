@@ -3,14 +3,10 @@
 package firrtlTests
 
 import firrtl._
-import firrtl.passes._
-import firrtl.transforms._
 import firrtl.annotations._
-import firrtl.passes.memlib.SimpleTransform
+import firrtl.passes._
 import firrtl.testutils._
-
-import java.io.File
-import java.nio.file.Paths
+import firrtl.transforms._
 
 case class AnnotationWithDontTouches(target: ReferenceTarget)
     extends SingleTargetAnnotation[ReferenceTarget]
@@ -532,8 +528,10 @@ class DCETests extends FirrtlFlatSpec {
 class DCECommandLineSpec extends FirrtlFlatSpec {
 
   val testDir = createTestDirectory("dce")
-  val inputFile = Paths.get(getClass.getResource("/features/HasDeadCode.fir").toURI()).toFile()
-  val outFile = new File(testDir, "HasDeadCode.v")
+  // @todo remove java.nio.file.Paths
+  val inputFile = java.nio.file.Paths.get(getClass.getResource("/features/HasDeadCode.fir").toURI()).toFile()
+  // @todo remove java.io.File
+  val outFile = new java.io.File(testDir, "HasDeadCode.v")
   val args = Array("-i", inputFile.getAbsolutePath, "-o", outFile.getAbsolutePath, "-X", "verilog")
 
   "Dead Code Elimination" should "run by default" in {

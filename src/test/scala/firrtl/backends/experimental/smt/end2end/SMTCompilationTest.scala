@@ -2,8 +2,6 @@
 
 package firrtl.backends.experimental.smt.end2end
 
-import java.io.File
-
 import firrtl.stage.{FirrtlStage, OutputFileAnnotation}
 import firrtl.util.BackendCompilationUtilities
 import logger.LazyLogging
@@ -26,7 +24,8 @@ class SMTCompilationTest extends AnyFlatSpec with LazyLogging {
 
   private def compileAndParse(name: String): Unit = {
     val testDir = BackendCompilationUtilities.createTestDirectory(name + "-smt")
-    val inputFile = new File(testDir, s"${name}.fir")
+    // @todo remove java.io.File
+    val inputFile = new java.io.File(testDir, s"${name}.fir")
     BackendCompilationUtilities.copyResourceToFile(s"/regress/${name}.fir", inputFile)
 
     val args = Array(

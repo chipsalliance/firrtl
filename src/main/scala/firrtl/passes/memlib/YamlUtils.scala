@@ -3,7 +3,6 @@
 package firrtl.passes
 package memlib
 import net.jcazevedo.moultingyaml._
-import java.io.{CharArrayWriter, File, PrintWriter}
 import firrtl.FileUtils
 
 object CustomYAMLProtocol extends DefaultYamlProtocol {
@@ -21,7 +20,8 @@ case class Config(pin: Pin, source: Source, top: Top)
 
 class YamlFileReader(file: String) {
   def parse[A](implicit reader: YamlReader[A]): Seq[A] = {
-    if (new File(file).exists) {
+    // @todo remove java.io.File
+    if (new java.io.File(file).exists) {
       val yamlString = FileUtils.getText(file)
       yamlString.parseYamls.flatMap(x =>
         try Some(reader.read(x))
@@ -32,13 +32,15 @@ class YamlFileReader(file: String) {
 }
 
 class YamlFileWriter(file: String) {
-  val outputBuffer = new CharArrayWriter
+  // @todo remove java.io
+  val outputBuffer = new java.io.CharArrayWriter
   val separator = "--- \n"
   def append(in: YamlValue): Unit = {
     outputBuffer.append(s"$separator${in.prettyPrint}")
   }
   def dump(): Unit = {
-    val outputFile = new PrintWriter(file)
+    // @todo remove java.io
+    val outputFile = new java.io.PrintWriter(file)
     outputFile.write(outputBuffer.toString)
     outputFile.close()
   }

@@ -3,7 +3,6 @@
 package firrtl
 
 import logger._
-import java.io.Writer
 
 import scala.collection.mutable
 import scala.util.Try
@@ -403,8 +402,9 @@ trait Emitter extends Transform {
 
   override def invalidates(a: Transform) = false
 
+  // @todo remove java.io
   @deprecated("Use emission annotations instead", "FIRRTL 1.0")
-  def emit(state: CircuitState, writer: Writer): Unit
+  def emit(state: CircuitState, writer: java.io.Writer): Unit
 
   /** An output suffix to use if the output of this [[Emitter]] was written to a file */
   def outputSuffix: String
@@ -539,7 +539,12 @@ trait Compiler extends Transform with DependencyAPIMigration {
       "This will be removed in 1.4.",
     "FIRRTL 1.0"
   )
-  def compile(state: CircuitState, writer: Writer, customTransforms: Seq[Transform] = Seq.empty): CircuitState = {
+  // @todo remove java.io
+  def compile(
+    state:            CircuitState,
+    writer:           java.io.Writer,
+    customTransforms: Seq[Transform] = Seq.empty
+  ): CircuitState = {
     val finalState = compileAndEmit(state, customTransforms)
     writer.write(finalState.getEmittedCircuit.value)
     finalState

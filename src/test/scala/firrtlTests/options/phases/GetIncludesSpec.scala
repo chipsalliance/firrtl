@@ -2,8 +2,6 @@
 
 package firrtlTests.options.phases
 
-import java.io.{File, PrintWriter}
-
 import firrtl.AnnotationSeq
 import firrtl.annotations.{AnnotationFileNotFoundException, JsonProtocol, NoTargetAnnotation}
 import firrtl.options.phases.GetIncludes
@@ -20,7 +18,8 @@ case object E extends NoTargetAnnotation
 
 class GetIncludesSpec extends AnyFlatSpec with Matchers with BackendCompilationUtilities with firrtl.testutils.Utils {
 
-  val dir = new File("test_run_dir/GetIncludesSpec")
+  // @todo remove java.io
+  val dir = new java.io.File("test_run_dir/GetIncludesSpec")
   dir.mkdirs()
 
   def ref(filename: String): InputAnnotationFileAnnotation = InputAnnotationFileAnnotation(s"$dir/$filename.anno.json")
@@ -34,16 +33,18 @@ class GetIncludesSpec extends AnyFlatSpec with Matchers with BackendCompilationU
   }
 
   val files = Seq(
-    new File(dir + "/a.anno.json") -> Seq(A, ref("b")),
-    new File(dir + "/b.anno.json") -> Seq(B, ref("c"), ref("a")),
-    new File(dir + "/c.anno.json") -> Seq(C, ref("d"), ref("e")),
-    new File(dir + "/d.anno.json") -> Seq(D),
-    new File(dir + "/e.anno.json") -> Seq(E)
+    // @todo remove java.io
+    new java.io.File(dir + "/a.anno.json") -> Seq(A, ref("b")),
+    new java.io.File(dir + "/b.anno.json") -> Seq(B, ref("c"), ref("a")),
+    new java.io.File(dir + "/c.anno.json") -> Seq(C, ref("d"), ref("e")),
+    new java.io.File(dir + "/d.anno.json") -> Seq(D),
+    new java.io.File(dir + "/e.anno.json") -> Seq(E)
   )
 
   files.foreach {
     case (file, annotations) =>
-      val pw = new PrintWriter(file)
+      // @todo remove java.io
+      val pw = new java.io.PrintWriter(file)
       pw.write(JsonProtocol.serialize(annotations))
       pw.close()
   }

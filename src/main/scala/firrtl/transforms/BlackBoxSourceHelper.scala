@@ -2,8 +2,6 @@
 
 package firrtl.transforms
 
-import java.io.{File, FileInputStream, FileNotFoundException, FileOutputStream, PrintWriter}
-
 import firrtl._
 import firrtl.annotations._
 
@@ -59,7 +57,8 @@ class BlackBoxNotFoundException(fileName: String, message: String)
   */
 class BlackBoxSourceHelper extends Transform with DependencyAPIMigration {
   import BlackBoxSourceHelper._
-  private val DefaultTargetDir = new File(".")
+  // @todo remove java.io
+  private val DefaultTargetDir = new java.io.File(".")
 
   override def prerequisites = Seq.empty
 
@@ -72,16 +71,20 @@ class BlackBoxSourceHelper extends Transform with DependencyAPIMigration {
   /** Collect BlackBoxHelperAnnos and and find the target dir if specified
     * @param annos a list of generic annotations for this transform
     * @return BlackBoxHelperAnnos and target directory
+    * @todo deprecate java.io.File
     */
-  def collectAnnos(annos: Seq[Annotation]): (ListSet[BlackBoxHelperAnno], File, File) =
-    annos.foldLeft((ListSet.empty[BlackBoxHelperAnno], DefaultTargetDir, new File(defaultFileListName))) {
+  def collectAnnos(annos: Seq[Annotation]): (ListSet[BlackBoxHelperAnno], java.io.File, java.io.File) =
+    // @todo remove java.io.File
+    annos.foldLeft((ListSet.empty[BlackBoxHelperAnno], DefaultTargetDir, new java.io.File(defaultFileListName))) {
       case ((acc, tdir, flistName), anno) =>
         anno match {
           case BlackBoxTargetDirAnno(dir) =>
-            val targetDir = new File(dir)
+            // @todo remove java.io.File
+            val targetDir = new java.io.File(dir)
             if (!targetDir.exists()) { FileUtils.makeDirectory(targetDir.getAbsolutePath) }
             (acc, targetDir, flistName)
-          case BlackBoxResourceFileNameAnno(fileName) => (acc, tdir, new File(fileName))
+          // @todo remove java.io.File
+          case BlackBoxResourceFileNameAnno(fileName) => (acc, tdir, new java.io.File(fileName))
           case a: BlackBoxHelperAnno => (acc + a, tdir, flistName)
           case _ => (acc, tdir, flistName)
         }
@@ -97,24 +100,31 @@ class BlackBoxSourceHelper extends Transform with DependencyAPIMigration {
   override def execute(state: CircuitState): CircuitState = {
     val (annos, targetDir, flistName) = collectAnnos(state.annotations)
 
-    val resourceFiles: ListSet[File] = annos.collect {
+    // @todo remove java.io.File
+    val resourceFiles: ListSet[java.io.File] = annos.collect {
       case BlackBoxResourceAnno(_, resourceId) =>
         writeResourceToDirectory(resourceId, targetDir)
       case BlackBoxPathAnno(_, path) =>
         val fileName = path.split("/").last
-        val fromFile = new File(path)
-        val toFile = new File(targetDir, fileName)
+        // @todo remove java.io.File
+        val fromFile = new java.io.File(path)
+        // @todo remove java.io.File
+        val toFile = new java.io.File(targetDir, fileName)
 
-        val inputStream = safeFile(fromFile.toString)(new FileInputStream(fromFile).getChannel)
-        val outputStream = new FileOutputStream(toFile).getChannel
+        // @todo remove java.io.File
+        val inputStream = safeFile(fromFile.toString)(new java.io.FileInputStream(fromFile).getChannel)
+        // @todo remove java.io.File
+        val outputStream = new java.io.FileOutputStream(toFile).getChannel
         outputStream.transferFrom(inputStream, 0, Long.MaxValue)
 
         toFile
     }
 
-    val inlineFiles: ListSet[File] = annos.collect {
+    // @todo remove java.io.File
+    val inlineFiles: ListSet[java.io.File] = annos.collect {
       case BlackBoxInlineAnno(_, name, text) =>
-        val outFile = new File(targetDir, name)
+        // @todo remove java.io.File
+        val outFile = new java.io.File(targetDir, name)
         (text, outFile)
     }.map {
       case (text, file) =>
@@ -125,7 +135,8 @@ class BlackBoxSourceHelper extends Transform with DependencyAPIMigration {
     // Issue #917 - We don't want to list Verilog header files ("*.vh") in our file list - they will automatically be included by reference.
     def isHeader(name: String) = name.endsWith(".h") || name.endsWith(".vh") || name.endsWith(".svh")
     val verilogSourcesOnly = (resourceFiles ++ inlineFiles).filterNot { f => isHeader(f.getName()) }
-    val filelistFile = if (flistName.isAbsolute()) flistName else new File(targetDir, flistName.getName())
+    // @todo remove java.io.File
+    val filelistFile = if (flistName.isAbsolute()) flistName else new java.io.File(targetDir, flistName.getName())
 
     // We need the canonical path here, so verilator will create a path to the file that works from the targetDir,
     //  and, so we can compare the list of files automatically included, with an explicit list provided by the client
@@ -150,7 +161,8 @@ object BlackBoxSourceHelper {
     */
   private def safeFile[A](fileName: String)(code: => A) = try { code }
   catch {
-    case e @ (_: FileNotFoundException | _: NullPointerException) =>
+    // @todo remove java.io.File
+    case e @ (_: java.io.FileNotFoundException | _: NullPointerException) =>
       throw new BlackBoxNotFoundException(fileName, e.getMessage)
   }
 
@@ -159,10 +171,12 @@ object BlackBoxSourceHelper {
     * @param name the name of the resource
     * @param dir the directory in which to write the file
     * @return the closed File object
+    * @todo deprecate java.io.File
     */
-  def writeResourceToDirectory(name: String, dir: File): File = {
+  def writeResourceToDirectory(name: String, dir: java.io.File): java.io.File = {
     val fileName = name.split("/").last
-    val outFile = new File(dir, fileName)
+    // @todo remove java.io.File
+    val outFile = new java.io.File(dir, fileName)
     copyResourceToFile(name, outFile)
     outFile
   }
@@ -172,10 +186,12 @@ object BlackBoxSourceHelper {
     * @param name the name of the resource
     * @param file the file to write it into
     * @throws BlackBoxNotFoundException if the requested resource does not exist
+    * @todo deprecate java.io.File
     */
-  def copyResourceToFile(name: String, file: File): Unit = {
+  def copyResourceToFile(name: String, file: java.io.File): Unit = {
     val in = getClass.getResourceAsStream(name)
-    val out = new FileOutputStream(file)
+    // @todo remove java.io
+    val out = new java.io.FileOutputStream(file)
     safeFile(name)(Iterator.continually(in.read).takeWhile(-1 != _).foreach(out.write))
     out.close()
   }
@@ -188,8 +204,9 @@ object BlackBoxSourceHelper {
   )
   def fileListName = defaultFileListName
 
-  def writeTextToFile(text: String, file: File): Unit = {
-    val out = new PrintWriter(file)
+  // @todo deprecate java.io
+  def writeTextToFile(text: String, file: java.io.File): Unit = {
+    val out = new java.io.PrintWriter(file)
     out.write(text)
     out.close()
   }

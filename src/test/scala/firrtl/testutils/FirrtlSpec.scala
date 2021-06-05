@@ -2,27 +2,24 @@
 
 package firrtl.testutils
 
-import java.io._
-import java.security.Permission
-import scala.sys.process._
-
-import logger.{LazyLogging, LogLevel, LogLevelAnnotation}
-
-import org.scalatest._
-import org.scalatestplus.scalacheck._
-
-import firrtl._
-import firrtl.ir._
 import firrtl.Parser.UseInfo
-import firrtl.options.Dependency
-import firrtl.stage.{FirrtlFileAnnotation, InfoModeAnnotation, RunFirrtlTransformAnnotation}
+import firrtl._
 import firrtl.analyses.{GetNamespace, ModuleNamespaceAnnotation}
 import firrtl.annotations._
+import firrtl.ir._
+import firrtl.options.Dependency
+import firrtl.stage.{FirrtlFileAnnotation, InfoModeAnnotation, RunFirrtlTransformAnnotation}
 import firrtl.transforms.{DontTouchAnnotation, NoDedupAnnotation, RenameModules}
 import firrtl.util.BackendCompilationUtilities
+import logger.LazyLogging
+import org.scalatest._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.propspec.AnyPropSpec
+import org.scalatestplus.scalacheck._
+
+import java.security.Permission
+import scala.sys.process._
 
 class CheckLowForm extends SeqTransform {
   def inputForm = LowForm
@@ -157,7 +154,8 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     (new firrtl.stage.FirrtlStage).execute(Array(), annos)
 
     // Write reference
-    val w = new FileWriter(new File(testDir, s"$refName.v"))
+    // @todo remove java.io
+    val w = new java.io.FileWriter(new java.io.File(testDir, s"$refName.v"))
     w.write(referenceVerilog)
     w.close()
 
@@ -183,8 +181,10 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     */
   def lintVerilog(inputVerilog: String): Unit = {
     val testDir = createTestDirectory(s"${this.getClass.getSimpleName}_lint")
-    val filename = new File(testDir, "test.v")
-    val w = new FileWriter(filename)
+    // @todo remove java.io
+    val filename = new java.io.File(testDir, "test.v")
+    // @todo remove java.io
+    val w = new java.io.FileWriter(filename)
     w.write(inputVerilog)
     w.close()
 
@@ -197,15 +197,17 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     * @param prefix is the name of the Firrtl file without path or file extension
     * @param srcDir directory where all Resources for this test are located
     * @param annotations Optional Firrtl annotations
+    * @todo deprecate java.io
     */
   def compileFirrtlTest(
     prefix:           String,
     srcDir:           String,
     customTransforms: Seq[Transform] = Seq.empty,
     annotations:      AnnotationSeq = Seq.empty
-  ): File = {
+  ): java.io.File = {
     val testDir = createTestDirectory(prefix)
-    val inputFile = new File(testDir, s"${prefix}.fir")
+    // @todo remove java.io
+    val inputFile = new java.io.File(testDir, s"${prefix}.fir")
     copyResourceToFile(s"${srcDir}/${prefix}.fir", inputFile)
 
     val annos =
@@ -235,12 +237,14 @@ trait FirrtlRunners extends BackendCompilationUtilities {
     annotations:      AnnotationSeq = Seq.empty
   ) = {
     val testDir = compileFirrtlTest(prefix, srcDir, customTransforms, annotations)
-    val harness = new File(testDir, s"top.cpp")
+    // @todo remove java.io
+    val harness = new java.io.File(testDir, s"top.cpp")
     copyResourceToFile(cppHarnessResourceName, harness)
 
     // Note file copying side effect
     val verilogFiles = verilogPrefixes.map { vprefix =>
-      val file = new File(testDir, s"$vprefix.v")
+      // @todo remove java.io
+      val file = new java.io.File(testDir, s"$vprefix.v")
       copyResourceToFile(s"$srcDir/$vprefix.v", file)
       file
     }
@@ -452,7 +456,8 @@ trait Utils {
     * @return a tuple containing STDOUT, STDERR, and what the thunk returns
     */
   def grabStdOutErr[T](thunk: => T): (String, String, T) = {
-    val stdout, stderr = new ByteArrayOutputStream()
+    // @todo remove java.io
+    val stdout, stderr = new java.io.ByteArrayOutputStream()
     val ret = scala.Console.withOut(stdout) { scala.Console.withErr(stderr) { thunk } }
     (stdout.toString, stderr.toString, ret)
   }
@@ -532,7 +537,8 @@ abstract class EquivalenceTest(transforms: Seq[Transform], name: String, dir: St
   val fileName = s"$dir/$name.fir"
   val in = getClass.getResourceAsStream(fileName)
   if (in == null) {
-    throw new FileNotFoundException(s"Resource '$fileName'")
+    // @todo remove java.io
+    throw new java.io.FileNotFoundException(s"Resource '$fileName'")
   }
   val source = scala.io.Source.fromInputStream(in)
   val input =

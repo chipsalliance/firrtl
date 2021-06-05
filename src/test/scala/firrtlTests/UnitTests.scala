@@ -2,7 +2,6 @@
 
 package firrtlTests
 
-import java.io._
 import firrtl._
 import firrtl.ir._
 import firrtl.passes._
@@ -94,7 +93,8 @@ class UnitTests extends FirrtlFlatSpec {
     val c_result = passes.foldLeft(parse(input)) { (c: Circuit, p: Pass) =>
       p.run(c)
     }
-    val writer = new StringWriter()
+    // @todo remove java.io
+    val writer = new java.io.StringWriter()
     (new HighFirrtlEmitter).emit(CircuitState(c_result, HighForm), writer)
     (parse(writer.toString())) should be(parse(check))
   }
@@ -114,7 +114,8 @@ class UnitTests extends FirrtlFlatSpec {
     val passes = Seq(ToWorkingIR, InferTypes, ResolveKinds)
     val c = Parser.parse(splitExpTestCode.split("\n").toIterator)
     val c2 = passes.foldLeft(c)((c, p) => p.run(c))
-    val writer = new StringWriter()
+    // @todo remove java.io
+    val writer = new java.io.StringWriter()
     (new VerilogEmitter).emit(CircuitState(c2, LowForm), writer)
   }
 

@@ -3,8 +3,6 @@
 
 package firrtl.backends.experimental.smt
 
-import java.io.Writer
-
 import firrtl._
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
 import firrtl.options.Viewer.view
@@ -18,7 +16,8 @@ private[firrtl] abstract class SMTEmitter private[firrtl] ()
   override def prerequisites: Seq[Dependency[Transform]] = Seq(Dependency(FirrtlToTransitionSystem))
   override def invalidates(a: Transform): Boolean = false
 
-  override def emit(state: CircuitState, writer: Writer): Unit = error("Deprecated since firrtl 1.0!")
+  // @todo remove java.io
+  override def emit(state: CircuitState, writer: java.io.Writer): Unit = error("Deprecated since firrtl 1.0!")
 
   protected def serialize(sys: TransitionSystem): Annotation
 

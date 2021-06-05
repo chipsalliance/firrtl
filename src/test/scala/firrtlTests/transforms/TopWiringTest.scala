@@ -3,8 +3,6 @@
 package firrtlTests
 package transforms
 
-import java.io._
-
 import firrtl._
 import firrtl.ir.{GroundType, IntWidth, Type}
 import firrtl.Parser
@@ -31,7 +29,8 @@ trait TopWiringTestsCommon extends FirrtlRunners {
     mapping: Seq[((ComponentName, Type, Boolean, Seq[String], String), Int)],
     state:   CircuitState
   ): CircuitState = {
-    val testOutputFile = new PrintWriter(new File(dir, "TopWiringOutputTest.txt"))
+    // @todo remove java.io
+    val testOutputFile = new java.io.PrintWriter(new java.io.File(dir, "TopWiringOutputTest.txt"))
     mapping.map {
       case ((_, tpe, _, path, prefix), index) => {
         val portwidth = tpe match { case GroundType(IntWidth(w)) => w }
@@ -594,7 +593,8 @@ class TopWiringTests extends MiddleTransformSpec with TopWiringTestsCommon {
                    |    input foo : UInt<1>""".stripMargin
     val inputFile = {
       val fileName = s"${testDir.getAbsolutePath}/input-no-sources.fir"
-      val w = new PrintWriter(fileName)
+      // @todo remove java.io
+      val w = new java.io.PrintWriter(fileName)
       w.write(input)
       w.close()
       fileName

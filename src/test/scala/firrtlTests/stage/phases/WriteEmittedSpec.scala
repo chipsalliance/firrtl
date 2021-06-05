@@ -2,8 +2,6 @@
 
 package firrtlTests.stage.phases
 
-import java.io.File
-
 import firrtl._
 
 import firrtl.options.{Phase, TargetDirAnnotation}
@@ -30,8 +28,9 @@ class WriteEmittedSpec extends AnyFlatSpec with Matchers {
       EmittedFirrtlCircuitAnnotation(EmittedFirrtlCircuit("bar", "", ".barcircuit")),
       EmittedVerilogCircuitAnnotation(EmittedVerilogCircuit("baz", "", ".bazcircuit"))
     )
+    // @todo remove java.io.File
     val expected = Seq("foo.foocircuit", "bar.barcircuit", "baz.bazcircuit")
-      .map(a => new File(s"test_run_dir/WriteEmittedSpec/$a"))
+      .map(a => new java.io.File(s"test_run_dir/WriteEmittedSpec/$a"))
 
     info("annotations are unmodified")
     phase.transform(annotations).toSeq should be(removeEmitted(annotations).toSeq)
@@ -49,7 +48,8 @@ class WriteEmittedSpec extends AnyFlatSpec with Matchers {
       OutputFileAnnotation("quux"),
       EmittedFirrtlCircuitAnnotation(EmittedFirrtlCircuit("qux", "", ".quxcircuit"))
     )
-    val expected = new File("test_run_dir/WriteEmittedSpec/quux.quxcircuit")
+    // @todo remove java.io.File
+    val expected = new java.io.File("test_run_dir/WriteEmittedSpec/quux.quxcircuit")
 
     info("annotations are unmodified")
     phase.transform(annotations).toSeq should be(removeEmitted(annotations).toSeq)
@@ -66,8 +66,9 @@ class WriteEmittedSpec extends AnyFlatSpec with Matchers {
       EmittedFirrtlModuleAnnotation(EmittedFirrtlModule("bar", "", ".barmodule")),
       EmittedVerilogModuleAnnotation(EmittedVerilogModule("baz", "", ".bazmodule"))
     )
+    // @todo remove java.io.File
     val expected = Seq("foo.foomodule", "bar.barmodule", "baz.bazmodule")
-      .map(a => new File(s"test_run_dir/WriteEmittedSpec/$a"))
+      .map(a => new java.io.File(s"test_run_dir/WriteEmittedSpec/$a"))
 
     info("EmittedComponent annotations are deleted")
     phase.transform(annotations).toSeq should be(removeEmitted(annotations).toSeq)

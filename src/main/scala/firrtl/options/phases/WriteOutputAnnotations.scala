@@ -6,8 +6,6 @@ import firrtl.AnnotationSeq
 import firrtl.annotations.{Annotation, DeletedAnnotation, JsonProtocol}
 import firrtl.options.{CustomFileEmission, Dependency, Phase, PhaseException, StageOptions, Unserializable, Viewer}
 
-import java.io.{BufferedOutputStream, File, FileOutputStream, PrintWriter}
-
 import scala.collection.mutable
 
 /** [[firrtl.options.Phase Phase]] that writes an [[AnnotationSeq]] to a file. A file is written if and only if a
@@ -37,7 +35,8 @@ class WriteOutputAnnotations extends Phase {
 
         filesWritten.get(canonical) match {
           case None =>
-            val w = new BufferedOutputStream(new FileOutputStream(filename))
+            // @todo remove java.io
+            val w = new java.io.BufferedOutputStream(new java.io.FileOutputStream(filename))
             a.getBytes match {
               case arr: mutable.WrappedArray[Byte] => w.write(arr.array.asInstanceOf[Array[Byte]])
               case other => other.foreach(w.write(_))
@@ -61,9 +60,10 @@ class WriteOutputAnnotations extends Phase {
     }
 
     sopts.annotationFileOut match {
-      case None =>
+      case None       =>
       case Some(file) =>
-        val pw = new PrintWriter(sopts.getBuildFileName(file, Some(".anno.json")))
+        // @todo remove java.io
+        val pw = new java.io.PrintWriter(sopts.getBuildFileName(file, Some(".anno.json")))
         pw.write(JsonProtocol.serialize(serializable))
         pw.close()
     }

@@ -3,8 +3,6 @@
 package firrtl
 package proto
 
-import java.io.{File, FileInputStream, InputStream}
-
 import collection.JavaConverters._
 import FirrtlProtos._
 import com.google.protobuf.CodedInputStream
@@ -18,7 +16,8 @@ object FromProto {
     * @return Deserialized FIRRTL Circuit
     */
   def fromFile(filename: String): ir.Circuit = {
-    fromInputStream(new FileInputStream(new File(filename)))
+    // @todo remove java.io
+    fromInputStream(new java.io.FileInputStream(new java.io.File(filename)))
   }
 
   /** Deserialize ProtoBuf representation of [[ir.Circuit]]
@@ -26,7 +25,9 @@ object FromProto {
     * @param is InputStream containing ProtoBuf representation
     * @return Deserialized FIRRTL Circuit
     */
-  def fromInputStream(is: InputStream): ir.Circuit = {
+  // @todo remove java.io
+  def fromInputStream(is: java.io.InputStream): ir.Circuit = {
+    os.Pipe
     val cistream = CodedInputStream.newInstance(is)
     cistream.setRecursionLimit(Integer.MAX_VALUE) // Disable recursion depth check
     val pb = firrtl.FirrtlProtos.Firrtl.parseFrom(cistream)

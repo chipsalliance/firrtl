@@ -14,8 +14,6 @@ import firrtl.options.Dependency
 
 import scopt.OptionParser
 
-import java.io.File
-
 /** Provides compatibility methods to replicate deprecated [[Driver]] semantics.
   *
   * At a high level, the [[Driver]] tries extremely hard to figure out what the user meant and to enable them to not be
@@ -146,8 +144,9 @@ object DriverCompatibility {
       case None =>
         topName(annotations) match {
           case Some(n) =>
+            // @todo remove java.io.File
             val filename = targetDir(annotations) + "/" + n + ".anno"
-            if (new File(filename).exists) {
+            if (new java.io.File(filename).exists) {
               StageUtils.dramaticWarning(
                 s"Implicit reading of the annotation file is deprecated! Use an explict --annotation-file argument."
               )

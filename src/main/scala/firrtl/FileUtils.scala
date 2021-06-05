@@ -2,8 +2,6 @@
 
 package firrtl
 
-import java.io.File
-
 import firrtl.options.StageUtils
 
 import scala.collection.Seq
@@ -16,7 +14,8 @@ object FileUtils {
     * @return true if the directory exists or if it was successfully created
     */
   def makeDirectory(directoryName: String): Boolean = {
-    val dirFile = new File(directoryName)
+    // @todo remove java.io.File
+    val dirFile = new java.io.File(directoryName)
     if (dirFile.exists()) {
       dirFile.isDirectory
     } else {
@@ -31,16 +30,17 @@ object FileUtils {
     * @param directoryPathName a directory hierarchy to delete
     */
   def deleteDirectoryHierarchy(directoryPathName: String): Boolean = {
-    deleteDirectoryHierarchy(new File(directoryPathName))
+    // @todo remove java.io.File
+    deleteDirectoryHierarchy(new java.io.File(directoryPathName))
   }
 
   /**
     * recursively delete all directories in a relative path
     * DO NOT DELETE absolute paths
-    *
+    * @todo deprecate java.io.File
     * @param file: a directory hierarchy to delete
     */
-  def deleteDirectoryHierarchy(file: File, atTop: Boolean = true): Boolean = {
+  def deleteDirectoryHierarchy(file: java.io.File, atTop: Boolean = true): Boolean = {
     if (
       file.getPath.split("/").last.isEmpty ||
       file.getAbsolutePath == "/" ||
@@ -96,17 +96,17 @@ object FileUtils {
 
   /** Read a text file and return it as a Seq of strings
     * Closes the file after read to avoid dangling file handles
-    *
+    * @todo deprecate java.io.File
     * @param fileName The file to read
     */
-  def getLines(fileName: String): Seq[String] = getLines(new File(fileName))
+  def getLines(fileName: String): Seq[String] = getLines(new java.io.File(fileName))
 
   /** Read a text file and return it as  a Seq of strings
     * Closes the file after read to avoid dangling file handles
-    *
+    * @todo deprecate java.io.File
     * @param file a java File to be read
     */
-  def getLines(file: File): Seq[String] = {
+  def getLines(file: java.io.File): Seq[String] = {
     val source = scala.io.Source.fromFile(file)
     val lines = source.getLines().toList
     source.close()
@@ -118,14 +118,16 @@ object FileUtils {
     *
     * @param fileName The file to read
     */
-  def getText(fileName: String): String = getText(new File(fileName))
+  def getText(fileName: String): String =
+    // @todo remove java.io.File
+    getText(new java.io.File(fileName))
 
   /** Read a text file and return it as  a single string
     * Closes the file after read to avoid dangling file handles
-    *
+    * @todo remove java.io.File
     * @param file a java File to be read
     */
-  def getText(file: File): String = {
+  def getText(file: java.io.File): String = {
     val source = scala.io.Source.fromFile(file)
     val text = source.mkString
     source.close()

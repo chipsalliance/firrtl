@@ -2,8 +2,6 @@
 
 package firrtlTests.execution
 
-import java.io.File
-
 import firrtl.ir._
 import firrtl.testutils._
 
@@ -17,7 +15,8 @@ case class Expect(expStr: String, value: Int) extends SimpleTestCommand
   * This trait defines an interface to run a self-contained test circuit.
   */
 trait TestExecution {
-  def runEmittedDUT(c: Circuit, testDir: File): Unit
+  // @todo remove java.io.File
+  def runEmittedDUT(c: Circuit, testDir: java.io.File): Unit
 }
 
 /**

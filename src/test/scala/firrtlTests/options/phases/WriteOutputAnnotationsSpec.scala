@@ -2,8 +2,6 @@
 
 package firrtlTests.options.phases
 
-import java.io.File
-
 import firrtl.AnnotationSeq
 import firrtl.annotations.{DeletedAnnotation, NoTargetAnnotation}
 import firrtl.options.{
@@ -30,8 +28,9 @@ class WriteOutputAnnotationsSpec extends AnyFlatSpec with Matchers with firrtl.t
     * [[AnnotationSeq]]. This uses [[GetIncludes]] as that already knows how to read annotation files.
     * @param f a file to read
     * @param a the expected annotations
+    * @todo remove java.io.File
     */
-  private def fileContainsAnnotations(f: File, a: AnnotationSeq): Unit = {
+  private def fileContainsAnnotations(f: java.io.File, a: AnnotationSeq): Unit = {
     info(s"output file '$f' exists")
     f should (exist)
 
@@ -62,7 +61,8 @@ class WriteOutputAnnotationsSpec extends AnyFlatSpec with Matchers with firrtl.t
   behavior.of(classOf[WriteOutputAnnotations].toString)
 
   it should "write annotations to a file (excluding DeletedAnnotations and StageOptions)" in new Fixture {
-    val file = new File(dir + "/should-write-annotations-to-a-file.anno.json")
+    // @todo remove java.io.File
+    val file = new java.io.File(dir + "/should-write-annotations-to-a-file.anno.json")
     val annotations = Seq(
       OutputAnnotationFileAnnotation(file.toString),
       WriteOutputAnnotationsSpec.FooAnnotation,
@@ -84,7 +84,8 @@ class WriteOutputAnnotationsSpec extends AnyFlatSpec with Matchers with firrtl.t
   }
 
   it should "include DeletedAnnotations if a WriteDeletedAnnotation is present" in new Fixture {
-    val file = new File(dir + "should-include-deleted.anno.json")
+    // @todo remove java.io.File
+    val file = new java.io.File(dir + "should-include-deleted.anno.json")
     val annotations = Seq(
       OutputAnnotationFileAnnotation(file.toString),
       WriteOutputAnnotationsSpec.FooAnnotation,
@@ -125,7 +126,8 @@ class WriteOutputAnnotationsSpec extends AnyFlatSpec with Matchers with firrtl.t
   }
 
   it should "write CustomFileEmission annotations" in new Fixture {
-    val file = new File("write-CustomFileEmission-annotations.anno.json")
+    // @todo remove java.io.File
+    val file = new java.io.File("write-CustomFileEmission-annotations.anno.json")
     val annotations = Seq(
       TargetDirAnnotation(dir),
       OutputAnnotationFileAnnotation(file.toString),
@@ -143,14 +145,17 @@ class WriteOutputAnnotationsSpec extends AnyFlatSpec with Matchers with firrtl.t
     info("annotations are unmodified")
     out.toSeq should be(annotations)
 
-    fileContainsAnnotations(new File(dir, file.toString), expected)
+    // @todo remove java.io.File
+    fileContainsAnnotations(new java.io.File(dir, file.toString), expected)
 
     info(s"file '$serializedFileName' exists")
-    new File(serializedFileName) should (exist)
+    // @todo remove java.io.File
+    new java.io.File(serializedFileName) should (exist)
   }
 
   it should "support CustomFileEmission to binary files" in new Fixture {
-    val file = new File("write-CustomFileEmission-binary-files.anno.json")
+    // @todo remove java.io.File
+    val file = new java.io.File("write-CustomFileEmission-binary-files.anno.json")
     val data = Array[Byte](0x0a, 0xa0.toByte)
     val annotations = Seq(
       TargetDirAnnotation(dir),
@@ -162,7 +167,8 @@ class WriteOutputAnnotationsSpec extends AnyFlatSpec with Matchers with firrtl.t
     val out = phase.transform(annotations)
 
     info(s"file '$serializedFileName' exists")
-    new File(serializedFileName) should (exist)
+    // @todo remove java.io.File
+    new java.io.File(serializedFileName) should (exist)
 
     info(s"file '$serializedFileName' is correct")
     val inputStream = new java.io.FileInputStream(serializedFileName)
@@ -172,7 +178,8 @@ class WriteOutputAnnotationsSpec extends AnyFlatSpec with Matchers with firrtl.t
   }
 
   it should "error if multiple annotations try to write to the same file" in new Fixture {
-    val file = new File("write-CustomFileEmission-annotations-error.anno.json")
+    // @todo remove java.io.File
+    val file = new java.io.File("write-CustomFileEmission-annotations-error.anno.json")
     val annotations = Seq(
       TargetDirAnnotation(dir),
       OutputAnnotationFileAnnotation(file.toString),
@@ -200,7 +207,8 @@ private object WriteOutputAnnotationsSpec {
 
     override def getBytes: Iterable[Byte] = value.getBytes
 
-    override def replacements(file: File): AnnotationSeq = Seq(Replacement(file.toString))
+    // @todo deprecate java.io.File
+    override def replacements(file: java.io.File): AnnotationSeq = Seq(Replacement(file.toString))
 
   }
 

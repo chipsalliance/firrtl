@@ -2,8 +2,6 @@
 
 package firrtlTests
 
-import java.io.File
-
 import firrtl._
 import firrtl.stage._
 import firrtl.annotations._
@@ -1010,7 +1008,8 @@ class EmittedMacroSpec extends FirrtlPropSpec {
   property("User-defined macros for before/after initial should be supported") {
     val prefix = "Printf"
     val testDir = compileFirrtlTest(prefix, "/features")
-    val harness = new File(testDir, s"top.cpp")
+    // @todo remove java.io.File
+    val harness = new java.io.File(testDir, s"top.cpp")
     copyResourceToFile(cppHarnessResourceName, harness)
 
     // define macros to print
