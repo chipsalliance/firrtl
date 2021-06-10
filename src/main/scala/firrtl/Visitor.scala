@@ -64,11 +64,11 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
       var out: Seq[FileInfo] = Seq()
 
       // Regular expression to match and capture the general File.format line:col pattern.
-      // Also matches the remaining part of hte string which doesn't match the expression;
+      // Also matches the remaining part of the string which doesn't match the expression;
       // which will be passed directly into the output as a FileInfo.
       val splitCompressedInfo = """([^\s:]+)((?: \d+:(?:\d+|\{\d+(?:,\d+)+\}))+)|(?:[^\s].*)""".r
 
-      // Regular expression to capture the line number and column numbers in the compressed file format.
+      // Regular expression to capture the line number and column numbers in the compressed file info pattern.
       val splitLineDescriptors = """(\d+):((?:\d+|\{\d+(?:,\d+)+\}))""".r
 
       // Regular expression to match against individual column numbers in each line:col or line:{col1,col2}
