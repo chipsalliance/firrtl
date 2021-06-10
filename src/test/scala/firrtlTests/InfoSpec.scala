@@ -288,7 +288,7 @@ class InfoSpec extends FirrtlFlatSpec with FirrtlMatchers {
       "  wire [31:0] a = c ? b : d; // @[A 1:{2,3,4} B 2:3 4:5]"
     )
     result("A 2:3", "B 1:{2,3,4}", "C 4:5") should containLine(
-      "  wire [31:0] a = c ? b : d; // @[B 1:{2,3,4} A 2:3 C 4:5]"
+      "  wire [31:0] a = c ? b : d; // @[A 2:3 B 1:{2,3,4} C 4:5]"
     )
   }
 
