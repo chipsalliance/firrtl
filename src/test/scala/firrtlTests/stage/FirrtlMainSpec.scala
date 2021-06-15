@@ -205,6 +205,7 @@ class FirrtlMainSpec
     Seq(
       /* Test all standard emitters with and without annotation file outputs */
       FirrtlMainTest(args = Array("-X", "none", "-E", "chirrtl"), files = Seq("Top.fir")),
+      FirrtlMainTest(args = Array("-X", "mhigh", "-E", "mhigh"), stdout = defaultStdOut, files = Seq("Top.mhi.fir")),
       FirrtlMainTest(args = Array("-X", "high", "-E", "high"), stdout = defaultStdOut, files = Seq("Top.hi.fir")),
       FirrtlMainTest(
         args = Array("-X", "middle", "-E", "middle", "-foaf", "Top"),
@@ -228,6 +229,11 @@ class FirrtlMainSpec
       ),
       /* Test all one file per module emitters */
       FirrtlMainTest(args = Array("-X", "none", "-e", "chirrtl"), files = Seq("Top.fir", "Child.fir")),
+      FirrtlMainTest(
+        args = Array("-X", "mhigh", "-e", "mhigh"),
+        stdout = defaultStdOut,
+        files = Seq("Top.mhi.fir", "Child.mhi.fir")
+      ),
       FirrtlMainTest(
         args = Array("-X", "high", "-e", "high"),
         stdout = defaultStdOut,
@@ -262,6 +268,11 @@ class FirrtlMainSpec
       ),
       /* Test changes to output file name */
       FirrtlMainTest(args = Array("-X", "none", "-E", "chirrtl", "-o", "foo"), files = Seq("foo.fir")),
+      FirrtlMainTest(
+        args = Array("-X", "mhigh", "-E", "mhigh", "-o", "foo"),
+        stdout = defaultStdOut,
+        files = Seq("foo.mhi.fir")
+      ),
       FirrtlMainTest(
         args = Array("-X", "high", "-E", "high", "-o", "foo"),
         stdout = defaultStdOut,
