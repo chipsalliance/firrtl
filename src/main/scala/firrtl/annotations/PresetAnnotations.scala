@@ -29,8 +29,19 @@ case class PresetAnnotation(target: ReferenceTarget)
 case class PresetRegAnnotation(
   target: ReferenceTarget)
     extends SingleTargetAnnotation[ReferenceTarget]
-    with RegisterEmissionOption {
+    with RegisterEmissionOption
+    with firrtl.transforms.DontTouchAllTargets {
   def duplicate(n: ReferenceTarget) = this.copy(target = n)
   override def useInitAsPreset = true
   override def disableRandomization = true
+}
+
+object PresetRegAnnotation {
+
+  /** Extracts the names of every preset reg in the design by module. */
+  def collect(annotations: AnnotationSeq, main: String): Map[String, Set[String]] =
+    annotations.collect {
+      case a: PresetRegAnnotation if a.target.circuit == main =>
+        a.target.module -> a.target.ref
+    }.groupBy(_._1).map { case (k, v) => k -> v.map(_._2).toSet }
 }
