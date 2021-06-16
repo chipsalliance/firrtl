@@ -12,7 +12,7 @@ private class SMTLibSpec extends SMTBackendBaseSpec {
         |    input a: UInt<8>
         |    output b: UInt<16>
         |    b <= a
-        |    assert(clock, eq(a, b), UInt(1), "")
+        |    assert(clock, eq(a, b), UInt(1), "") : a_eq_b
         |""".stripMargin
 
     val expected =
@@ -21,11 +21,11 @@ private class SMTLibSpec extends SMTBackendBaseSpec {
         |(declare-fun a_f (m_s) (_ BitVec 8))
         |; firrtl-smt2-output b 16
         |(define-fun b_f ((state m_s)) (_ BitVec 16) ((_ zero_extend 8) (a_f state)))
-        |; firrtl-smt2-assert assert_ 1
-        |(define-fun assert__f ((state m_s)) Bool (= ((_ zero_extend 8) (a_f state)) (b_f state)))
+        |; firrtl-smt2-assert a_eq_b 1
+        |(define-fun a_eq_b_f ((state m_s)) Bool (= ((_ zero_extend 8) (a_f state)) (b_f state)))
         |(define-fun m_t ((state m_s) (state_n m_s)) Bool true)
         |(define-fun m_i ((state m_s)) Bool true)
-        |(define-fun m_a ((state m_s)) Bool (assert__f state))
+        |(define-fun m_a ((state m_s)) Bool (a_eq_b_f state))
         |(define-fun m_u ((state m_s)) Bool true)
         |""".stripMargin
 

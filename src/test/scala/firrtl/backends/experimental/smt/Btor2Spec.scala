@@ -3,6 +3,7 @@
 package firrtl.backends.experimental.smt
 
 private class Btor2Spec extends SMTBackendBaseSpec {
+  behavior.of("Botr2Spec")
 
   it should "convert a hello world module" in {
     val src =
@@ -12,7 +13,7 @@ private class Btor2Spec extends SMTBackendBaseSpec {
         |    input a: UInt<8>
         |    output b: UInt<16>
         |    b <= a
-        |    assert(clock, eq(a, b), UInt(1), "")
+        |    assert(clock, eq(a, b), UInt(1), "") : a_eq_b
         |""".stripMargin
 
     val expected =
@@ -25,7 +26,7 @@ private class Btor2Spec extends SMTBackendBaseSpec {
         |7 uext 3 2 8
         |8 eq 6 7 4
         |9 not 6 8
-        |10 bad 9 ; assert_
+        |10 bad 9 ; a_eq_b
         |""".stripMargin
 
     assert(toBotr2Str(src) == expected)

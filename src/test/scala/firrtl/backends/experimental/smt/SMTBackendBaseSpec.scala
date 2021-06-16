@@ -8,7 +8,7 @@ import firrtl.stage.{Forms, TransformManager}
 import org.scalatest.flatspec.AnyFlatSpec
 
 private abstract class SMTBackendBaseSpec extends AnyFlatSpec {
-  private val dependencies = Forms.LowForm
+  private val dependencies = Forms.LowForm ++ FirrtlToTransitionSystem.prerequisites
   private val compiler = new TransformManager(dependencies)
 
   protected def compile(src: String, annos: Seq[Annotation] = List()): ir.Circuit = {
