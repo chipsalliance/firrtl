@@ -195,15 +195,26 @@ class FirrtlMainSpec
     Seq(
       /* Test all standard emitters with and without annotation file outputs */
       FirrtlMainTest(args = Array("-X", "none", "-E", "chirrtl"), files = Seq("Top.fir")),
+      FirrtlMainTest(args = Array("-X", "none", "-E", "chirrtl-pb"), files = Seq("Top.pb")),
       FirrtlMainTest(args = Array("-X", "mhigh", "-E", "mhigh"), files = Seq("Top.mhi.fir")),
+      FirrtlMainTest(args = Array("-X", "mhigh", "-E", "mhigh-pb"), files = Seq("Top.mhi.pb")),
       FirrtlMainTest(args = Array("-X", "high", "-E", "high"), files = Seq("Top.hi.fir")),
+      FirrtlMainTest(args = Array("-X", "high", "-E", "high-pb"), files = Seq("Top.hi.pb")),
       FirrtlMainTest(
         args = Array("-X", "middle", "-E", "middle", "-foaf", "Top"),
         files = Seq("Top.mid.fir", "Top.anno.json")
       ),
       FirrtlMainTest(
+        args = Array("-X", "middle", "-E", "middle-pb", "-foaf", "Top"),
+        files = Seq("Top.mid.pb", "Top.anno.json")
+      ),
+      FirrtlMainTest(
         args = Array("-X", "low", "-E", "low", "-foaf", "annotations.anno.json"),
         files = Seq("Top.lo.fir", "annotations.anno.json")
+      ),
+      FirrtlMainTest(
+        args = Array("-X", "low", "-E", "low-pb", "-foaf", "annotations.anno.json"),
+        files = Seq("Top.lo.pb", "annotations.anno.json")
       ),
       FirrtlMainTest(
         args = Array("-X", "verilog", "-E", "verilog", "-foaf", "foo.anno"),

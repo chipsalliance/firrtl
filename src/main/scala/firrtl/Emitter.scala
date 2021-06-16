@@ -6,6 +6,7 @@ import java.io.File
 
 import firrtl.annotations.NoTargetAnnotation
 import firrtl.backends.experimental.smt.{Btor2Emitter, SMTLibEmitter}
+import firrtl.backends.proto.{Emitter => ProtoEmitter}
 import firrtl.options.Viewer.view
 import firrtl.options.{CustomFileEmission, HasShellOptions, PhaseException, ShellOption}
 import firrtl.passes.PassException
@@ -51,16 +52,48 @@ object EmitCircuitAnnotation extends HasShellOptions {
               RunFirrtlTransformAnnotation(new SystemVerilogEmitter),
               EmitCircuitAnnotation(classOf[SystemVerilogEmitter])
             )
+          case "chirrtl-pb" =>
+            Seq(
+              RunFirrtlTransformAnnotation(new ProtoEmitter.Chirrtl),
+              EmitCircuitAnnotation(classOf[ProtoEmitter.Chirrtl])
+            )
+          case "mhigh-pb" =>
+            Seq(
+              RunFirrtlTransformAnnotation(new ProtoEmitter.MHigh),
+              EmitCircuitAnnotation(classOf[ProtoEmitter.MHigh])
+            )
+          case "high-pb" =>
+            Seq(
+              RunFirrtlTransformAnnotation(new ProtoEmitter.High),
+              EmitCircuitAnnotation(classOf[ProtoEmitter.High])
+            )
+          case "middle-pb" =>
+            Seq(
+              RunFirrtlTransformAnnotation(new ProtoEmitter.Middle),
+              EmitCircuitAnnotation(classOf[ProtoEmitter.Middle])
+            )
+          case "low-pb" =>
+            Seq(
+              RunFirrtlTransformAnnotation(new ProtoEmitter.Low),
+              EmitCircuitAnnotation(classOf[ProtoEmitter.Low])
+            )
+          case "lowopt-pb" =>
+            Seq(
+              RunFirrtlTransformAnnotation(new ProtoEmitter.OptLow),
+              EmitCircuitAnnotation(classOf[ProtoEmitter.Low])
+            )
           case "experimental-btor2" =>
             Seq(RunFirrtlTransformAnnotation(new Btor2Emitter), EmitCircuitAnnotation(classOf[Btor2Emitter]))
           case "experimental-smt2" =>
             Seq(RunFirrtlTransformAnnotation(new SMTLibEmitter), EmitCircuitAnnotation(classOf[SMTLibEmitter]))
           case _ => throw new PhaseException(s"Unknown emitter '$a'! (Did you misspell it?)")
         },
-      helpText = "Run the specified circuit emitter (all modules in one file)",
+      helpText = "Run the specified circuit emitter (all modules in one file). ProtoBuf emitters end with \"-pb\"",
       shortOption = Some("E"),
       // the experimental options are intentionally excluded from the help message
-      helpValueName = Some("<chirrtl|high|middle|low|verilog|mverilog|sverilog>")
+      helpValueName = Some(
+        "<chirrtl|chirrtl-pb|mhigh|mhigh-pb|high|high-pb|middle|middle-pb|low|low-pb|optlow-pb|verilog|mverilog|sverilog>"
+      )
     )
   )
 }
