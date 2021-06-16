@@ -2,7 +2,10 @@
 
 package firrtl.backends.experimental.smt
 
-private class SMTLibSpec extends SMTBackendBaseSpec {
+import org.scalatest.flatspec.AnyFlatSpec
+
+class SMTLibSpec extends AnyFlatSpec {
+  behavior.of("SMTLib backend")
 
   it should "convert a hello world module" in {
     val src =
@@ -29,7 +32,7 @@ private class SMTLibSpec extends SMTBackendBaseSpec {
         |(define-fun m_u ((state m_s)) Bool true)
         |""".stripMargin
 
-    assert(toSMTLibStr(src) == expected)
+    assert(SMTBackendHelpers.toSMTLibStr(src) == expected)
   }
 
   it should "include FileInfo in the output" in {
@@ -52,15 +55,15 @@ private class SMTLibSpec extends SMTBackendBaseSpec {
         |; firrtl-smt2-output b 16
         |; @ b 0:0, b_a 0:0
         |(define-fun b_f ((state m_s)) (_ BitVec 16) ((_ zero_extend 8) (a_f state)))
-        |; firrtl-smt2-assert assert_ 1
+        |; firrtl-smt2-assert assert_0 1
         |; @ assert 0:0
-        |(define-fun assert__f ((state m_s)) Bool (= ((_ zero_extend 8) (a_f state)) (b_f state)))
+        |(define-fun assert_0_f ((state m_s)) Bool (= ((_ zero_extend 8) (a_f state)) (b_f state)))
         |(define-fun m_t ((state m_s) (state_n m_s)) Bool true)
         |(define-fun m_i ((state m_s)) Bool true)
-        |(define-fun m_a ((state m_s)) Bool (assert__f state))
+        |(define-fun m_a ((state m_s)) Bool (assert_0_f state))
         |(define-fun m_u ((state m_s)) Bool true)
         |""".stripMargin
 
-    assert(toSMTLibStr(src) == expected)
+    assert(SMTBackendHelpers.toSMTLibStr(src) == expected)
   }
 }
