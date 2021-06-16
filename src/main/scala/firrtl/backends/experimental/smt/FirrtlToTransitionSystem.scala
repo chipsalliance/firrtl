@@ -464,7 +464,6 @@ private class ModuleScanner(
         insertDummyAssignsForUnusedOutputs(pred)
         insertDummyAssignsForUnusedOutputs(en)
         val name = s.name
-        println("Name: " + name)
         val predicate = onExpression(pred)
         val enabled = onExpression(en)
         val e = BVImplies(enabled, predicate)
