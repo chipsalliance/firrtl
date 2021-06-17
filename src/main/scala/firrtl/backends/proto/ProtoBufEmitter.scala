@@ -62,7 +62,11 @@ sealed abstract class ProtoBufEmitter(prereqs: Seq[TransformDependency])
   override def execute(state: CircuitState) =
     state.copy(annotations = state.annotations :+ Annotation.ProtoBufSerialization(state.circuit, Some(outputSuffix)))
 
-  override def emit(state: CircuitState, writer: Writer) = ???
+  override def emit(state: CircuitState, writer: Writer): Unit = {
+    val ostream = new java.io.ByteArrayOutputStream
+    ToProto.writeToStream(ostream, state.circuit)
+    writer.write(ostream.toString())
+  }
 }
 
 /** This object defines different emitters that can be used to generate a Protocol Buffer of a FIRRTL circuit. */

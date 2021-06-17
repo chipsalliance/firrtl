@@ -52,47 +52,58 @@ object EmitCircuitAnnotation extends HasShellOptions {
               RunFirrtlTransformAnnotation(new SystemVerilogEmitter),
               EmitCircuitAnnotation(classOf[SystemVerilogEmitter])
             )
-          case "chirrtl-pb" =>
-            Seq(
-              RunFirrtlTransformAnnotation(new ProtoEmitter.Chirrtl),
-              EmitCircuitAnnotation(classOf[ProtoEmitter.Chirrtl])
-            )
-          case "mhigh-pb" =>
-            Seq(
-              RunFirrtlTransformAnnotation(new ProtoEmitter.MHigh),
-              EmitCircuitAnnotation(classOf[ProtoEmitter.MHigh])
-            )
-          case "high-pb" =>
-            Seq(
-              RunFirrtlTransformAnnotation(new ProtoEmitter.High),
-              EmitCircuitAnnotation(classOf[ProtoEmitter.High])
-            )
-          case "middle-pb" =>
-            Seq(
-              RunFirrtlTransformAnnotation(new ProtoEmitter.Middle),
-              EmitCircuitAnnotation(classOf[ProtoEmitter.Middle])
-            )
-          case "low-pb" =>
-            Seq(
-              RunFirrtlTransformAnnotation(new ProtoEmitter.Low),
-              EmitCircuitAnnotation(classOf[ProtoEmitter.Low])
-            )
-          case "lowopt-pb" =>
-            Seq(
-              RunFirrtlTransformAnnotation(new ProtoEmitter.OptLow),
-              EmitCircuitAnnotation(classOf[ProtoEmitter.Low])
-            )
           case "experimental-btor2" =>
             Seq(RunFirrtlTransformAnnotation(new Btor2Emitter), EmitCircuitAnnotation(classOf[Btor2Emitter]))
           case "experimental-smt2" =>
             Seq(RunFirrtlTransformAnnotation(new SMTLibEmitter), EmitCircuitAnnotation(classOf[SMTLibEmitter]))
           case _ => throw new PhaseException(s"Unknown emitter '$a'! (Did you misspell it?)")
         },
-      helpText = "Run the specified circuit emitter (all modules in one file). ProtoBuf emitters end with \"-pb\"",
+      helpText = "Run the specified circuit emitter (all modules in one file)",
       shortOption = Some("E"),
       // the experimental options are intentionally excluded from the help message
+      helpValueName = Some("<chirrtl|high|middle|low|verilog|mverilog|sverilog>")
+    ),
+    new ShellOption[String](
+      longOption = "emit-circuit-protobuf",
+      toAnnotationSeq = (a: String) =>
+        a match {
+          case "chirrtl" =>
+            Seq(
+              RunFirrtlTransformAnnotation(new ProtoEmitter.Chirrtl),
+              EmitCircuitAnnotation(classOf[ProtoEmitter.Chirrtl])
+            )
+          case "mhigh" =>
+            Seq(
+              RunFirrtlTransformAnnotation(new ProtoEmitter.MHigh),
+              EmitCircuitAnnotation(classOf[ProtoEmitter.MHigh])
+            )
+          case "high" =>
+            Seq(
+              RunFirrtlTransformAnnotation(new ProtoEmitter.High),
+              EmitCircuitAnnotation(classOf[ProtoEmitter.High])
+            )
+          case "middle" =>
+            Seq(
+              RunFirrtlTransformAnnotation(new ProtoEmitter.Middle),
+              EmitCircuitAnnotation(classOf[ProtoEmitter.Middle])
+            )
+          case "low" =>
+            Seq(
+              RunFirrtlTransformAnnotation(new ProtoEmitter.Low),
+              EmitCircuitAnnotation(classOf[ProtoEmitter.Low])
+            )
+          case "low-opt" =>
+            Seq(
+              RunFirrtlTransformAnnotation(new ProtoEmitter.OptLow),
+              EmitCircuitAnnotation(classOf[ProtoEmitter.Low])
+            )
+          case _ => throw new PhaseException(s"Unknown emitter '$a'! (Did you misspell it?)")
+        },
+      helpText = "Run the specified circuit emitter generating a Protocol Buffer format",
+      shortOption = Some("P"),
+      // the experimental options are intentionally excluded from the help message
       helpValueName = Some(
-        "<chirrtl|chirrtl-pb|mhigh|mhigh-pb|high|high-pb|middle|middle-pb|low|low-pb|optlow-pb|verilog|mverilog|sverilog>"
+        "<chirrtl|mhigh|high|middle|low|low-opt>"
       )
     )
   )
