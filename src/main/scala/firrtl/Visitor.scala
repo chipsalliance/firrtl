@@ -83,20 +83,17 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
           // If there were no subgroups, the regex matched against a non-conforming source locator
           // pattern, so do not process it
           case None => out = out :+ ir.FileInfo.fromEscaped(info.toString)
-          case Some(file) => {
+          case Some(file) =>
             val lineDescriptors = info.group(2)
             // Grab each line:col values from the separated (compressed) FileInfo.
             splitLineDescriptors.findAllIn(lineDescriptors).matchData.foreach { lineDescriptor =>
-              {
-                val line = lineDescriptor.group(1)
-                val cols = lineDescriptor.group(2)
-                splitColDescriptors.findAllIn(cols).matchData.foreach {
-                  // Use all the necessary info to generate normal uncompressed FileInfos
-                  col => out = out :+ ir.FileInfo.fromEscaped(s"$file $line:$col")
-                }
+              val line = lineDescriptor.group(1)
+              val cols = lineDescriptor.group(2)
+              splitColDescriptors.findAllIn(cols).matchData.foreach {
+                // Use all the necessary info to generate normal uncompressed FileInfos
+                col => out = out :+ ir.FileInfo.fromEscaped(s"$file $line:$col")
               }
             }
-          }
         }
       }
 
