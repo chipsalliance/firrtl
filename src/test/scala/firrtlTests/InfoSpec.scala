@@ -322,7 +322,7 @@ class InfoSpec extends FirrtlFlatSpec with FirrtlMatchers {
       result should containLine(line)
   }
 
-  "Source Locators" should "not loose information when going through serialization + parsing" in {
+  "Source Locators" should "not lose information when going through serialization + parsing" in {
     def check(info: ir.Info): Unit = {
       assert(Parser.parseInfo(info.serialize) == info)
     }
