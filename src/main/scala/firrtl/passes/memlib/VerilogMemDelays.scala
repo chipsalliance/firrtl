@@ -188,19 +188,8 @@ class MemDelayAndReadwriteTransformer(m: DefModule) {
 
       newConns ++= clockWires.values.map(_._2)
       newConns ++= (readStmts ++ writeStmts).flatMap(_.conns)
-<<<<<<< HEAD
-      Block(newMem +: (readStmts ++ writeStmts).flatMap(_.decls))
-    case sx: Connect if kind(sx.loc) == MemKind => EmptyStmt // Filter old mem connections
-=======
       Block(newMem +: clockWires.values.map(_._1) ++: (readStmts ++ writeStmts).flatMap(_.decls))
-    case sx: Connect if kind(sx.loc) == MemKind =>
-      val (memRef, _) = Utils.splitRef(sx.loc)
-      // Filter old mem connections for *transformed* memories only
-      if (passthroughMems(WrappedExpression(memRef)))
-        sx
-      else
-        EmptyStmt
->>>>>>> 11128d93 (Fix VerilogMemDelays use before declaration (#2278))
+    case sx: Connect if kind(sx.loc) == MemKind => EmptyStmt // Filter old mem connections
     case sx => sx.map(swapMemRefs)
   }
 
