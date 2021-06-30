@@ -114,11 +114,11 @@ object DedupAnnotationsTransform {
   */
 class DedupAnnotationsTransform extends Transform with DependencyAPIMigration {
 
-  override def prerequisites = firrtl.stage.Forms.LowForm
+  override def prerequisites = Nil
 
   override def optionalPrerequisites = Nil
 
-  override def optionalPrerequisiteOf = firrtl.stage.Forms.BackendEmitters
+  override def optionalPrerequisiteOf = Nil
 
   override def invalidates(a: Transform) = false
 
