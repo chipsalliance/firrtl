@@ -301,7 +301,6 @@ class MemInitSpec extends FirrtlFlatSpec {
       MemoryFileInlineAnnotation(child2MRef, filename = "text.hex")
     )
     val result = compile(dedupTest, annos)
-    println(result.getEmittedCircuit.value)
     result should containLine("""$readmemh("text.hex", """ + dedupedRef.name + """);""")
   }
 }
