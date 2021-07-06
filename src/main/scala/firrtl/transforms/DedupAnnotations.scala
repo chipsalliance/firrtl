@@ -13,6 +13,9 @@ import firrtl.annotations.MemoryFileInlineAnnotation
 import firrtl.passes.PassException
 import firrtl.annotations.ReferenceTarget
 import firrtl.annotations._
+import firrtl.analyses.InstanceKeyGraph
+
+import scala.collection.mutable.ArrayBuffer
 
 object DedupAnnotationsTransform {
 
@@ -24,89 +27,57 @@ object DedupAnnotationsTransform {
     }
   }
 
-  private def annotationBelongsInGroup(annotationIn: Annotation, group: Seq[Annotation]): Boolean = {
-    // Assume that all existing annotations in the group are 'equal' to each other (targets refer to same module),
-    // and the condition to add annotations to the group is only the result of this function.
-
-    // Then the newly added annotation simply needs to be compared to the head
-
-    group.headOption match {
-      case None => true // Base case: empty partition
-      case Some(anno) => {
-        (annotationIn, anno) match {
-          // TODO: All of this can be folded into the annotation types
-          // May also apply to generic annotations: add *something* to the Annotation trait class
-          // that would look like left.compare(right), which would return true if both non-local
-          // annotations will deduplicate into the same local annotation
-          case (left: MemoryRandomInitAnnotation, right: MemoryRandomInitAnnotation) =>
-            left.target.encapsulatingModule.equals(right.target.encapsulatingModule) &&
-              left.target.ref.equals(right.target.ref)
-          case (left: MemoryScalarInitAnnotation, right: MemoryScalarInitAnnotation) =>
-            val comparison = left.target.encapsulatingModule.equals(right.target.encapsulatingModule) &&
-              left.target.ref.equals(right.target.ref)
-
-            if (comparison && !left.value.equals(right.value))
-              // Error - deduplicated mem modules contain different scalar init values.
-              throw DifferingModuleAnnotationsException(left.target, right.target)
-
-            comparison
-          case (left: MemoryArrayInitAnnotation, right: MemoryArrayInitAnnotation) =>
-            val comparison = left.target.encapsulatingModule.equals(right.target.encapsulatingModule) &&
-              left.target.ref.equals(right.target.ref)
-
-            if (comparison && !left.values.equals(right.values))
-              // Error - deduplicated mem modules contain different array init values.
-              throw DifferingModuleAnnotationsException(left.target, right.target)
-
-            comparison
-          case (left: MemoryFileInlineAnnotation, right: MemoryFileInlineAnnotation) =>
-            val comparison = left.target.encapsulatingModule.equals(right.target.encapsulatingModule) &&
-              left.target.ref.equals(right.target.ref)
-
-            if (comparison && !left.hexOrBinary.equals(right.hexOrBinary))
-              // Error - deduplicated modules contain different binaries (should be the same).
-              throw DifferingModuleAnnotationsException(left.target, right.target)
-
-            comparison
-          case (_, _) => false
-        }
-      }
+  private case class DedupableRepr(
+    dedupKey:       (ReferenceTarget, Any),
+    deduped:        Annotation,
+    original:       Annotation,
+    absoluteTarget: ReferenceTarget)
+  private object DedupableRepr {
+    def apply(annotation: Annotation): Option[DedupableRepr] = annotation.dedup match {
+      case Some((dedupKey, dedupedAnno, absoluteTarget)) =>
+        Some(new DedupableRepr(dedupKey, dedupedAnno, annotation, absoluteTarget))
+      case _ => None
     }
   }
 
-  def dedupAnnotations(annotations: Seq[Annotation]): Seq[Annotation] = {
-    // Used to check all 'similar' annotations for deduplication. If two annotations
-    // would deduplicate to each other (have the same encapsulating module, and the same reference target),
-    // but otherwise have differing contents, then this would result in an error.
-    var annotationCheckGroups: Seq[Seq[Annotation]] = Seq(Seq())
+  type InstancePath = Seq[(TargetToken.Instance, TargetToken.OfModule)]
 
-    // For every annotation, search for an appropriate group to append it to.
-    annotations.map(annotation => {
-      // If we previously added an annotation to the empty group, append a new empty group to the list
-      if (annotationCheckGroups.tail.nonEmpty) annotationCheckGroups = annotationCheckGroups :+ Seq()
+  private def checkInstanceGraph(
+    module:        String,
+    graph:         InstanceKeyGraph,
+    absolutePaths: Seq[InstancePath]
+  ): Boolean = graph.findInstancesInHierarchy(module).size == absolutePaths.size
 
-      // Append the annotation to the first matching group (this can be the empty group itself)
-      annotationCheckGroups = annotationCheckGroups.map(group =>
-        if (annotationBelongsInGroup(annotation, group)) group :+ annotation else group
-      )
+  def dedupAnnotations(annotations: Seq[Annotation], graph: InstanceKeyGraph): Seq[Annotation] = {
+    val canDedup = ArrayBuffer.empty[DedupableRepr]
+    val outAnnos = ArrayBuffer.empty[Annotation]
 
-      // If the above statement executes with no issues, then we can safely dedup this annotation
-      annotation match {
-        // TODO: Like the comparison code, this can likely be folded into the Annotation type
-        // as something like annotation.dedup
-        case memoryAnnotation: MemoryFileInlineAnnotation =>
-          memoryAnnotation.duplicate(
-            ReferenceTarget(
-              memoryAnnotation.target.circuit,
-              memoryAnnotation.target.encapsulatingModule,
-              Seq(),
-              memoryAnnotation.target.ref,
-              memoryAnnotation.target.component
-            )
-          )
-        case other => other
+    // Extract the annotations which can be deduplicated
+    annotations.foreach { anno =>
+      DedupableRepr(anno) match {
+        case Some(repr) => canDedup += repr
+        case None       => outAnnos += anno
       }
-    })
+    }
+
+    // Partition the dedupable annotations into groups that *should* deduplicate into the same annotation
+    val shouldDedup: Map[(ReferenceTarget, Any), ArrayBuffer[DedupableRepr]] = canDedup.groupBy(_.dedupKey)
+    shouldDedup.foreach {
+      case (key, dedupableAnnos) =>
+        val module = key._1.encapsulatingModule
+        val originalAnnos = dedupableAnnos.map(_.original)
+        val uniqueDedupedAnnos = dedupableAnnos.map(_.deduped).distinct
+        // TODO: Extend this to support multi-target annotations
+        val instancePaths = dedupableAnnos.map(_.absoluteTarget.path).toSeq
+        // The annotation deduplication is only legal if it applies to *all* instances of a
+        // deduplicated module -- requires an instance graph check
+        if (uniqueDedupedAnnos.size == 1 && checkInstanceGraph(module, graph, instancePaths))
+          outAnnos += uniqueDedupedAnnos.head
+        else
+          outAnnos ++= originalAnnos
+    }
+
+    outAnnos
   }
 }
 
@@ -125,7 +96,7 @@ class DedupAnnotationsTransform extends Transform with DependencyAPIMigration {
   def execute(state: CircuitState): CircuitState = CircuitState(
     state.circuit,
     state.form,
-    DedupAnnotationsTransform.dedupAnnotations(state.annotations.underlying),
+    DedupAnnotationsTransform.dedupAnnotations(state.annotations.underlying, InstanceKeyGraph(state.circuit)),
     state.renames
   )
 }

@@ -295,6 +295,38 @@ class MemInitSpec extends FirrtlFlatSpec {
   // Final deduplicated reference
   val dedupedRef = CircuitTarget("Top").module("Child").ref("m")
 
+  "MemoryRandomInitAnnotation" should "randomize memory in single deduped module" in {
+    val annos = Seq(
+      MemoryRandomInitAnnotation(child1MRef),
+      MemoryRandomInitAnnotation(child2MRef)
+    )
+    val result = compile(dedupTest, annos)
+    result should containLine("      m[initvar] = _RAND_0[7:0];")
+  }
+
+  "MemoryScalarInitAnnotation" should "initialize memory to 0 in deduped module" in {
+    val annos = Seq(
+      MemoryScalarInitAnnotation(child1MRef, value = 0),
+      MemoryScalarInitAnnotation(child2MRef, value = 0)
+    )
+    val result = compile(dedupTest, annos)
+    result should containLine("      m[initvar] = 0;")
+  }
+
+  "MemoryArrayInitAnnotation" should "initialize memory with array of values in deduped module" in {
+    val values = Seq.tabulate(32)(ii => 2 * ii + 5).map(BigInt(_))
+    val annos = Seq(
+      MemoryArrayInitAnnotation(child1MRef, values),
+      MemoryArrayInitAnnotation(child2MRef, values)
+    )
+    val result = compile(dedupTest, annos)
+
+    values.zipWithIndex.foreach {
+      case (value, addr) =>
+        result should containLine(s"      m[$addr] = $value;")
+    }
+  }
+
   "MemoryFileInlineAnnotation" should "emit $readmemh in deduped module" in {
     val annos = Seq(
       MemoryFileInlineAnnotation(child1MRef, filename = "text.hex"),
