@@ -77,7 +77,7 @@ object DedupAnnotationsTransform {
           outAnnos ++= originalAnnos
     }
 
-    outAnnos
+    outAnnos.toSeq
   }
 }
 
