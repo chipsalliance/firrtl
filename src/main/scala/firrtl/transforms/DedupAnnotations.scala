@@ -40,7 +40,7 @@ object DedupAnnotationsTransform {
     }
   }
 
-  type InstancePath = Seq[(TargetToken.Instance, TargetToken.OfModule)]
+  private type InstancePath = Seq[(TargetToken.Instance, TargetToken.OfModule)]
 
   private def checkInstanceGraph(
     module:        String,
