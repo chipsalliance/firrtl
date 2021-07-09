@@ -26,7 +26,7 @@ case class MemoryRandomInitAnnotation(target: ReferenceTarget) extends MemoryIni
   override def duplicate(n: ReferenceTarget): Annotation = copy(n)
   override def initValue:    MemoryInitValue = MemoryRandomInit
   override def isRandomInit: Boolean = true
-  override def dedup: Option[(Any, Annotation, ReferenceTarget)] = Some(
+  override private[firrtl] def dedup: Option[(Any, Annotation, ReferenceTarget)] = Some(
     ((target.pathlessTarget, Nil), copy(target = target.pathlessTarget), target)
   )
 }
@@ -36,7 +36,7 @@ case class MemoryScalarInitAnnotation(target: ReferenceTarget, value: BigInt) ex
   override def duplicate(n: ReferenceTarget): Annotation = copy(n)
   override def initValue:    MemoryInitValue = MemoryScalarInit(value)
   override def isRandomInit: Boolean = false
-  override def dedup: Option[(Any, Annotation, ReferenceTarget)] = Some(
+  override private[firrtl] def dedup: Option[(Any, Annotation, ReferenceTarget)] = Some(
     ((target.pathlessTarget, value), copy(target = target.pathlessTarget), target)
   )
 }
@@ -46,7 +46,7 @@ case class MemoryArrayInitAnnotation(target: ReferenceTarget, values: Seq[BigInt
   override def duplicate(n: ReferenceTarget): Annotation = copy(n)
   override def initValue:    MemoryInitValue = MemoryArrayInit(values)
   override def isRandomInit: Boolean = false
-  override def dedup: Option[(Any, Annotation, ReferenceTarget)] = Some(
+  override private[firrtl] def dedup: Option[(Any, Annotation, ReferenceTarget)] = Some(
     ((target.pathlessTarget, values), copy(target = target.pathlessTarget), target)
   )
 }
@@ -61,7 +61,7 @@ case class MemoryFileInlineAnnotation(
   override def duplicate(n: ReferenceTarget): Annotation = copy(n)
   override def initValue:    MemoryInitValue = MemoryFileInlineInit(filename, hexOrBinary)
   override def isRandomInit: Boolean = false
-  override def dedup: Option[(Any, Annotation, ReferenceTarget)] = Some(
+  override private[firrtl] def dedup: Option[(Any, Annotation, ReferenceTarget)] = Some(
     ((target.pathlessTarget, filename), copy(target = target.pathlessTarget), target)
   )
 }
