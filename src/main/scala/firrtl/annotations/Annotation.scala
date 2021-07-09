@@ -45,11 +45,14 @@ trait Annotation extends Product {
     *
     * If two absolute instances of this [[Annotation]] would deduplicate to the same
     * local form, both of their "dedup key"s must be equivalent.
+    * 
+    * A deduplication key is typically taken to be a 2-tuple of the pathless target and
+    * the annotation's value.
     *
     * Returning None signifies this annotation will not deduplicate.
     * @return
     */
-  private[firrtl] def dedup: Option[((ReferenceTarget, Any), Annotation, ReferenceTarget)] = None
+  private[firrtl] def dedup: Option[(Any, Annotation, ReferenceTarget)] = None
 }
 
 /** If an Annotation does not target any [[Named]] thing in the circuit, then all updates just

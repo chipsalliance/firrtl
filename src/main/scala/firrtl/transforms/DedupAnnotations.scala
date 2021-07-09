@@ -28,7 +28,7 @@ object DedupAnnotationsTransform {
   }
 
   private case class DedupableRepr(
-    dedupKey:       (ReferenceTarget, Any),
+    dedupKey:       Any,
     deduped:        Annotation,
     original:       Annotation,
     absoluteTarget: ReferenceTarget)
@@ -61,17 +61,16 @@ object DedupAnnotationsTransform {
     }
 
     // Partition the dedupable annotations into groups that *should* deduplicate into the same annotation
-    val shouldDedup: Map[(ReferenceTarget, Any), ArrayBuffer[DedupableRepr]] = canDedup.groupBy(_.dedupKey)
+    val shouldDedup: Map[Any, ArrayBuffer[DedupableRepr]] = canDedup.groupBy(_.dedupKey)
     shouldDedup.foreach {
-      case (key, dedupableAnnos) =>
-        val module = key._1.encapsulatingModule
+      case ((target: ReferenceTarget, _), dedupableAnnos) =>
         val originalAnnos = dedupableAnnos.map(_.original)
         val uniqueDedupedAnnos = dedupableAnnos.map(_.deduped).distinct
         // TODO: Extend this to support multi-target annotations
         val instancePaths = dedupableAnnos.map(_.absoluteTarget.path).toSeq
         // The annotation deduplication is only legal if it applies to *all* instances of a
         // deduplicated module -- requires an instance graph check
-        if (uniqueDedupedAnnos.size == 1 && checkInstanceGraph(module, graph, instancePaths))
+        if (uniqueDedupedAnnos.size == 1 && checkInstanceGraph(target.encapsulatingModule, graph, instancePaths))
           outAnnos += uniqueDedupedAnnos.head
         else
           outAnnos ++= originalAnnos
