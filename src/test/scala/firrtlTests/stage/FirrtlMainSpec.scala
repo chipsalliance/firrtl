@@ -195,6 +195,7 @@ class FirrtlMainSpec
     Seq(
       /* Test all standard emitters with and without annotation file outputs */
       FirrtlMainTest(args = Array("-X", "none", "-E", "chirrtl"), files = Seq("Top.fir")),
+      FirrtlMainTest(args = Array("-X", "mhigh", "-E", "mhigh"), files = Seq("Top.mhi.fir")),
       FirrtlMainTest(args = Array("-X", "high", "-E", "high"), files = Seq("Top.hi.fir")),
       FirrtlMainTest(
         args = Array("-X", "middle", "-E", "middle", "-foaf", "Top"),
@@ -212,8 +213,19 @@ class FirrtlMainSpec
         args = Array("-X", "sverilog", "-E", "sverilog", "-foaf", "foo.json"),
         files = Seq("Top.sv", "foo.json.anno.json")
       ),
+      /* Test all ProtoBuf emitters */
+      FirrtlMainTest(args = Array("-X", "none", "--emit-circuit-protobuf", "chirrtl"), files = Seq("Top.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-P", "mhigh"), files = Seq("Top.mhi.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-P", "high"), files = Seq("Top.hi.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-P", "middle"), files = Seq("Top.mid.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-P", "low"), files = Seq("Top.lo.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-P", "low-opt"), files = Seq("Top.lo.pb")),
       /* Test all one file per module emitters */
       FirrtlMainTest(args = Array("-X", "none", "-e", "chirrtl"), files = Seq("Top.fir", "Child.fir")),
+      FirrtlMainTest(
+        args = Array("-X", "mhigh", "-e", "mhigh"),
+        files = Seq("Top.mhi.fir", "Child.mhi.fir")
+      ),
       FirrtlMainTest(
         args = Array("-X", "high", "-e", "high"),
         files = Seq("Top.hi.fir", "Child.hi.fir")
@@ -242,6 +254,10 @@ class FirrtlMainSpec
       ),
       /* Test changes to output file name */
       FirrtlMainTest(args = Array("-X", "none", "-E", "chirrtl", "-o", "foo"), files = Seq("foo.fir")),
+      FirrtlMainTest(
+        args = Array("-X", "mhigh", "-E", "mhigh", "-o", "foo"),
+        files = Seq("foo.mhi.fir")
+      ),
       FirrtlMainTest(
         args = Array("-X", "high", "-E", "high", "-o", "foo"),
         files = Seq("foo.hi.fir")
