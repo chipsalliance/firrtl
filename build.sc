@@ -219,11 +219,12 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
         else
           T.ctx.dest / unpackPath / "bin" / "protoc"
 
-        if (!os.exists(bin))
+        if (!os.exists(bin)) {
           Util.downloadUnpackZip(
             s"https://github.com/protocolbuffers/protobuf/releases/download/v$protocVersion/protoc-$protocVersion-$protocBinary.zip",
             unpackPath
           )
+        }
         // Download Linux/Mac binary doesn't have x.
         if (!isWindows) os.perms.set(bin, "rwx------")
         bin
