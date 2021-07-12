@@ -517,6 +517,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
             "At least one memory annotation did not deduplicate: got non-local annotation $a from [[DedupAnnotationsTransform]]"
           )
       }
+      case _ =>
     }
 
     // using multiple foreach instead of a single partial function as an Annotation can gather multiple EmissionOptions for simplicity
