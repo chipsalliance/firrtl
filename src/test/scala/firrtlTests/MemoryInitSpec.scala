@@ -335,6 +335,23 @@ class MemInitSpec extends FirrtlFlatSpec {
     val result = compile(dedupTest, annos)
     result should containLine("""$readmemh("text.hex", """ + dedupedRef.name + """);""")
   }
+
+  "MemoryFileInlineAnnotation" should "not emit $readmemh if not all instances have the annotation" in {
+    val annos = Seq(
+      MemoryFileInlineAnnotation(child1MRef, filename = "text.hex")
+    )
+    val result = compile(dedupTest, annos)
+    result shouldNot containLine("""$readmemh("text.hex", """ + dedupedRef.name + """);""")
+  }
+
+  "MemoryFileInlineAnnotation" should "not emit $readmemh if instances have different init files" in {
+    val annos = Seq(
+      MemoryFileInlineAnnotation(child1MRef, filename = "text.hex"),
+      MemoryFileInlineAnnotation(child2MRef, filename = "text.bin")
+    )
+    val result = compile(dedupTest, annos)
+    result shouldNot containLine("""$readmemh("text.hex", """ + dedupedRef.name + """);""")
+  }
 }
 
 abstract class MemInitExecutionSpec(values: Seq[Int], init: ReferenceTarget => Annotation)
