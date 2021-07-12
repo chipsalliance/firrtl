@@ -45,7 +45,7 @@ trait Annotation extends Product {
     *
     * If two absolute instances of this [[Annotation]] would deduplicate to the same
     * local form, both of their "dedup key"s must be equivalent.
-    * 
+    *
     * A deduplication key is typically taken to be a 2-tuple of the pathless target and
     * the annotation's value.
     *
