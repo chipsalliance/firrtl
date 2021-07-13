@@ -789,6 +789,19 @@ case class InstanceTarget(
 
   override def asPath: Seq[(Instance, OfModule)] = path :+ ((Instance(instance), OfModule(ofModule)))
 
+  /** Returns the non-local form of this [[InstanceTarget]], by dropping the absolute path to
+    *   its instantiated module
+    *
+    * For example, given an [[InstanceTarget]]
+    *   `~Top/instance1:ChildModule>x`,
+    *
+    * .pathlessTarget returns
+    *   `~Top/ChildModule>x`
+    *
+    * This is useful for cases in which annotations must point to the module itself rather than
+    *   an absolute *instance* of the module (e.g. deduplication).
+    * @return
+    */
   override def pathlessTarget: InstanceTarget = InstanceTarget(circuit, encapsulatingModule, Nil, instance, ofModule)
 
   override def notPath = Seq(Instance(instance), OfModule(ofModule))
