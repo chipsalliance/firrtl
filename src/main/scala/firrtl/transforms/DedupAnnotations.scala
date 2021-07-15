@@ -19,14 +19,6 @@ import scala.collection.mutable.ArrayBuffer
 
 object DedupAnnotationsTransform {
 
-  final class DifferingModuleAnnotationsException private (msg: String) extends PassException(msg)
-  object DifferingModuleAnnotationsException {
-    def apply(left: ReferenceTarget, right: ReferenceTarget): DifferingModuleAnnotationsException = {
-      val msg = s"${left.serialize} and ${right.serialize} have differing module binaries"
-      new DifferingModuleAnnotationsException(msg)
-    }
-  }
-
   private case class DedupableRepr(
     dedupKey:       Any,
     deduped:        Annotation,
