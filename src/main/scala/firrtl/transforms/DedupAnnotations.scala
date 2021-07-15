@@ -18,6 +18,29 @@ import firrtl.analyses.InstanceKeyGraph
 import scala.collection.mutable.ArrayBuffer
 
 object DedupAnnotationsTransform {
+  private def dedupAnno(annotation: Annotation): Option[(Any, Annotation, ReferenceTarget)] = annotation match {
+    case MemoryRandomInitAnnotation(target) =>
+      Some(
+        ((target.pathlessTarget, Nil), new MemoryRandomInitAnnotation(target = target.pathlessTarget), target)
+      )
+    case MemoryScalarInitAnnotation(target, value) =>
+      Some(
+        ((target.pathlessTarget, value), new MemoryScalarInitAnnotation(target = target.pathlessTarget, value), target)
+      )
+    case MemoryArrayInitAnnotation(target, values) =>
+      Some(
+        ((target.pathlessTarget, values), new MemoryArrayInitAnnotation(target = target.pathlessTarget, values), target)
+      )
+    case MemoryFileInlineAnnotation(target, filename, hexOrBinary) =>
+      Some(
+        (
+          (target.pathlessTarget, filename),
+          new MemoryFileInlineAnnotation(target = target.pathlessTarget, filename, hexOrBinary),
+          target
+        )
+      )
+    case _ => None
+  }
 
   private case class DedupableRepr(
     dedupKey:       Any,
@@ -25,10 +48,10 @@ object DedupAnnotationsTransform {
     original:       Annotation,
     absoluteTarget: ReferenceTarget)
   private object DedupableRepr {
-    def apply(annotation: Annotation): Option[DedupableRepr] = annotation.dedup match {
-      case Some((dedupKey, dedupedAnno, absoluteTarget)) =>
-        Some(new DedupableRepr(dedupKey, dedupedAnno, annotation, absoluteTarget))
-      case _ => None
+    def apply(annotation: Annotation): Option[DedupableRepr] = dedupAnno(annotation) match {
+      case Some((dedupKey, deduped, absoluteTarget)) =>
+        Some(new DedupableRepr(dedupKey, deduped, annotation, absoluteTarget))
+      case None => None
     }
   }
 
