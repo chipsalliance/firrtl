@@ -18,13 +18,16 @@ import firrtl.analyses.InstanceKeyGraph
 import scala.collection.mutable.ArrayBuffer
 
 object DedupAnnotationsTransform {
-
-  final class DifferingModuleAnnotationsException private (msg: String) extends PassException(msg)
-  object DifferingModuleAnnotationsException {
-    def apply(left: ReferenceTarget, right: ReferenceTarget): DifferingModuleAnnotationsException = {
-      val msg = s"${left.serialize} and ${right.serialize} have differing module binaries"
-      new DifferingModuleAnnotationsException(msg)
-    }
+  private def dedupAnno(annotation: Annotation): Option[(Any, Annotation, ReferenceTarget)] = annotation match {
+    case a @ MemoryRandomInitAnnotation(target) =>
+      Some(((target.pathlessTarget, Nil), a.copy(target = target.pathlessTarget), target))
+    case a @ MemoryScalarInitAnnotation(target, value) =>
+      Some(((target.pathlessTarget, value), a.copy(target = target.pathlessTarget), target))
+    case a @ MemoryArrayInitAnnotation(target, values) =>
+      Some(((target.pathlessTarget, values), a.copy(target = target.pathlessTarget), target))
+    case a @ MemoryFileInlineAnnotation(target, filename, hexOrBinary) =>
+      Some(((target.pathlessTarget, filename), a.copy(target = target.pathlessTarget), target))
+    case _ => None
   }
 
   private case class DedupableRepr(
@@ -33,10 +36,10 @@ object DedupAnnotationsTransform {
     original:       Annotation,
     absoluteTarget: ReferenceTarget)
   private object DedupableRepr {
-    def apply(annotation: Annotation): Option[DedupableRepr] = annotation.dedup match {
-      case Some((dedupKey, dedupedAnno, absoluteTarget)) =>
-        Some(new DedupableRepr(dedupKey, dedupedAnno, annotation, absoluteTarget))
-      case _ => None
+    def apply(annotation: Annotation): Option[DedupableRepr] = dedupAnno(annotation) match {
+      case Some((dedupKey, deduped, absoluteTarget)) =>
+        Some(new DedupableRepr(dedupKey, deduped, annotation, absoluteTarget))
+      case None => None
     }
   }
 
