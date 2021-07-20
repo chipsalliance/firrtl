@@ -19,26 +19,14 @@ import scala.collection.mutable.ArrayBuffer
 
 object DedupAnnotationsTransform {
   private def dedupAnno(annotation: Annotation): Option[(Any, Annotation, ReferenceTarget)] = annotation match {
-    case MemoryRandomInitAnnotation(target) =>
-      Some(
-        ((target.pathlessTarget, Nil), new MemoryRandomInitAnnotation(target = target.pathlessTarget), target)
-      )
-    case MemoryScalarInitAnnotation(target, value) =>
-      Some(
-        ((target.pathlessTarget, value), new MemoryScalarInitAnnotation(target = target.pathlessTarget, value), target)
-      )
-    case MemoryArrayInitAnnotation(target, values) =>
-      Some(
-        ((target.pathlessTarget, values), new MemoryArrayInitAnnotation(target = target.pathlessTarget, values), target)
-      )
-    case MemoryFileInlineAnnotation(target, filename, hexOrBinary) =>
-      Some(
-        (
-          (target.pathlessTarget, filename),
-          new MemoryFileInlineAnnotation(target = target.pathlessTarget, filename, hexOrBinary),
-          target
-        )
-      )
+    case a @ MemoryRandomInitAnnotation(target) =>
+      Some(((target.pathlessTarget, Nil), a.copy(target = target.pathlessTarget), target))
+    case a @ MemoryScalarInitAnnotation(target, value) =>
+      Some(((target.pathlessTarget, value), a.copy(target = target.pathlessTarget), target))
+    case a @ MemoryArrayInitAnnotation(target, values) =>
+      Some(((target.pathlessTarget, values), a.copy(target = target.pathlessTarget), target))
+    case a @ MemoryFileInlineAnnotation(target, filename, hexOrBinary) =>
+      Some(((target.pathlessTarget, filename), a.copy(target = target.pathlessTarget), target))
     case _ => None
   }
 
