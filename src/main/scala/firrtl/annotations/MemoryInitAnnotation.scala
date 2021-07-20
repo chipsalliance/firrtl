@@ -8,7 +8,8 @@ import firrtl.{
   MemoryFileInlineInit,
   MemoryInitValue,
   MemoryRandomInit,
-  MemoryScalarInit
+  MemoryScalarInit,
+  Utils
 }
 
 /**

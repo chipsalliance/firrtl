@@ -14,6 +14,7 @@ import firrtl.Utils.throwInternalError
 import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
 import firrtl.options.{Dependency, DependencyAPI, StageUtils, TransformLike}
 import firrtl.stage.Forms
+import firrtl.transforms.DedupAnnotationsTransform
 
 /** Container of all annotations for a Firrtl compiler */
 class AnnotationSeq private (private[firrtl] val underlying: List[Annotation]) {
