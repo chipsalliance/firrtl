@@ -6,7 +6,7 @@ package transforms
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.options.Dependency
-import firrtl.Utils._
+import firrtl.Utils.{BoolType, groupByIntoSeq}
 import firrtl.annotations.Annotation
 import scala.collection.mutable.Buffer
 import firrtl.annotations.MemoryFileInlineAnnotation
