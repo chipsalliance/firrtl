@@ -967,6 +967,16 @@ object Utils extends LazyLogging {
     Mux(cond, tval, fval, tval.tpe)
   }
 
+  def groupByIntoSeq[A, K](xs: Seq[A])(f: A => K): Seq[(K, Seq[A])] = {
+    val map = mutable.LinkedHashMap.empty[K, mutable.ListBuffer[A]]
+    for (x <- xs) {
+      val key = f(x)
+      val l = map.getOrElseUpdate(key, mutable.ListBuffer.empty[A])
+      l += x
+    }
+    map.view.map({ case (k, vs) => k -> vs.toList }).toList
+  }
+
   object True {
     private val _True = UIntLiteral(1, IntWidth(1))
 
