@@ -967,6 +967,7 @@ object Utils extends LazyLogging {
     Mux(cond, tval, fval, tval.tpe)
   }
 
+  /** Similar to Seq.groupBy except that it preserves ordering of elements within each group */
   def groupByIntoSeq[A, K](xs: Seq[A])(f: A => K): Seq[(K, Seq[A])] = {
     val map = mutable.LinkedHashMap.empty[K, mutable.ListBuffer[A]]
     for (x <- xs) {
