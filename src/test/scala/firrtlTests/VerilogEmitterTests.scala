@@ -1155,7 +1155,7 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
       DocStringAnnotation(child1MRef, "line1"),
       DocStringAnnotation(child1MRef, "line2"),
       DocStringAnnotation(child2MRef, "line1"),
-      DocStringAnnotation(child2MRef, "line2"),
+      DocStringAnnotation(child2MRef, "line2")
     )
 
     val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
