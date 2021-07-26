@@ -61,7 +61,7 @@ object DedupAnnotationsTransform {
     }
 
     // Partition the dedupable annotations into groups that *should* deduplicate into the same annotation
-    val shouldDedup: Seq[(Any, Seq[DedupableRepr])] = Utils.groupByIntoSeq(canDedup.toSeq)(_.dedupKey)
+    val shouldDedup: Seq[(Any, Seq[DedupableRepr])] = groupByIntoSeq(canDedup)(_.dedupKey)
     shouldDedup.foreach {
       case ((target: ReferenceTarget, _), dedupableAnnos) =>
         val originalAnnos = dedupableAnnos.map(_.original)
