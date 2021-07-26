@@ -31,8 +31,8 @@ case class DocStringAnnotation(target: Target, description: String) extends Desc
   override private[firrtl] def dedup: Option[(Any, Annotation, ReferenceTarget)] = this match {
     case a @ DocStringAnnotation(refTarget: ReferenceTarget, _) =>
       Some(((refTarget.pathlessTarget, description), copy(target = refTarget.pathlessTarget), refTarget))
-    case a @ DocStringAnnotation(pathTarget: ReferenceTarget, _) =>
-      Some(((pathTarget.pathlessTarget, description), copy(target = pathTarget.pathlessTarget), pathTarget))
+    case a @ DocStringAnnotation(pathTarget: InstanceTarget, _) =>
+      Some(((pathTarget.pathlessTarget, description), copy(target = pathTarget.pathlessTarget), pathTarget.asReference))
     case _ => None
   }
 }
@@ -52,8 +52,8 @@ case class AttributeAnnotation(target: Target, description: String) extends Desc
   override private[firrtl] def dedup: Option[(Any, Annotation, ReferenceTarget)] = this match {
     case a @ AttributeAnnotation(refTarget: ReferenceTarget, _) =>
       Some(((refTarget.pathlessTarget, description), copy(target = refTarget.pathlessTarget), refTarget))
-    case a @ AttributeAnnotation(pathTarget: ReferenceTarget, _) =>
-      Some(((pathTarget.pathlessTarget, description), copy(target = pathTarget.pathlessTarget), pathTarget))
+    case a @ AttributeAnnotation(pathTarget: InstanceTarget, _) =>
+      Some(((pathTarget.pathlessTarget, description), copy(target = pathTarget.pathlessTarget), pathTarget.asReference))
     case _ => None
   }
 }
