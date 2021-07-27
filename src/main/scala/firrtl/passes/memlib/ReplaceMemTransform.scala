@@ -117,6 +117,9 @@ class SimpleMidTransform(p: Pass) extends SimpleTransform(p, MidForm)
 
 // SimpleRun instead of PassBased because of the arguments to passSeq
 class ReplSeqMem extends SeqTransform with HasShellOptions {
+  def inputForm: CircuitForm = UnknownForm
+
+  def outputForm: CircuitForm = UnknownForm
 
   override def prerequisites = Forms.MidForm
   override def optionalPrerequisites = Seq.empty

@@ -199,6 +199,6 @@ object ZeroWidth extends Transform {
     val renames = RenameMap()
     renames.setCircuit(c.main)
     val result = c.copy(modules = c.modules.map(onModule(renames)))
-    CircuitState(result, outputForm, state.annotations, Some(renames))
+    CircuitState(result, UnknownForm, state.annotations, Some(renames))
   }
 }

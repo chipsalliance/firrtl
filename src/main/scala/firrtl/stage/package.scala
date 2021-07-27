@@ -57,7 +57,6 @@ package object stage {
       }
       val compilers = options.collect { case CompilerAnnotation(c) => c }
       val emitType = emitters.headOption.orElse(compilers.headOption).map(_.name).getOrElse("N/A")
-      val form = emitters.headOption.orElse(compilers.headOption).map(_.outputForm).getOrElse(UnknownForm)
 
       options.collectFirst { case a: FirrtlCircuitAnnotation => a.circuit } match {
         case None => FirrtlExecutionFailure("No circuit found in AnnotationSeq!")
@@ -67,7 +66,7 @@ package object stage {
             emitted = emittedRes,
             circuitState = CircuitState(
               circuit = a,
-              form = form,
+              UnknownForm,
               annotations = options,
               renames = None
             )

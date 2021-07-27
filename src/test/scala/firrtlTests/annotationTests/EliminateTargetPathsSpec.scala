@@ -14,7 +14,7 @@ object EliminateTargetPathsSpec {
   case class DummyAnnotation(target: Target) extends SingleTargetAnnotation[Target] {
     override def duplicate(n: Target): Annotation = DummyAnnotation(n)
   }
-  class DummyTransform() extends Transform with ResolvedAnnotationPaths {
+  class DummyTransform() extends Transform with ResolvedAnnotationPaths with FormAPIMigration {
     override def inputForm:  CircuitForm = LowForm
     override def outputForm: CircuitForm = LowForm
 

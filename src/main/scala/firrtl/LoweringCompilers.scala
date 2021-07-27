@@ -16,8 +16,10 @@ sealed abstract class CoreTransform extends SeqTransform
   "FIRRTL 1.3"
 )
 class ChirrtlToHighFirrtl extends CoreTransform {
-  def inputForm = ChirrtlForm
-  def outputForm = HighForm
+  override def inputForm = ChirrtlForm
+
+  override def outputForm = HighForm
+
   def transforms = new TransformManager(Forms.MinimalHighForm, Forms.ChirrtlForm).flattenedTransformOrder
 }
 
@@ -29,8 +31,9 @@ class ChirrtlToHighFirrtl extends CoreTransform {
   "FIRRTL 1.3"
 )
 class IRToWorkingIR extends CoreTransform {
-  def inputForm = HighForm
-  def outputForm = HighForm
+  override def inputForm = HighForm
+
+  override def outputForm = HighForm
   def transforms = Seq(
     new Transform with firrtl.options.IdentityLike[CircuitState] {
       override def execute(a: CircuitState) = transform(a)
@@ -46,8 +49,9 @@ class IRToWorkingIR extends CoreTransform {
   "FIRRTL 1.3"
 )
 class ResolveAndCheck extends CoreTransform {
-  def inputForm = HighForm
-  def outputForm = HighForm
+  override def inputForm = HighForm
+
+  override def outputForm = HighForm
   def transforms = new TransformManager(Forms.Resolved, Forms.MinimalHighForm).flattenedTransformOrder
 }
 
@@ -61,8 +65,8 @@ class ResolveAndCheck extends CoreTransform {
   "FIRRTL 1.3"
 )
 class HighFirrtlToMiddleFirrtl extends CoreTransform {
-  def inputForm = HighForm
-  def outputForm = MidForm
+  override def inputForm = HighForm
+  override def outputForm = MidForm
   def transforms = new TransformManager(Forms.MidForm, Forms.Deduped).flattenedTransformOrder
 }
 
@@ -75,8 +79,8 @@ class HighFirrtlToMiddleFirrtl extends CoreTransform {
   "FIRRTL 1.3"
 )
 class MiddleFirrtlToLowFirrtl extends CoreTransform {
-  def inputForm = MidForm
-  def outputForm = LowForm
+  override def inputForm = MidForm
+  override def outputForm = LowForm
   def transforms = new TransformManager(Forms.LowForm, Forms.MidForm).flattenedTransformOrder
 }
 
@@ -89,8 +93,8 @@ class MiddleFirrtlToLowFirrtl extends CoreTransform {
   "FIRRTL 1.3"
 )
 class LowFirrtlOptimization extends CoreTransform {
-  def inputForm = LowForm
-  def outputForm = LowForm
+  override def inputForm = LowForm
+  override def outputForm = LowForm
   def transforms = new TransformManager(Forms.LowFormOptimized, Forms.LowForm).flattenedTransformOrder
 }
 
@@ -100,8 +104,8 @@ class LowFirrtlOptimization extends CoreTransform {
   "FIRRTL 1.3"
 )
 class MinimumLowFirrtlOptimization extends CoreTransform {
-  def inputForm = LowForm
-  def outputForm = LowForm
+  override def inputForm = LowForm
+  override def outputForm = LowForm
   def transforms = new TransformManager(Forms.LowFormMinimumOptimized, Forms.LowForm).flattenedTransformOrder
 }
 

@@ -19,7 +19,7 @@ import firrtl.stage.TransformManager.TransformDependency
   "Please remove DependencyAPIMigration from your Transform to be compatible with FIRRTL 1.6.",
   "FIRRTL 1.5"
 )
-trait DependencyAPIMigration { this: Transform =>
+trait DependencyAPIMigration extends FormAPIMigration { this: Transform =>
 
   @deprecated("Use Dependency API methods for equivalent functionality. See: https://bit.ly/2Voppre", "FIRRTL 1.3")
   final override def inputForm: CircuitForm = UnknownForm

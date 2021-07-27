@@ -270,32 +270,20 @@ private[firrtl] object Transform {
   }
 }
 
-/** The basic unit of operating on a Firrtl AST */
-trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform] {
+// todo deprecate this?
+trait FormAPIMigration { this: Transform =>
 
-  /** A convenience function useful for debugging and error messages */
-  def name: String = this.getClass.getName
+  import firrtl.CircuitForm.{ChirrtlForm => C, HighForm => H, MidForm => M, LowForm => L, UnknownForm => U}
 
   /** The [[firrtl.CircuitForm]] that this transform requires to operate on */
-  @deprecated("Use Dependency API methods for equivalent functionality. See: https://bit.ly/2Voppre", "FIRRTL 1.3")
   def inputForm: CircuitForm
 
   /** The [[firrtl.CircuitForm]] that this transform outputs */
-  @deprecated("Use Dependency API methods for equivalent functionality. See: https://bit.ly/2Voppre", "FIRRTL 1.3")
   def outputForm: CircuitForm
 
-  /** Perform the transform, encode renaming with RenameMap, and can
-    *   delete annotations
-    * Called by [[runTransform]].
-    *
-    * @param state Input Firrtl AST
-    * @return A transformed Firrtl AST
-    */
-  protected def execute(state: CircuitState): CircuitState
-
-  def transform(state: CircuitState): CircuitState = execute(state)
-
-  import firrtl.CircuitForm.{ChirrtlForm => C, HighForm => H, MidForm => M, LowForm => L, UnknownForm => U}
+  private lazy val fullCompilerSet = new mutable.LinkedHashSet[Dependency[Transform]] ++ Forms.VerilogOptimized
+  private lazy val highOutputInvalidates = fullCompilerSet -- Forms.MinimalHighForm
+  private lazy val midOutputInvalidates = fullCompilerSet -- Forms.MidForm
 
   override def prerequisites: Seq[Dependency[Transform]] = inputForm match {
     case C => Nil
@@ -309,8 +297,6 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
     case L => Forms.LowFormOptimized ++ Forms.AssertsRemoved
     case _ => Seq.empty
   }
-
-  private lazy val fullCompilerSet = new mutable.LinkedHashSet[Dependency[Transform]] ++ Forms.VerilogOptimized
 
   override def optionalPrerequisiteOf: Seq[Dependency[Transform]] = {
     val lowEmitters = Dependency[LowFirrtlEmitter] :: Dependency[VerilogEmitter] :: Dependency[MinimumVerilogEmitter] ::
@@ -336,19 +322,35 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
     }
   }
 
-  private lazy val highOutputInvalidates = fullCompilerSet -- Forms.MinimalHighForm
-  private lazy val midOutputInvalidates = fullCompilerSet -- Forms.MidForm
-
   override def invalidates(a: Transform): Boolean = {
     (inputForm, outputForm) match {
-      case (U, _) | (_, U)  => true // invalidate everything
+      case (U, _) | (_, U) => true // invalidate everything
       case (i, o) if i >= o => false // invalidate nothing
-      case (_, C)           => true // invalidate everything
-      case (_, H)           => highOutputInvalidates(Dependency.fromTransform(a))
-      case (_, M)           => midOutputInvalidates(Dependency.fromTransform(a))
-      case (_, L)           => false // invalidate nothing
+      case (_, C) => true // invalidate everything
+      case (_, H) => highOutputInvalidates(Dependency.fromTransform(a))
+      case (_, M) => midOutputInvalidates(Dependency.fromTransform(a))
+      case (_, L) => false // invalidate nothing
     }
   }
+
+}
+
+/** The basic unit of operating on a Firrtl AST */
+trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform] {
+
+  /** A convenience function useful for debugging and error messages */
+  def name: String = this.getClass.getName
+
+  /** Perform the transform, encode renaming with RenameMap, and can
+    *   delete annotations
+    * Called by [[runTransform]].
+    *
+    * @param state Input Firrtl AST
+    * @return A transformed Firrtl AST
+    */
+  protected def execute(state: CircuitState): CircuitState
+
+  def transform(state: CircuitState): CircuitState = execute(state)
 
   /** Executes before any transform's execute method
     * @param state
@@ -375,7 +377,7 @@ trait SeqTransformBased {
 }
 
 /** For transformations that are simply a sequence of transforms */
-abstract class SeqTransform extends Transform with SeqTransformBased {
+abstract class SeqTransform extends Transform with SeqTransformBased with FormAPIMigration {
   def execute(state: CircuitState): CircuitState = {
     /*
     require(state.form <= inputForm,
@@ -450,66 +452,10 @@ object CompilerUtils extends LazyLogging {
     }
   }
 
-  /** Merge a Seq of lowering transforms with custom transforms
-    *
-    * Custom  Transforms are  inserted  based on  their [[Transform.inputForm]]  and  [[Transform.outputForm]] with  any
-    * [[Emitter]]s being  scheduled last. Custom transforms  are inserted in  order at the  last location in the  Seq of
-    * transforms where previous.outputForm == customTransform.inputForm. If a customTransform outputs a higher form than
-    * input, [[getLoweringTransforms]] is used to relower the circuit.
-    *
-    * @example
-    *   {{{
-    *     // Let Transforms be represented by CircuitForm => CircuitForm
-    *     val A = HighForm => MidForm
-    *     val B = MidForm => LowForm
-    *     val lowering = List(A, B) // Assume these transforms are used by getLoweringTransforms
-    *     // Some custom transforms
-    *     val C = LowForm => LowForm
-    *     val D = MidForm => MidForm
-    *     val E = LowForm => HighForm
-    *     // All of the following comparisons are true
-    *     mergeTransforms(lowering, List(C)) == List(A, B, C)
-    *     mergeTransforms(lowering, List(D)) == List(A, D, B)
-    *     mergeTransforms(lowering, List(E)) == List(A, B, E, A, B)
-    *     mergeTransforms(lowering, List(C, E)) == List(A, B, C, E, A, B)
-    *     mergeTransforms(lowering, List(E, C)) == List(A, B, E, A, B, C)
-    *     // Notice that in the following, custom transform order is NOT preserved (see note)
-    *     mergeTransforms(lowering, List(C, D)) == List(A, D, B, C)
-    *   }}}
-    *
-    * @note Order will be preserved for custom transforms so long as the
-    * inputForm of a latter transforms is equal to or lower than the outputForm
-    * of the previous transform.
-    */
-  @deprecated(
-    "Use a TransformManager requesting which transforms you want to run. This will be removed in 1.4.",
-    "FIRRTL 1.3"
-  )
-  def mergeTransforms(lowering: Seq[Transform], custom: Seq[Transform]): Seq[Transform] = {
-    custom.sortWith {
-      case (a, b) =>
-        (a, b) match {
-          case (_: Emitter, _: Emitter) => false
-          case (_, _: Emitter) => true
-          case _ => false
-        }
-    }
-      .foldLeft(lowering) {
-        case (transforms, xform) =>
-          val index = transforms.lastIndexWhere(_.outputForm == xform.inputForm)
-          assert(
-            index >= 0 || xform.inputForm == ChirrtlForm, // If ChirrtlForm just put at front
-            s"No transform in $lowering has outputForm ${xform.inputForm} as required by $xform"
-          )
-          val (front, back) = transforms.splitAt(index + 1) // +1 because we want to be AFTER index
-          front ++ List(xform) ++ getLoweringTransforms(xform.outputForm, xform.inputForm) ++ back
-      }
-  }
-
 }
 
 @deprecated("Migrate to firrtl.stage.transforms.Compiler. This will be removed in 1.4.", "FIRRTL 1.3")
-trait Compiler extends Transform with DependencyAPIMigration {
+trait Compiler extends Transform {
   def emitter: Emitter
 
   /** The sequence of transforms this compiler will execute
