@@ -171,7 +171,7 @@ object InferReadWritePass extends Pass {
 
 // Transform input: Middle Firrtl. Called after "HighFirrtlToMidleFirrtl"
 // To use this transform, circuit name should be annotated with its TransId.
-class InferReadWrite extends Transform with DependencyAPIMigration with SeqTransformBased with HasShellOptions {
+class InferReadWrite extends Transform with SeqTransformBased with HasShellOptions {
 
   override def prerequisites = Forms.MidForm
   override def optionalPrerequisites = Seq.empty

@@ -32,7 +32,7 @@ class IRToWorkingIR extends CoreTransform {
   def inputForm = HighForm
   def outputForm = HighForm
   def transforms = Seq(
-    new Transform with firrtl.options.IdentityLike[CircuitState] with DependencyAPIMigration {
+    new Transform with firrtl.options.IdentityLike[CircuitState] {
       override def execute(a: CircuitState) = transform(a)
     }
   )

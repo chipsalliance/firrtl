@@ -37,7 +37,7 @@ import scala.collection.mutable
   *   - the type of a memory is still a bundle with depth 2 (mem -> port -> field), see [[MemPortUtils.memType]]
   *   - the type of a module instance is still a bundle with depth 1 (instance -> port)
   */
-object LowerTypes extends Transform with DependencyAPIMigration {
+object LowerTypes extends Transform {
   override def prerequisites: Seq[TransformDependency] = Seq(
     Dependency(RemoveAccesses), // we require all SubAccess nodes to have been removed
     Dependency(CheckTypes), // we require all types to be correct

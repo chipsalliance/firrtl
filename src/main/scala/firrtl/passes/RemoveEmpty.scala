@@ -6,7 +6,7 @@ package passes
 import firrtl.ir._
 import firrtl.stage.Forms
 
-object RemoveEmpty extends Pass with DependencyAPIMigration {
+object RemoveEmpty extends Pass {
 
   override def prerequisites = Seq.empty
   override def optionalPrerequisites = Forms.LowFormOptimized

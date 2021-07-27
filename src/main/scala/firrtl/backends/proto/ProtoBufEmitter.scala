@@ -49,10 +49,7 @@ object Annotation {
   * @see [[Emitter.Low]]
   * @see [[Emitter.OptLow]]
   */
-sealed abstract class ProtoBufEmitter(prereqs: Seq[TransformDependency])
-    extends Transform
-    with DependencyAPIMigration
-    with firrtl.Emitter {
+sealed abstract class ProtoBufEmitter(prereqs: Seq[TransformDependency]) extends Transform with firrtl.Emitter {
 
   override def prerequisites = prereqs
   override def optionalPrerequisites = Seq.empty

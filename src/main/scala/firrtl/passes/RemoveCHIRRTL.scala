@@ -14,7 +14,7 @@ case class MPort(name: String, clk: Expression)
 case class MPorts(readers: ArrayBuffer[MPort], writers: ArrayBuffer[MPort], readwriters: ArrayBuffer[MPort])
 case class DataRef(exp: Expression, source: String, sink: String, mask: String, rdwrite: Boolean)
 
-object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
+object RemoveCHIRRTL extends Transform {
 
   override def prerequisites = firrtl.stage.Forms.ChirrtlForm ++
     Seq(Dependency(passes.CInferTypes), Dependency(passes.CInferMDir))

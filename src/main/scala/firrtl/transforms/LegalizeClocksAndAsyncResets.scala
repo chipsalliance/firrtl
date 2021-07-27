@@ -83,7 +83,7 @@ object LegalizeClocksAndAsyncResetsTransform {
 }
 
 /** Ensure Clocks and AsyncResets to be emitted are legal Verilog */
-class LegalizeClocksAndAsyncResetsTransform extends Transform with DependencyAPIMigration {
+class LegalizeClocksAndAsyncResetsTransform extends Transform {
 
   override def prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
     Seq(

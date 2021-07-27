@@ -75,7 +75,7 @@ class CustomResolveAndCheck(form: CircuitForm) extends SeqTransform {
 }
 
 /** Transform that re-runs resolve and check transforms as late as possible, but before any emitters. */
-object ReRunResolveAndCheck extends Transform with DependencyAPIMigration with IdentityLike[CircuitState] {
+object ReRunResolveAndCheck extends Transform with IdentityLike[CircuitState] {
 
   override val optionalPrerequisites = Forms.LowFormOptimized
   override val optionalPrerequisiteOf = Forms.ChirrtlEmitters

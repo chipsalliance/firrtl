@@ -36,7 +36,7 @@ case class SinkAnnotation(target: Named, pin: String) extends SingleTargetAnnota
   *
   * @throws WiringException if a sink is equidistant to two sources
   */
-class WiringTransform extends Transform with DependencyAPIMigration {
+class WiringTransform extends Transform {
 
   override def prerequisites = Forms.MidForm
   override def optionalPrerequisites = Seq.empty

@@ -50,7 +50,7 @@ Usage:
   }
 }
 
-class ClockListTransform extends Transform with DependencyAPIMigration with RegisteredTransform {
+class ClockListTransform extends Transform with RegisteredTransform {
 
   override def prerequisites = Forms.LowForm
   override def optionalPrerequisites = Seq.empty

@@ -77,7 +77,7 @@ object ReplaceTruncatingArithmetic {
   * @note This replaces some FIRRTL primops with ops that are not actually legal FIRRTL. They are
   * useful for emission to languages that support non-expanding arithmetic (like Verilog)
   */
-class ReplaceTruncatingArithmetic extends Transform with DependencyAPIMigration {
+class ReplaceTruncatingArithmetic extends Transform {
 
   override def prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
     Seq(Dependency[BlackBoxSourceHelper], Dependency[FixAddingNegativeLiterals])

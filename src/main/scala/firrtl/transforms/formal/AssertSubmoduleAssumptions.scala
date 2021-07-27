@@ -16,11 +16,7 @@ import firrtl.options.{PreservesAll, RegisteredTransform, ShellOption}
   * overly restrictive assume in a child module can prevent the model checker
   * from searching valid inputs and states in the parent module.
   */
-class AssertSubmoduleAssumptions
-    extends Transform
-    with RegisteredTransform
-    with DependencyAPIMigration
-    with PreservesAll[Transform] {
+class AssertSubmoduleAssumptions extends Transform with RegisteredTransform with PreservesAll[Transform] {
 
   override def prerequisites:         Seq[TransformDependency] = Seq.empty
   override def optionalPrerequisites: Seq[TransformDependency] = Seq.empty

@@ -48,7 +48,7 @@ class PresetRegAnnotationSpec
   * 1. reset = false
   * 2. init = a literal
   */
-private object MakePresetRegs extends Transform with DependencyAPIMigration {
+private object MakePresetRegs extends Transform {
   // run on lowered firrtl
   override def prerequisites = Seq(Dependency(firrtl.passes.ExpandWhens), Dependency(firrtl.passes.LowerTypes))
   override def invalidates(a: Transform) = false

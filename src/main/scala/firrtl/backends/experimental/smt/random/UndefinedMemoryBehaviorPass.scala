@@ -33,7 +33,7 @@ case class UndefinedMemoryBehaviorOptions(
   * - Read w/ en=0: leads to arbitrary value being read
   * - Read/Write conflict: leads to arbitrary value being read
   */
-object UndefinedMemoryBehaviorPass extends Transform with DependencyAPIMigration {
+object UndefinedMemoryBehaviorPass extends Transform {
   override def prerequisites = Forms.LowForm
   override def optionalPrerequisiteOf = Seq(Dependency(VerilogMemDelays))
   override def invalidates(a: Transform) = a match {

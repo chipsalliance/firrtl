@@ -162,7 +162,7 @@ object FlattenRegUpdate {
   * the register
   */
 // TODO Preserve source locators
-class FlattenRegUpdate extends Transform with DependencyAPIMigration {
+class FlattenRegUpdate extends Transform {
 
   override def prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
     Seq(

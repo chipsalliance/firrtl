@@ -32,7 +32,7 @@ import MemPortUtils.memType
   *      to rename a
   */
 @deprecated("Uniquify is now part of LowerTypes", "FIRRTL 1.4.0")
-object Uniquify extends Transform with DependencyAPIMigration {
+object Uniquify extends Transform {
 
   override def prerequisites =
     Seq(Dependency(ResolveKinds), Dependency(InferTypes)) ++ firrtl.stage.Forms.MinimalHighForm

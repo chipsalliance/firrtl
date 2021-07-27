@@ -17,7 +17,7 @@ import scala.collection.immutable.{Set => ISet}
   * ComponentName]] is the only way to refer to an instance, but this is resolved incorrectly to a
   * [[firrtl.annotations.ReferenceTarget ReferenceTarget]].
   */
-class CleanupNamedTargets extends Transform with DependencyAPIMigration {
+class CleanupNamedTargets extends Transform {
 
   override def prerequisites = Seq(Dependency(passes.RemoveCHIRRTL))
 

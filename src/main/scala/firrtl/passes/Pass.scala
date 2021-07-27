@@ -9,7 +9,7 @@ import firrtl.{CircuitState, FirrtlUserException, Transform}
 /** [[Pass]] is simple transform that is generally part of a larger [[Transform]]
   * Has an [[UnknownForm]], because larger [[Transform]] should specify form
   */
-trait Pass extends Transform with DependencyAPIMigration {
+trait Pass extends Transform {
   def run(c:         Circuit): Circuit
   def execute(state: CircuitState): CircuitState = state.copy(circuit = run(state.circuit))
 }

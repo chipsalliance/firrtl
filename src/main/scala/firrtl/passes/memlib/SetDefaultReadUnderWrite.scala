@@ -26,7 +26,7 @@ case object DefaultWriteFirstAnnotation extends DefaultReadUnderWriteAnnotation
   * either 'old' (read-first behavior) or 'new' (write-first behavior). This can help generate Verilog that is amenable
   * to RAM macro inference for various FPGA tools, or it can be used to satisfy other downstream design constraints.
   */
-class SetDefaultReadUnderWrite extends Transform with DependencyAPIMigration {
+class SetDefaultReadUnderWrite extends Transform {
   override def prerequisites = firrtl.stage.Forms.HighForm
   override def optionalPrerequisites = Seq(Dependency[InferReadWrite])
   override def optionalPrerequisiteOf = Seq(Dependency(VerilogMemDelays))

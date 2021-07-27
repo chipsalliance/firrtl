@@ -47,7 +47,7 @@ object InlineInstances {
   * @note Only use on legal Firrtl. Specifically, the restriction of instance loops must have been checked, or else this
   * pass can infinitely recurse.
   */
-class InlineInstances extends Transform with DependencyAPIMigration with RegisteredTransform {
+class InlineInstances extends Transform with RegisteredTransform {
   import InlineInstances._
 
   override def prerequisites = Forms.LowForm

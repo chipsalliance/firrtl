@@ -19,7 +19,7 @@ import ResolveMaskGranularity._
 /**
   * Lowers memories without splitting them, but without the complexity of ReplaceMemMacros
   */
-class SimplifyMems extends Transform with DependencyAPIMigration {
+class SimplifyMems extends Transform {
 
   override def prerequisites = Forms.MidForm
   override def optionalPrerequisites = Seq(Dependency[InferReadWrite])

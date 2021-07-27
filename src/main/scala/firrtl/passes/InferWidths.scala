@@ -62,7 +62,7 @@ case class WidthGeqConstraintAnnotation(loc: ReferenceTarget, exp: ReferenceTarg
   *
   * Uses firrtl.constraint package to infer widths
   */
-class InferWidths extends Transform with ResolvedAnnotationPaths with DependencyAPIMigration {
+class InferWidths extends Transform with ResolvedAnnotationPaths {
 
   override def prerequisites =
     Seq(

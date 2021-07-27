@@ -58,7 +58,7 @@ class BlackBoxNotFoundException(fileName: String, message: String)
   * will set the directory where the Verilog will be written.  This annotation is typically be
   * set by the execution harness, or directly in the tests
   */
-class BlackBoxSourceHelper extends Transform with DependencyAPIMigration {
+class BlackBoxSourceHelper extends Transform {
   import BlackBoxSourceHelper._
   private val DefaultTargetDir = new File(".")
 

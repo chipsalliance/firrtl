@@ -16,7 +16,7 @@ object RegisterUpdateSpec {
   case class CaptureStateAnno(value: CircuitState) extends NoTargetAnnotation
   // Capture the CircuitState between FlattenRegUpdate and VerilogEmitter
   //Emit captured state as FIRRTL for use in testing
-  class CaptureCircuitState extends Transform with DependencyAPIMigration {
+  class CaptureCircuitState extends Transform {
     override def prerequisites = Dependency[FlattenRegUpdate] :: Nil
     override def optionalPrerequisiteOf = Dependency[VerilogEmitter] :: Nil
     override def invalidates(a: Transform): Boolean = false

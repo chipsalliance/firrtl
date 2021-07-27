@@ -23,7 +23,7 @@ case class GlobalClockAnnotation(target: ReferenceTarget) extends SingleTargetAn
   * - the clock enabled signal can be understood as a clock tick or posedge
   * - this transform can be used in order to (formally) verify designs with multiple clocks or asynchronous resets
   */
-class StutteringClockTransform extends Transform with DependencyAPIMigration {
+class StutteringClockTransform extends Transform {
   override def prerequisites: Seq[TransformDependency] = Forms.LowForm
   override def invalidates(a: Transform): Boolean = false
 

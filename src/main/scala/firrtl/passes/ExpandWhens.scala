@@ -292,7 +292,7 @@ object ExpandWhens extends Pass {
     DoPrim(Eq, Seq(e, zero), Nil, BoolType)
 }
 
-class ExpandWhensAndCheck extends Transform with DependencyAPIMigration {
+class ExpandWhensAndCheck extends Transform {
 
   override def prerequisites =
     Seq(

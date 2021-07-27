@@ -30,7 +30,7 @@ case class TopWiringAnnotation(target: ComponentName, prefix: String) extends Si
   *    custom output files as a result of the additional ports
   * @note This *does* work for deduped modules
   */
-class TopWiringTransform extends Transform with DependencyAPIMigration {
+class TopWiringTransform extends Transform {
 
   override def prerequisites = Forms.MidForm
   override def optionalPrerequisites = Seq.empty

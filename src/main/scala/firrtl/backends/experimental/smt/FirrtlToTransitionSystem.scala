@@ -58,7 +58,7 @@ private case class TransitionSystem(
 
 private case class TransitionSystemAnnotation(sys: TransitionSystem) extends NoTargetAnnotation
 
-object FirrtlToTransitionSystem extends Transform with DependencyAPIMigration {
+object FirrtlToTransitionSystem extends Transform {
   // TODO: We only really need [[Forms.MidForm]] + LowerTypes, but we also want to fail if there are CombLoops
   // TODO: We also would like to run some optimization passes, but RemoveValidIf won't allow us to model DontCare
   //       precisely and PadWidths emits ill-typed firrtl.

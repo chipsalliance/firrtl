@@ -100,7 +100,7 @@ object EliminateTargetPaths {
   * B/x -> (B/x, B_/x) // where x is any reference in B
   * C/x -> (C/x, C_/x) // where x is any reference in C
   */
-class EliminateTargetPaths extends Transform with DependencyAPIMigration {
+class EliminateTargetPaths extends Transform {
   import EliminateTargetPaths._
 
   override def prerequisites = Forms.MinimalHighForm

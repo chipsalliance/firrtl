@@ -24,7 +24,7 @@ case class AnAnnotation(
   groundType: GroundType)
     extends NoTargetAnnotation
 
-class AnnoInjector extends Transform with DependencyAPIMigration {
+class AnnoInjector extends Transform {
   override def optionalPrerequisiteOf = Dependency[ChirrtlEmitter] :: Nil
   override def invalidates(a: Transform): Boolean = false
   def execute(state: CircuitState): CircuitState = {

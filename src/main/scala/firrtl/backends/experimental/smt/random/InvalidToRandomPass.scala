@@ -25,7 +25,7 @@ case class InvalidToRandomOptions(
   * Implicit invalids are:
   * - a / b when eq(b, 0)
   */
-object InvalidToRandomPass extends Transform with DependencyAPIMigration {
+object InvalidToRandomPass extends Transform {
   override def prerequisites = Forms.LowForm
   // once ValidIf has been removed, we can no longer detect and randomize them
   override def optionalPrerequisiteOf = Seq(Dependency(RemoveValidIf))

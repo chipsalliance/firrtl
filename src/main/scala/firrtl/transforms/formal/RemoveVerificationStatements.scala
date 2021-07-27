@@ -14,7 +14,7 @@ import firrtl.stage.TransformManager.TransformDependency
   * This is intended to be required by the Verilog emitter to ensure compatibility
   * with the Verilog 2001 standard.
   */
-class RemoveVerificationStatements extends Transform with DependencyAPIMigration with PreservesAll[Transform] {
+class RemoveVerificationStatements extends Transform with PreservesAll[Transform] {
 
   override def prerequisites:         Seq[TransformDependency] = Seq.empty
   override def optionalPrerequisites: Seq[TransformDependency] = Seq(Dependency(ConvertAsserts))

@@ -11,7 +11,7 @@ import firrtl.options.Dependency
   * Replaces all Assert nodes with a gated print-and-stop. This effectively
   * emulates the assert for IEEE 1364 Verilog.
   */
-object ConvertAsserts extends Transform with DependencyAPIMigration {
+object ConvertAsserts extends Transform {
   override def prerequisites = Nil
   override def optionalPrerequisites = Nil
   override def optionalPrerequisiteOf =

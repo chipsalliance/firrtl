@@ -9,7 +9,7 @@ import firrtl.stage.Forms
 
 import java.io.File
 
-class CreateMemoryAnnotations extends Transform with DependencyAPIMigration {
+class CreateMemoryAnnotations extends Transform {
 
   override def prerequisites = Forms.MidForm
   override def optionalPrerequisites = Seq.empty

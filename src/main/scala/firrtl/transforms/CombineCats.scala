@@ -58,7 +58,7 @@ object CombineCats {
   * Use [[MaxCatLenAnnotation]] to limit the number of elements that can be concatenated.
   * The default maximum number of elements is 10.
   */
-class CombineCats extends Transform with DependencyAPIMigration {
+class CombineCats extends Transform {
 
   override def prerequisites = firrtl.stage.Forms.LowForm ++
     Seq(

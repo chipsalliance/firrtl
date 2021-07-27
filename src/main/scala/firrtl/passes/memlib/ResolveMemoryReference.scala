@@ -15,7 +15,7 @@ case class NoDedupMemAnnotation(target: ComponentName) extends SingleTargetAnnot
 
 /** Resolves annotation ref to memories that exactly match (except name) another memory
   */
-class ResolveMemoryReference extends Transform with DependencyAPIMigration {
+class ResolveMemoryReference extends Transform {
 
   override def prerequisites = Forms.MidForm
   override def optionalPrerequisites = Seq.empty

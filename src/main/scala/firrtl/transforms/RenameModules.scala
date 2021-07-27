@@ -13,7 +13,7 @@ import scala.collection.mutable
   *
   * using namespace created by [[analyses.GetNamespace]], create unique names for modules
   */
-class RenameModules extends Transform with DependencyAPIMigration {
+class RenameModules extends Transform {
 
   override def prerequisites = Forms.LowForm
   override def optionalPrerequisites = Seq.empty

@@ -52,7 +52,7 @@ case class GroupAnnotation(
 /**
   * Splits a module into multiple modules by grouping its components via [[GroupAnnotation]]'s
   */
-class GroupComponents extends Transform with DependencyAPIMigration {
+class GroupComponents extends Transform {
   type MSet[T] = mutable.Set[T]
 
   override def prerequisites = Forms.MidForm

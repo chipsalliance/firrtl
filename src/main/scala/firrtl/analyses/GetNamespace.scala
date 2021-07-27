@@ -12,7 +12,7 @@ case class ModuleNamespaceAnnotation(namespace: Namespace) extends NoTargetAnnot
   *
   * namespace is used by RenameModules to get unique names
   */
-class GetNamespace extends Transform with DependencyAPIMigration {
+class GetNamespace extends Transform {
   override def prerequisites = Forms.LowForm
   override def optionalPrerequisites = Seq.empty
   override def optionalPrerequisiteOf = Forms.LowEmitters

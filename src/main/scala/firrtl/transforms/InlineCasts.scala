@@ -83,7 +83,7 @@ object InlineCastsTransform {
   * most one expression that is neither a cast nor reference-like node.
   */
 @deprecated("Replaced by InlineAcrossCastsTransform", "FIRRTL 1.4.3")
-class InlineCastsTransform extends Transform with DependencyAPIMigration {
+class InlineCastsTransform extends Transform {
 
   override def prerequisites = firrtl.stage.Forms.LowFormMinimumOptimized ++
     Seq(

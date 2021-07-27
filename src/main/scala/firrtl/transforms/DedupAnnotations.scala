@@ -82,7 +82,7 @@ object DedupAnnotationsTransform {
 
 /** Deduplicates memory annotations
   */
-class DedupAnnotationsTransform extends Transform with DependencyAPIMigration {
+class DedupAnnotationsTransform extends Transform {
 
   override def prerequisites = Nil
 

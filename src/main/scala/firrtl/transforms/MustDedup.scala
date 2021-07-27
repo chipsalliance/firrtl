@@ -172,7 +172,7 @@ object MustDeduplicateTransform {
   * In cases where marked modules did not deduplicate, this transform attempts to provide context on
   * what went wrong for debugging.
   */
-class MustDeduplicateTransform extends Transform with DependencyAPIMigration {
+class MustDeduplicateTransform extends Transform {
   import MustDeduplicateTransform._
 
   override def prerequisites = Seq(Dependency[DedupModules])

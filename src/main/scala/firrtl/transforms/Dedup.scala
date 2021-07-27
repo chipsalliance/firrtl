@@ -78,7 +78,7 @@ case class DedupedResult(original: ModuleTarget, duplicate: Option[IsModule], in
   * This transform will also emit [[DedupedResult]] for deduped modules that
   * only have one instance.
   */
-class DedupModules extends Transform with DependencyAPIMigration {
+class DedupModules extends Transform {
 
   override def prerequisites = firrtl.stage.Forms.Resolved
 

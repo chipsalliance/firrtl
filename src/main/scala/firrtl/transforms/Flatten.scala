@@ -23,7 +23,7 @@ case class FlattenAnnotation(target: Named) extends SingleTargetAnnotation[Named
   * @note Flattening a module means inlining all its fully-defined child instances
   * @note Instances of extmodules are not (and cannot be) inlined
   */
-class Flatten extends Transform with DependencyAPIMigration {
+class Flatten extends Transform {
 
   override def prerequisites = Forms.LowForm
   override def optionalPrerequisites = Seq.empty

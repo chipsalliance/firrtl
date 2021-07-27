@@ -16,7 +16,6 @@ class TransformManager(
   val currentState: Seq[TransformManager.TransformDependency] = Seq.empty,
   val knownObjects: Set[Transform] = Set.empty)
     extends Transform
-    with DependencyAPIMigration
     with DependencyManager[CircuitState, Transform] {
 
   override def execute(state: CircuitState): CircuitState = transform(state)

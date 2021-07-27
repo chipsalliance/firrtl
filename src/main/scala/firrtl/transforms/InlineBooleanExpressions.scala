@@ -33,7 +33,7 @@ object InlineBooleanExpressions {
   * 4. [[InlineBooleanExpressionsMax]] has not been exceeded
   * 5. is not a [[firrtl.ir.Mux Mux]]
   */
-class InlineBooleanExpressions extends Transform with DependencyAPIMigration {
+class InlineBooleanExpressions extends Transform {
 
   override def prerequisites = Seq(
     Dependency(InferTypes),

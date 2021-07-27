@@ -111,7 +111,7 @@ object ConstantPropagation {
 
 }
 
-class ConstantPropagation extends Transform with RegisteredTransform with DependencyAPIMigration {
+class ConstantPropagation extends Transform with RegisteredTransform {
   import ConstantPropagation._
 
   override def prerequisites =

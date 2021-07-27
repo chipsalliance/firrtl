@@ -26,7 +26,7 @@ object ReplaceMemMacros {
   * This will not generate wmask ports if not needed.
   * Creates the minimum # of black boxes needed by the design.
   */
-class ReplaceMemMacros extends Transform with DependencyAPIMigration {
+class ReplaceMemMacros extends Transform {
   override def prerequisites = Forms.MidForm
   override def optionalPrerequisites = Seq.empty
   override def optionalPrerequisiteOf = Forms.MidEmitters

@@ -176,7 +176,7 @@ private class RenameDataStructure(
 /** Transform for manipulate all the names in a FIRRTL circuit.
   * @tparam A the type of the child transform
   */
-abstract class ManipulateNames[A <: ManipulateNames[_]: ClassTag] extends Transform with DependencyAPIMigration {
+abstract class ManipulateNames[A <: ManipulateNames[_]: ClassTag] extends Transform {
 
   /** A function used to manipulate a name in a FIRRTL circuit */
   def manipulate: (String, Namespace) => Option[String]

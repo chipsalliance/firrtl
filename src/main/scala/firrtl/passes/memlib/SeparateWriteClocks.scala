@@ -26,7 +26,7 @@ import firrtl.options.{Dependency, OptionsException}
   * Though the emission of separate processes for write ports could be absorbed into the Verilog emitter, the use of a
   * pure-FIRRTL transform reduces implementation complexity and enhances reliability.
   */
-class SeparateWriteClocks extends Transform with DependencyAPIMigration {
+class SeparateWriteClocks extends Transform {
   override def prerequisites = Seq(Dependency(passes.RemoveCHIRRTL), Dependency(passes.ExpandConnects))
   override def optionalPrerequisites = Seq(Dependency[InferReadWrite])
   override def optionalPrerequisiteOf = Seq(Dependency[SetDefaultReadUnderWrite])

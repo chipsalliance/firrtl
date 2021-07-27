@@ -18,7 +18,7 @@ object CheckScalaVersion {
 }
 
 @deprecated("Support for 2.11 has been dropped, this transform no longer does anything", "FIRRTL 1.5")
-class CheckScalaVersion extends Transform with DependencyAPIMigration {
+class CheckScalaVersion extends Transform {
 
   override def invalidates(a: Transform) = false
 

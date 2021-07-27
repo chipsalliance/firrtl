@@ -32,7 +32,7 @@ object LegalizeAndReductionsTransform {
   * Workaround a bug in Verilator v4.026 - v4.032 (inclusive).
   * For context, see https://github.com/verilator/verilator/issues/2300
   */
-class LegalizeAndReductionsTransform extends Transform with DependencyAPIMigration {
+class LegalizeAndReductionsTransform extends Transform {
 
   override def prerequisites =
     firrtl.stage.Forms.MinimalHighForm ++
