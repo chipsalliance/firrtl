@@ -15,6 +15,10 @@ import firrtl.stage.TransformManager.TransformDependency
   *
   * For more information, see: https://bit.ly/2Voppre
   */
+@deprecated(
+  "DependencyAPIMigration will finish its job in FIRRTL 1.5, and it will be removed in FIRRTL 1.6",
+  "FIRRTL 1.5"
+)
 trait DependencyAPIMigration { this: Transform =>
 
   @deprecated("Use Dependency API methods for equivalent functionality. See: https://bit.ly/2Voppre", "FIRRTL 1.3")
