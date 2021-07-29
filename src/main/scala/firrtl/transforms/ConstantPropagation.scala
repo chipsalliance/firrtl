@@ -409,11 +409,16 @@ class ConstantPropagation extends Transform with RegisteredTransform with Depend
         def <(that:  Range) = this.max < that.min
         def <=(that: Range) = this.max <= that.min
       }
+      // Padding increases the width but doesn't increase the range of values
+      def trueType(e: Expression): Type = e match {
+        case DoPrim(Pad, Seq(a), _, _) => a.tpe
+        case other => other.tpe
+      }
       def range(e: Expression): Range = e match {
         case UIntLiteral(value, _) => Range(value, value)
         case SIntLiteral(value, _) => Range(value, value)
         case _ =>
-          e.tpe match {
+          trueType(e) match {
             case SIntType(IntWidth(width)) =>
               Range(
                 min = BigInt(0) - BigInt(2).pow(width.toInt - 1),
