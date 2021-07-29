@@ -1230,13 +1230,11 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
     val child2MRef = CircuitTarget("Top").module("Top").instOf("c2", "Child").ref("m")
     val annos = Seq(
       AttributeAnnotation(child1MRef, desc)
-      //AttributeAnnotation(child2MRef, desc)
     )
 
     assertThrows[FirrtlUserException] {
       val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
       val output = finalState.getEmittedCircuit.value
-      println(output)
     }
   }
 
@@ -1309,13 +1307,11 @@ class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
       DocStringAnnotation(child1MRef, "line1"),
       DocStringAnnotation(child2MRef, "line2"),
       DocStringAnnotation(child1MRef, "line1")
-      //DocStringAnnotation(child2MRef, desc)
     )
 
     assertThrows[FirrtlUserException] {
       val finalState = compiler.compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos), Seq.empty)
       val output = finalState.getEmittedCircuit.value
-      //println(output)
     }
   }
 }

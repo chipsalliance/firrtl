@@ -515,7 +515,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
         val (_, _, target) = a.dedup.get
         if (!target.isLocal) {
           throw new FirrtlUserException(
-            "At least one memory annotation did not deduplicate: got non-local annotation $a from [[DedupAnnotationsTransform]]"
+            "At least one dedupable annotation did not deduplicate: got non-local annotation $a from [[DedupAnnotationsTransform]]"
           )
         }
       case _ =>
