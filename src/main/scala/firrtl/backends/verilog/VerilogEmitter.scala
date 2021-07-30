@@ -20,7 +20,7 @@ import firrtl.annotations.{
 import firrtl.passes.LowerTypes
 import firrtl.passes.MemPortUtils._
 import firrtl.stage.TransformManager
-import firrtl.transforms.{FixAddingNegativeLiterals, DedupAnnotationsTransform}
+import firrtl.transforms.{DedupAnnotationsTransform, FixAddingNegativeLiterals}
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
