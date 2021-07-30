@@ -20,7 +20,7 @@ import firrtl.annotations.{
 import firrtl.passes.LowerTypes
 import firrtl.passes.MemPortUtils._
 import firrtl.stage.TransformManager
-import firrtl.transforms.FixAddingNegativeLiterals
+import firrtl.transforms.{FixAddingNegativeLiterals, DedupAnnotationsTransform}
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -511,8 +511,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
     }
 
     annotations.foreach {
-      case a: Annotation if a.dedup.nonEmpty =>
-        val (_, _, target) = a.dedup.get
+      case a: Annotation if DedupAnnotationsTransform.dedupAnno(a).nonEmpty =>
+        val (_, _, target) = DedupAnnotationsTransform.dedupAnno(a).get
         if (!target.isLocal) {
           throw new FirrtlUserException(
             "At least one dedupable annotation did not deduplicate: got non-local annotation $a from [[DedupAnnotationsTransform]]"

@@ -18,7 +18,7 @@ import firrtl.analyses.InstanceKeyGraph
 import scala.collection.mutable.ArrayBuffer
 
 object DedupAnnotationsTransform {
-  private def dedupAnno(annotation: Annotation): Option[(Any, Annotation, ReferenceTarget)] = annotation match {
+  private[firrtl] def dedupAnno(annotation: Annotation): Option[(Any, Annotation, ReferenceTarget)] = annotation match {
     case a @ MemoryRandomInitAnnotation(target) =>
       Some(((target.pathlessTarget, Nil), a.copy(target = target.pathlessTarget), target))
     case a @ MemoryScalarInitAnnotation(target, value) =>
@@ -27,6 +27,14 @@ object DedupAnnotationsTransform {
       Some(((target.pathlessTarget, values), a.copy(target = target.pathlessTarget), target))
     case a @ MemoryFileInlineAnnotation(target, filename, hexOrBinary) =>
       Some(((target.pathlessTarget, filename), a.copy(target = target.pathlessTarget), target))
+    case a @ AttributeAnnotation(target: ReferenceTarget, desc) =>
+      Some(((target.pathlessTarget, desc), a.copy(target = target.pathlessTarget), target))
+    case a @ AttributeAnnotation(target: InstanceTarget, desc) =>
+      Some(((target.pathlessTarget, desc), a.copy(target = target.pathlessTarget), target.asReference))
+    case a @ DocStringAnnotation(target: ReferenceTarget, desc) =>
+      Some(((target.pathlessTarget, desc), a.copy(target = target.pathlessTarget), target))
+    case a @ DocStringAnnotation(target: InstanceTarget, desc) =>
+      Some(((target.pathlessTarget, desc), a.copy(target = target.pathlessTarget), target.asReference))
     case _ => None
   }
 
