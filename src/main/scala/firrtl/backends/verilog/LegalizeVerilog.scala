@@ -25,27 +25,7 @@ object LegalizeVerilog extends Pass {
     case SplitExpressions => true // we generate pad and bits operations inline which need to be split up
     case _                => false
   }
-  private def legalizeShiftRight(e: DoPrim): Expression = {
-    require(e.op == Shr)
-    e.args.head match {
-      case _: UIntLiteral | _: SIntLiteral => ConstantPropagation.foldShiftRight(e)
-      case _ =>
-        val amount = e.consts.head.toInt
-        val width = bitWidth(e.args.head.tpe)
-        lazy val msb = width - 1
-        if (amount >= width) {
-          e.tpe match {
-            case UIntType(_) => zero
-            case SIntType(_) =>
-              val bits = DoPrim(Bits, e.args, Seq(msb, msb), BoolType)
-              DoPrim(AsSInt, Seq(bits), Seq.empty, SIntType(IntWidth(1)))
-            case t => error(s"Unsupported type $t for Primop Shift Right")
-          }
-        } else {
-          e
-        }
-    }
-  }
+
   private def legalizeBitExtract(expr: DoPrim): Expression = {
     expr.args.head match {
       case _: UIntLiteral | _: SIntLiteral => ConstantPropagation.constPropBitExtract(expr)
@@ -73,7 +53,7 @@ object LegalizeVerilog extends Pass {
   private def onExpr(expr: Expression): Expression = expr.map(onExpr) match {
     case prim: DoPrim =>
       prim.op match {
-        case Shr                => legalizeShiftRight(prim)
+        case Shr                => ConstantPropagation.foldShiftRight(prim)
         case Bits | Head | Tail => legalizeBitExtract(prim)
         case Neg                => legalizeNeg(prim)
         case Rem                => prim.map(forceWidth(prim.args.map(getWidth).max))

@@ -124,11 +124,26 @@ object ConstantPropagation {
     case 0 => e.args.head
     case x =>
       e.args.head match {
-        // TODO when amount >= x.width, return a zero-width wire
         case UIntLiteral(v, IntWidth(w)) => UIntLiteral(v >> x, IntWidth((w - x).max(1)))
-        // take sign bit if shift amount is larger than arg width
         case SIntLiteral(v, IntWidth(w)) => SIntLiteral(v >> x, IntWidth((w - x).max(1)))
-        case _                           => e
+        // Handle non-literal arguments where shift is larger than width
+        case _ =>
+          val amount = e.consts.head.toInt
+          val width = bitWidth(e.args.head.tpe)
+          lazy val msb = width - 1
+          if (amount >= width) {
+            e.tpe match {
+              // When amount >= x.width, return a zero-width wire
+              case UIntType(_) => zero
+              // Take sign bit if shift amount is larger than arg width
+              case SIntType(_) =>
+                val bits = DoPrim(Bits, e.args, Seq(msb, msb), BoolType)
+                DoPrim(AsSInt, Seq(bits), Seq.empty, SIntType(IntWidth(1)))
+              case t => error(s"Unsupported type $t for Primop Shift Right")
+            }
+          } else {
+            e
+          }
       }
   }
 
@@ -412,7 +427,7 @@ class ConstantPropagation extends Transform with RegisteredTransform with Depend
       // Padding increases the width but doesn't increase the range of values
       def trueType(e: Expression): Type = e match {
         case DoPrim(Pad, Seq(a), _, _) => a.tpe
-        case other => other.tpe
+        case other                     => other.tpe
       }
       def range(e: Expression): Range = e match {
         case UIntLiteral(value, _) => Range(value, value)
