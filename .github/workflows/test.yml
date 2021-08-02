@@ -67,9 +67,8 @@ jobs:
   # TODO find better way to express Ops and AddNot as single test
   equiv:
     name: formal equivalence
-      # TODO this should be ==, but see what happens if it isn't
-    if: github.event_name != 'pull_request' &&
-        contains(github.event.pull_request.labels.*.name, 'Skip Formal CI')
+    if: github.event_name == 'pull_request' &&
+        ! contains(github.event.pull_request.labels.*.name, 'Skip Formal CI')
     runs-on: ubuntu-latest
     strategy:
       matrix:
