@@ -901,8 +901,6 @@ object Utils extends LazyLogging {
   def maskBigInt(value: BigInt, width: Int): BigInt = {
     value & ((BigInt(1) << width) - 1)
   }
-<<<<<<< HEAD
-=======
 
   /** Returns true iff the expression is a Literal or a Literal cast to a different type. */
   def isLiteral(e: Expression): Boolean = e match {
@@ -987,7 +985,6 @@ object Utils extends LazyLogging {
     /** Returns `UInt<1>(0)` */
     def apply(): UIntLiteral = _False
   }
->>>>>>> 04210ee3 (Dedup attribute annos (#2297))
 }
 
 object MemoizedHash {
