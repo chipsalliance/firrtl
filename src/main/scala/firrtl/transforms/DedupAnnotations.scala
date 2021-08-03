@@ -6,7 +6,7 @@ package transforms
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.options.Dependency
-import firrtl.Utils.BoolType
+import firrtl.Utils.{groupByIntoSeq, BoolType}
 import firrtl.annotations.Annotation
 import scala.collection.mutable.Buffer
 import firrtl.annotations.MemoryFileInlineAnnotation
@@ -18,7 +18,7 @@ import firrtl.analyses.InstanceKeyGraph
 import scala.collection.mutable.ArrayBuffer
 
 object DedupAnnotationsTransform {
-  private def dedupAnno(annotation: Annotation): Option[(Any, Annotation, ReferenceTarget)] = annotation match {
+  private[firrtl] def dedupAnno(annotation: Annotation): Option[(Any, Annotation, ReferenceTarget)] = annotation match {
     case a @ MemoryRandomInitAnnotation(target) =>
       Some(((target.pathlessTarget, Nil), a.copy(target = target.pathlessTarget), target))
     case a @ MemoryScalarInitAnnotation(target, value) =>
@@ -27,6 +27,14 @@ object DedupAnnotationsTransform {
       Some(((target.pathlessTarget, values), a.copy(target = target.pathlessTarget), target))
     case a @ MemoryFileInlineAnnotation(target, filename, hexOrBinary) =>
       Some(((target.pathlessTarget, filename), a.copy(target = target.pathlessTarget), target))
+    case a @ AttributeAnnotation(target: ReferenceTarget, desc) =>
+      Some(((target.pathlessTarget, desc), a.copy(target = target.pathlessTarget), target))
+    case a @ AttributeAnnotation(target: InstanceTarget, desc) =>
+      Some(((target.pathlessTarget, desc), a.copy(target = target.pathlessTarget), target.asReference))
+    case a @ DocStringAnnotation(target: ReferenceTarget, desc) =>
+      Some(((target.pathlessTarget, desc), a.copy(target = target.pathlessTarget), target))
+    case a @ DocStringAnnotation(target: InstanceTarget, desc) =>
+      Some(((target.pathlessTarget, desc), a.copy(target = target.pathlessTarget), target.asReference))
     case _ => None
   }
 
@@ -64,7 +72,7 @@ object DedupAnnotationsTransform {
     }
 
     // Partition the dedupable annotations into groups that *should* deduplicate into the same annotation
-    val shouldDedup: Map[Any, ArrayBuffer[DedupableRepr]] = canDedup.groupBy(_.dedupKey)
+    val shouldDedup: Seq[(Any, Seq[DedupableRepr])] = groupByIntoSeq(canDedup)(_.dedupKey)
     shouldDedup.foreach {
       case ((target: ReferenceTarget, _), dedupableAnnos) =>
         val originalAnnos = dedupableAnnos.map(_.original)
