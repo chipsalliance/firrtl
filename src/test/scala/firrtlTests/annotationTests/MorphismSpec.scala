@@ -51,10 +51,6 @@ class MorphismSpec extends AnyFlatSpec with Matchers {
 
   object StripDeleted extends Transform {
 
-    override def inputForm = UnknownForm
-
-    override def outputForm = UnknownForm
-
     override def execute(a: CircuitState): CircuitState = {
 
       val annotationsx = a.annotations.filter {

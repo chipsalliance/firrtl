@@ -13,10 +13,6 @@ import firrtl.{CircuitForm, CircuitState, Transform}
 )
 class IdentityTransform(form: CircuitForm) extends Transform {
 
-  final override def inputForm: CircuitForm = form
-
-  final override def outputForm: CircuitForm = form
-
   final def execute(state: CircuitState): CircuitState = state
 
 }

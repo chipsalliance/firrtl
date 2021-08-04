@@ -28,7 +28,7 @@ object CheckResets {
 // Must run after ExpandWhens
 // Requires
 //   - static single connections of ground types
-class CheckResets extends Transform with DependencyAPIMigration {
+class CheckResets extends Transform {
 
   override def prerequisites =
     Seq(
