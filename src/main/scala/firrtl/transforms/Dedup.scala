@@ -13,6 +13,7 @@ import firrtl.Utils.{kind, splitRef, throwInternalError}
 import firrtl.annotations.transforms.DupedResult
 import firrtl.annotations.TargetToken.{Instance, OfModule}
 import firrtl.options.{HasShellOptions, ShellOption}
+import firrtl.renamemap.MutableRenameMap
 import logger.LazyLogging
 
 import scala.annotation.tailrec
@@ -123,7 +124,7 @@ class DedupModules extends Transform with DependencyAPIMigration {
   ): (Circuit, RenameMap, AnnotationSeq) = {
 
     // RenameMap
-    val componentRenameMap = RenameMap()
+    val componentRenameMap = MutableRenameMap()
     componentRenameMap.setCircuit(c.main)
 
     // Maps module name to corresponding dedup module
@@ -161,12 +162,12 @@ class DedupModules extends Transform with DependencyAPIMigration {
         logger.debug(s"[Dedup] $from -> ${to.name}")
         ct.module(from).asInstanceOf[CompleteTarget] -> Seq(ct.module(to.name))
     }
-    val moduleRenameMap = RenameMap()
+    val moduleRenameMap = MutableRenameMap()
     moduleRenameMap.recordAll(map)
 
     // Build instanceify renaming map
     val instanceGraph = InstanceKeyGraph(c)
-    val instanceify = RenameMap()
+    val instanceify = MutableRenameMap()
     val moduleName2Index = c.modules
       .map(_.name)
       .zipWithIndex
@@ -353,7 +354,7 @@ object DedupModules extends LazyLogging {
     originalModule: String,
     moduleMap:      Map[String, DefModule],
     name2name:      Map[String, String],
-    renameMap:      RenameMap
+    renameMap:      MutableRenameMap
   ): DefModule = {
     val module = moduleMap(originalModule)
 
@@ -481,7 +482,7 @@ object DedupModules extends LazyLogging {
     }
 
     val tag2all = hashToNames.map { case (hash, names) => hashToTag(hash) -> names.toSet }
-    val tagMap = RenameMap()
+    val tagMap = MutableRenameMap()
     moduleNameToTag.foreach { case (name, tag) => tagMap.record(top.module(name), top.module(tag)) }
     (tag2all, tagMap)
   }
@@ -496,7 +497,7 @@ object DedupModules extends LazyLogging {
     circuit:            Circuit,
     noDedups:           Set[String],
     previousDupResults: Map[String, String],
-    renameMap:          RenameMap
+    renameMap:          MutableRenameMap
   ): Map[String, DefModule] = {
 
     val (moduleMap, moduleLinearization) = {
@@ -590,7 +591,7 @@ object DedupModules extends LazyLogging {
   def computeRenameMap(
     originalNames: IndexedSeq[ReferenceTarget],
     dedupedNames:  IndexedSeq[ReferenceTarget],
-    renameMap:     RenameMap
+    renameMap:     MutableRenameMap
   ): Unit = {
 
     originalNames.zip(dedupedNames).foreach {

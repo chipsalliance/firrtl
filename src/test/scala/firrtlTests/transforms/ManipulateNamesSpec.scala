@@ -5,6 +5,7 @@ package firrtlTests.transforms
 import firrtl.{ir, CircuitState, FirrtlUserException, Namespace, Parser, RenameMap}
 import firrtl.annotations.CircuitTarget
 import firrtl.options.Dependency
+import firrtl.renamemap.MutableRenameMap
 import firrtl.testutils.FirrtlCheckers._
 import firrtl.transforms.{
   ManipulateNames,
@@ -210,7 +211,7 @@ class ManipulateNamesSpec extends AnyFlatSpec with Matchers {
       oldTargets = Seq(Seq(`~Foo|Bar`))
     )
 
-    val r = RenameMap()
+    val r = MutableRenameMap()
     r.delete(`~Foo|prefix_Bar`)
 
     a.update(r) should be(empty)
@@ -228,7 +229,7 @@ class ManipulateNamesSpec extends AnyFlatSpec with Matchers {
       oldTargets = Seq(Seq(`~Foo|Bar`), Seq(`~Foo|Baz`))
     )
 
-    val r = RenameMap()
+    val r = MutableRenameMap()
     r.delete(`~Foo|prefix_Bar`)
 
     val ax = a.update(r).collect {
@@ -237,10 +238,9 @@ class ManipulateNamesSpec extends AnyFlatSpec with Matchers {
 
     ax should not be length(1)
 
-    val keys = ax.head.toRenameMap.getUnderlying.keys
-
-    keys should not contain (`~Foo|Bar`)
-    keys should contain(`~Foo|Baz`)
+    val renameMap = ax.head.toRenameMap
+    renameMap.get(`~Foo|Bar`) should be(None)
+    renameMap.get(`~Foo|Baz`) shouldBe an[Some[_]] // using `an` because `a` is a val above
   }
 
 }

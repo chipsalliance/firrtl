@@ -5,6 +5,7 @@ import firrtl.annotations.{CircuitTarget, IsMember}
 import firrtl.annotations.TargetToken.{Instance, OfModule}
 import firrtl.analyses.InstanceKeyGraph
 import firrtl.{CircuitState, RenameMap, Utils}
+import firrtl.renamemap.MutableRenameMap
 import firrtl.options.Dependency
 import firrtl.stage.TransformManager
 import firrtl.stage.TransformManager.TransformDependency
@@ -149,7 +150,7 @@ class LowerTypesRenamingSpec extends AnyFlatSpec {
 
   it should "not rename ground types" in {
     val r = lower("a", "UInt<1>")
-    assert(r.underlying.isEmpty)
+    assert(r.isEmpty)
   }
 
   it should "properly rename lowered bundles and vectors" in {
@@ -252,7 +253,7 @@ class LowerTypesOfInstancesSpec extends AnyFlatSpec with FirrtlMatchers {
     tpe:          String,
     module:       String,
     namespace:    Set[String],
-    otherRenames: RenameMap = RenameMap()
+    otherRenames: RenameMap = MutableRenameMap()
   ): Lower = {
     val ref = firrtl.ir.DefInstance(firrtl.ir.NoInfo, n, module, parseType(tpe))
     val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
@@ -266,7 +267,7 @@ class LowerTypesOfInstancesSpec extends AnyFlatSpec with FirrtlMatchers {
 
   it should "not rename instances if the instance name does not change" in {
     val l = lower("i", "{ a : UInt<1>}", "c", Set())
-    assert(l.renameMap.underlying.isEmpty)
+    assert(l.renameMap.isEmpty)
   }
 
   it should "lower an instance correctly" in {
@@ -298,8 +299,8 @@ class LowerTypesOfInstancesSpec extends AnyFlatSpec with FirrtlMatchers {
       // This is to accommodate the use-case where a port as well as an instance needs to be renames
       // thus requiring a two-stage translation process for reference to the port of the instance.
       // This two-stage translation is only supported through chaining rename maps.
-      val portRenames = RenameMap()
-      val otherRenames = RenameMap()
+      val portRenames = MutableRenameMap()
+      val otherRenames = MutableRenameMap()
 
       // The child module "c" which we assume has the following ports: b : { c : UInt<1>} and b_c : UInt<1>
       val c = CircuitTarget("m").module("c")
@@ -362,7 +363,7 @@ class LowerTypesOfMemorySpec extends AnyFlatSpec {
       writers = w,
       readwriters = rw
     )
-    val renames = RenameMap()
+    val renames = MutableRenameMap()
     val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
     val (mems, refs) = DestructTypes.destructMemory(m, mem, mutableSet, renames, Set())
     Lower(mems, refs, renames)
@@ -371,7 +372,7 @@ class LowerTypesOfMemorySpec extends AnyFlatSpec {
 
   it should "not rename anything for a ground type memory if there was no conflict" in {
     val l = lower("mem", "UInt<1>", Set("mem_r", "mem_r_data"), w = Seq("w"))
-    assert(l.renameMap.underlying.isEmpty)
+    assert(l.renameMap.isEmpty)
   }
 
   it should "still produce reference lookups, even for a ground type memory with no conflicts" in {
@@ -417,7 +418,7 @@ class LowerTypesOfMemorySpec extends AnyFlatSpec {
   it should "not rename ground type memories even if there are conflicts on the ports" in {
     // There actually isn't such a thing as conflicting ports, because they do not get flattened by LowerTypes.
     val r = lower("mem", "UInt<1>", Set("mem_r", "mem_r_data"), w = Seq("r_data")).renameMap
-    assert(r.underlying.isEmpty)
+    assert(r.isEmpty)
   }
 
   it should "rename references to lowered ports" in {
@@ -474,9 +475,11 @@ class LowerTypesOfMemorySpec extends AnyFlatSpec {
     // mem.w.data.{a,b} -> mem__{a,b}.w.data
     // mem.w.mask.{a,b} -> mem__{a,b}.w.mask
     // mem.r_data.data.{a,b} -> mem__{a,b}.r_data.data
-    val renameCount = r.underlying.map(_._2.size).sum
+    // TODO This is not a great way to test this behavior since underlying really should not be public
+    val underlying = r.asInstanceOf[MutableRenameMap].underlying
+    val renameCount = underlying.map(_._2.size).sum
     assert(renameCount == 10, "it is enough to rename *to* 10 different signals")
-    assert(r.underlying.size == 9, "it is enough to rename (from) 9 different signals")
+    assert(underlying.size == 9, "it is enough to rename (from) 9 different signals")
   }
 
   it should "rename references for a memory with a nested data type" in {
@@ -522,9 +525,11 @@ class LowerTypesOfMemorySpec extends AnyFlatSpec {
         Set(m.ref("mem__b_c").field("w").field("mask"))
     )
 
-    val renameCount = r.underlying.map(_._2.size).sum
+    // TODO This is not a great way to test this behavior since underlying really should not be public
+    val underlying = r.asInstanceOf[MutableRenameMap].underlying
+    val renameCount = underlying.map(_._2.size).sum
     assert(renameCount == 11, "it is enough to rename *to* 11 different signals")
-    assert(r.underlying.size == 10, "it is enough to rename (from) 10 different signals")
+    assert(underlying.size == 10, "it is enough to rename (from) 10 different signals")
   }
 
   it should "return a name to RefLikeExpression map for a memory with a nested data type" in {
@@ -637,9 +642,11 @@ class LowerTypesOfMemorySpec extends AnyFlatSpec {
         Set(m.ref("mem__1").field("r").field("data"))
     )
 
-    val renameCount = r.underlying.map(_._2.size).sum
+    // TODO This is not a great way to test this behavior since underlying really should not be public
+    val underlying = r.asInstanceOf[MutableRenameMap].underlying
+    val renameCount = underlying.map(_._2.size).sum
     assert(renameCount == 8, "it is enough to rename *to* 8 different signals")
-    assert(r.underlying.size == 7, "it is enough to rename (from) 7 different signals")
+    assert(underlying.size == 7, "it is enough to rename (from) 7 different signals")
   }
 
 }
@@ -658,7 +665,7 @@ private object LowerTypesSpecUtils {
   case class DestructResult(fields: Seq[String], renameMap: RenameMap)
   def destruct(n: String, tpe: String, namespace: Set[String]): DestructResult = {
     val ref = firrtl.ir.Field(n, firrtl.ir.Default, parseType(tpe))
-    val renames = RenameMap()
+    val renames = MutableRenameMap()
     val mutableSet = scala.collection.mutable.HashSet[String]() ++ namespace
     val res = DestructTypes.destruct(m, ref, mutableSet, renames, Set())
     DestructResult(resultToFieldSeq(res), renames)

@@ -10,6 +10,7 @@ import firrtl.Mappers._
 import firrtl.options.Dependency
 
 import MemPortUtils.memType
+import firrtl.renamemap.MutableRenameMap
 
 /** Resolve name collisions that would occur in the old [[LowerTypes]] pass
   *
@@ -217,7 +218,7 @@ object Uniquify extends Transform with DependencyAPIMigration {
   )
   def execute(state: CircuitState): CircuitState = {
     val c = state.circuit
-    val renames = RenameMap()
+    val renames = MutableRenameMap()
     renames.setCircuit(c.main)
     // Debug state
     implicit var mname: String = ""
@@ -226,7 +227,7 @@ object Uniquify extends Transform with DependencyAPIMigration {
     val portNameMap = collection.mutable.HashMap[String, Map[String, NameMapNode]]()
     val portTypeMap = collection.mutable.HashMap[String, Type]()
 
-    def uniquifyModule(renames: RenameMap)(m: DefModule): DefModule = {
+    def uniquifyModule(renames: MutableRenameMap)(m: DefModule): DefModule = {
       renames.setModule(m.name)
       val namespace = collection.mutable.HashSet[String]()
       val nameMap = collection.mutable.HashMap[String, NameMapNode]()
@@ -334,7 +335,7 @@ object Uniquify extends Transform with DependencyAPIMigration {
       }
     }
 
-    def uniquifyPorts(renames: RenameMap)(m: DefModule): DefModule = {
+    def uniquifyPorts(renames: MutableRenameMap)(m: DefModule): DefModule = {
       renames.setModule(m.name)
       def uniquifyPorts(ports: Seq[Port]): Seq[Port] = {
         val portsType = BundleType(ports.map {

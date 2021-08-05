@@ -15,6 +15,7 @@ import scala.collection.mutable
 import AnalysisUtils._
 import MemPortUtils._
 import ResolveMaskGranularity._
+import firrtl.renamemap.MutableRenameMap
 
 /**
   * Lowers memories without splitting them, but without the complexity of ReplaceMemMacros
@@ -29,7 +30,7 @@ class SimplifyMems extends Transform with DependencyAPIMigration {
     case _          => false
   }
 
-  def onModule(c: Circuit, renames: RenameMap)(m: DefModule): DefModule = {
+  def onModule(c: Circuit, renames: MutableRenameMap)(m: DefModule): DefModule = {
     val moduleNS = Namespace(m)
     val connects = getConnects(m)
     val memAdapters = new mutable.LinkedHashMap[String, DefWire]
@@ -86,7 +87,7 @@ class SimplifyMems extends Transform with DependencyAPIMigration {
 
   override def execute(state: CircuitState): CircuitState = {
     val c = state.circuit
-    val renames = RenameMap()
+    val renames = MutableRenameMap()
     state.copy(circuit = c.map(onModule(c, renames)), renames = Some(renames))
   }
 }
