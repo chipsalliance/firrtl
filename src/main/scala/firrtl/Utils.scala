@@ -355,6 +355,7 @@ object Utils extends LazyLogging {
     onExp(expression)
     ReferenceTarget(main, module, Nil, ref, tokens.toSeq)
   }
+
   @deprecated("get_flip is fundamentally slow, use to_flip(flow(expr))", "FIRRTL 1.2")
   def get_flip(t: Type, i: Int, f: Orientation): Orientation = {
     if (i >= get_size(t)) throwInternalError(s"get_flip: shouldn't be here - $i >= get_size($t)")
@@ -964,6 +965,17 @@ object Utils extends LazyLogging {
   def mux(cond: Expression, tval: Expression, fval: Expression): Expression = {
     require(tval.tpe == fval.tpe)
     Mux(cond, tval, fval, tval.tpe)
+  }
+
+  /** Similar to Seq.groupBy except that it preserves ordering of elements within each group */
+  def groupByIntoSeq[A, K](xs: Iterable[A])(f: A => K): Seq[(K, Seq[A])] = {
+    val map = mutable.LinkedHashMap.empty[K, mutable.ListBuffer[A]]
+    for (x <- xs) {
+      val key = f(x)
+      val l = map.getOrElseUpdate(key, mutable.ListBuffer.empty[A])
+      l += x
+    }
+    map.view.map({ case (k, vs) => k -> vs.toList }).toList
   }
 
   object True {
