@@ -21,7 +21,7 @@ object CommonSubexpressionElimination extends Transform with HasShellOptions wit
 
   val options = Seq(
     new ShellOption[Unit](
-      longOption = "no-common-subexpression-elimination",
+      longOption = "no-cse",
       toAnnotationSeq = _ => Seq(NoCommonSubexpressionElimination),
       helpText = "Disable common subexpression elimination"
     )
