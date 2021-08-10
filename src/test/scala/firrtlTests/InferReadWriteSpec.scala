@@ -97,12 +97,15 @@ circuit sram6t :
     when _T_16 :
       wire _T_18 : UInt
       _T_18 is invalid
+      wire _T_23 : UInt<32>
+      _T_23 is invalid
       when io.ren :
         _T_18 <= io.addr
         node _T_20 = or(_T_18, UInt<11>("h0"))
         node _T_21 = bits(_T_20, 10, 0)
         read mport _T_22 = mem[_T_21], clock
-      io.dataOut <= _T_22
+        _T_23 <= _T_22
+      io.dataOut <= _T_23
 """.stripMargin
 
     val annos = Seq(memlib.InferReadWriteAnnotation)
@@ -164,12 +167,15 @@ circuit sram6t :
     when _T_16 :
       wire _T_18 : UInt
       _T_18 is invalid
+      wire _T_23 : UInt<32>
+      _T_23 is invalid
       when ren :
         _T_18 <= io.addr
         node _T_20 = or(_T_18, UInt<11>("h0"))
         node _T_21 = bits(_T_20, 10, 0)
         read mport _T_22 = mem[_T_21], clock
-      io.dataOut <= _T_22
+        _T_23 <= _T_22
+      io.dataOut <= _T_23
 """.stripMargin
 
     val annos = Seq(memlib.InferReadWriteAnnotation)
