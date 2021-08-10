@@ -6,6 +6,7 @@ import org.scalatest._
 import firrtl.{CircuitState, Parser, Transform, UnknownForm}
 import firrtl.ir.Circuit
 import firrtl.passes.{
+  CheckChirrtl,
   CheckFlows,
   CheckHighForm,
   CheckTypes,
@@ -28,6 +29,8 @@ class CheckSpec extends AnyFlatSpec with Matchers {
       p.run(c)
     }
   }
+  def checkChirrtlInput(input: String) =
+    CheckChirrtl.run(Parser.parse(input.split("\n").toIterator))
 
   "CheckHighForm" should "disallow Chirrtl-style memories" in {
     val input =
@@ -466,6 +469,28 @@ class CheckSpec extends AnyFlatSpec with Matchers {
     assertThrows[CheckHighForm.UndeclaredReferenceException] {
       checkHighInput(input)
     }
+  }
+
+  "Conditionally statements" should "create a new scope for mports" in {
+    val input =
+      s"""|circuit Bar :
+          |  module Bar :
+          |    input clock: Clock
+          |    input addr: UInt<3>
+          |    input cond: UInt<1>
+          |    output out: UInt<1>
+          |
+          |    smem mem : UInt<1>[8]
+          |
+          |    when cond:
+          |      infer mport r = mem[addr], clock
+          |
+          |    out <= r
+          |""".stripMargin
+    assertThrows[CheckHighForm.UndeclaredReferenceException] {
+      checkChirrtlInput(input)
+    }
+
   }
 
   "Attempting to shadow a component name" should "throw an error" in {
