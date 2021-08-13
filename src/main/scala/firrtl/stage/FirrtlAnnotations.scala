@@ -5,6 +5,7 @@ package firrtl.stage
 import firrtl._
 import firrtl.ir.Circuit
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
+import firrtl.backends.experimental.rtlil.RtlilEmitter
 import firrtl.options.{Dependency, HasShellOptions, OptionsException, ShellOption, Unserializable}
 import java.io.{File, FileNotFoundException}
 import java.nio.file.{NoSuchFileException, NotDirectoryException}
@@ -229,6 +230,7 @@ object RunFirrtlTransformAnnotation extends HasShellOptions {
       case "verilog"  => new VerilogEmitter
       case "mverilog" => new MinimumVerilogEmitter
       case "sverilog" => new SystemVerilogEmitter
+      case "experimental-rtlil" => RtlilEmitter
       case _          => throw new OptionsException(s"Unknown compiler name '$a'! (Did you misspell it?)")
     }
     RunFirrtlTransformAnnotation(emitter)
