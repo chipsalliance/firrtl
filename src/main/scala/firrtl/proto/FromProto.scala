@@ -33,6 +33,30 @@ object FromProto {
     proto.FromProto.convert(pb)
   }
 
+  /** Deserialize all the ProtoBuf representations of [[ir.Circuit]] in @directory
+    *
+    * @param dir directory containing ProtoBuf representation(s)
+    * @return Deserialized FIRRTL Circuit
+    */
+  def fromDirectory(dir: String): ir.Circuit = {
+    val d = new File(dir)
+    val fileList = if (d.exists && d.isDirectory) {
+      d.listFiles.filter(_.isFile).toList
+    } else {
+      List[File]()
+    }
+
+    val circuits = fileList.map(f => fromInputStream(new FileInputStream(f)))
+    val tops = circuits.map(c => c.main).distinct
+
+    require(tops.length == 1, "Not all multi-ProtoBufs point to the same top")
+
+    // Concatenate all modules together
+    val modules = circuits.flatMap(c => c.modules).distinct
+
+    ir.Circuit(ir.NoInfo, modules, tops.head)
+  }
+
   // Convert from ProtoBuf message repeated Statements to FIRRRTL Block
   private def compressStmts(stmts: scala.collection.Seq[ir.Statement]): ir.Statement = stmts match {
     case scala.collection.Seq()     => ir.EmptyStmt
