@@ -3,8 +3,9 @@
 package firrtl.backends.experimental.smt.end2end
 
 import firrtl.annotations.{Annotation, CircuitTarget, PresetAnnotation}
+import firrtl.backends.experimental.smt.random.{InvalidToRandomPass, UndefinedMemoryBehaviorPass}
 import firrtl.backends.experimental.smt.{Btor2Emitter, SMTLibEmitter}
-import firrtl.options.TargetDirAnnotation
+import firrtl.options.{Dependency, TargetDirAnnotation}
 import firrtl.stage.{FirrtlCircuitAnnotation, FirrtlStage, OutputFileAnnotation, RunFirrtlTransformAnnotation}
 import firrtl.util.BackendCompilationUtilities.timeStamp
 import logger.{LazyLogging, LogLevel, LogLevelAnnotation}
@@ -145,8 +146,8 @@ abstract class EndToEndSMTBaseSpec extends AnyFlatSpec with Matchers {
       Array(),
       Seq(
         LogLevelAnnotation(LogLevel.Error), // silence warnings for tests
-        RunFirrtlTransformAnnotation(new SMTLibEmitter),
-        RunFirrtlTransformAnnotation(new Btor2Emitter),
+        RunFirrtlTransformAnnotation(Dependency(SMTLibEmitter)),
+        RunFirrtlTransformAnnotation(Dependency(Btor2Emitter)),
         FirrtlCircuitAnnotation(fir),
         TargetDirAnnotation(testDir.toString)
       ) ++ presetAnno ++ annos
@@ -155,6 +156,9 @@ abstract class EndToEndSMTBaseSpec extends AnyFlatSpec with Matchers {
     val r = Z3ModelChecker.bmc(testDir, name, kmax)
     assert(r == expected, clue + "\n" + s"$testDir")
   }
+
+  val UndefinedMemAnnos = Seq(RunFirrtlTransformAnnotation(Dependency(UndefinedMemoryBehaviorPass)))
+  val InvalidToRandomAnnos = Seq(RunFirrtlTransformAnnotation(Dependency(InvalidToRandomPass)))
 }
 
 /** Minimal implementation of a Z3 based bounded model checker.
