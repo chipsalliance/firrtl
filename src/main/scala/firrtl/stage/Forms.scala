@@ -138,7 +138,7 @@ object Forms {
       Dependency[SystemVerilogEmitter],
       Dependency(SMTLibEmitter),
       Dependency(Btor2Emitter),
-      Dependency(RtlilEmitter)
+      Dependency[RtlilEmitter]
     )
 
   val LowEmitters = Dependency[LowFirrtlEmitter] +: BackendEmitters

@@ -61,8 +61,8 @@ object EmitCircuitAnnotation extends HasShellOptions {
             Seq(RunFirrtlTransformAnnotation(Dependency(Btor2Emitter)), EmitCircuitAnnotation(Btor2Emitter.getClass))
           case "experimental-smt2" | "smt2" =>
             Seq(RunFirrtlTransformAnnotation(Dependency(SMTLibEmitter)), EmitCircuitAnnotation(SMTLibEmitter.getClass))
-          case "experimental-rtlil" | "rtlil" =>
-            Seq(RunFirrtlTransformAnnotation(Dependency(RtlilEmitter)), EmitCircuitAnnotation(RtlilEmitter.getClass))
+          case "experimental-rtlil" =>
+            Seq(RunFirrtlTransformAnnotation(Dependency[RtlilEmitter]), EmitCircuitAnnotation(classOf[RtlilEmitter]))
           case _ => throw new PhaseException(s"Unknown emitter '$a'! (Did you misspell it?)")
         },
       helpText = "Run the specified circuit emitter (all modules in one file)",
@@ -149,8 +149,8 @@ object EmitAllModulesAnnotation extends HasShellOptions {
               RunFirrtlTransformAnnotation(new SystemVerilogEmitter),
               EmitAllModulesAnnotation(classOf[SystemVerilogEmitter])
             )
-          case "experimental-rtlil" | "rtlil" =>
-            Seq(RunFirrtlTransformAnnotation(Dependency(RtlilEmitter)), EmitCircuitAnnotation(RtlilEmitter.getClass))
+          case "experimental-rtlil" =>
+            Seq(RunFirrtlTransformAnnotation(Dependency[RtlilEmitter]), EmitAllModulesAnnotation(classOf[RtlilEmitter]))
           case _ => throw new PhaseException(s"Unknown emitter '$a'! (Did you misspell it?)")
         },
       helpText = "Run the specified module emitter (one file per module)",
@@ -251,6 +251,5 @@ case class EmittedVerilogModuleAnnotation(value: EmittedVerilogModule)
 final case class EmittedRtlilCircuit(name: String, value: String, outputSuffix: String) extends EmittedCircuit
 final case class EmittedRtlilModule(name: String, value: String, outputSuffix: String) extends EmittedModule
 case class EmittedRtlilCircuitAnnotation(value: EmittedRtlilCircuit)
-  extends EmittedCircuitAnnotation[EmittedRtlilCircuit]
-case class EmittedRtlilModuleAnnotation(value: EmittedRtlilModule)
-  extends EmittedModuleAnnotation[EmittedRtlilModule]
+    extends EmittedCircuitAnnotation[EmittedRtlilCircuit]
+case class EmittedRtlilModuleAnnotation(value: EmittedRtlilModule) extends EmittedModuleAnnotation[EmittedRtlilModule]

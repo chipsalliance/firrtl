@@ -66,8 +66,8 @@ class CombineCats extends Transform with DependencyAPIMigration {
       Dependency(firrtl.passes.SplitExpressions)
     )
 
-  override def optionalPrerequisites = Seq(Dependency(firrtl.passes.memlib.VerilogMemDelays),
-                                           Dependency[firrtl.transforms.ConstantPropagation])
+  override def optionalPrerequisites =
+    Seq(Dependency(firrtl.passes.memlib.VerilogMemDelays), Dependency[firrtl.transforms.ConstantPropagation])
 
   override def optionalPrerequisiteOf = Seq(Dependency[SystemVerilogEmitter], Dependency[VerilogEmitter])
 
