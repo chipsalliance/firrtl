@@ -756,7 +756,7 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
               }
 
             case MemoryScalarInit(value) =>
-              for (addr <- (0 until depth.intValue())) {
+              for (addr <- (0 until depth.intValue)) {
                 initials ++= emit_cell(
                   i,
                   "$meminit_v2",
