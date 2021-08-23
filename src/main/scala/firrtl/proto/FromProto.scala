@@ -9,6 +9,7 @@ import collection.JavaConverters._
 import FirrtlProtos._
 import com.google.protobuf.CodedInputStream
 import Firrtl.Statement.{Formal, ReadUnderWrite}
+import firrtl.ir.DefModule
 
 object FromProto {
 

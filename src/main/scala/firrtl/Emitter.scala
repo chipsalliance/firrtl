@@ -158,8 +158,9 @@ object EmitAllModulesAnnotation extends HasShellOptions {
         a match {
           case "chirrtl" =>
             Seq(
-              RunFirrtlTransformAnnotation(new ProtoEmitter.Chirrtl), 
-              EmitAllModulesAnnotation(classOf[ProtoEmitter.Chirrtl]))
+              RunFirrtlTransformAnnotation(new ProtoEmitter.Chirrtl),
+              EmitAllModulesAnnotation(classOf[ProtoEmitter.Chirrtl])
+            )
           case "mhigh" =>
             Seq(
               RunFirrtlTransformAnnotation(new ProtoEmitter.MHigh),
@@ -176,10 +177,7 @@ object EmitAllModulesAnnotation extends HasShellOptions {
               EmitAllModulesAnnotation(classOf[ProtoEmitter.Middle])
             )
           case "low" =>
-            Seq(
-              RunFirrtlTransformAnnotation(new ProtoEmitter.Low),
-              EmitAllModulesAnnotation(classOf[ProtoEmitter.Low]
-            ))
+            Seq(RunFirrtlTransformAnnotation(new ProtoEmitter.Low), EmitAllModulesAnnotation(classOf[ProtoEmitter.Low]))
           case "low-opt" =>
             Seq(
               RunFirrtlTransformAnnotation(new ProtoEmitter.OptLow),

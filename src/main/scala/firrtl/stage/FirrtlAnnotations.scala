@@ -6,7 +6,7 @@ import firrtl._
 import firrtl.ir.Circuit
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
 import firrtl.options.{Dependency, HasShellOptions, OptionsException, ShellOption, Unserializable}
-import java.io.FileNotFoundException
+import java.io.{File, FileNotFoundException}
 import java.nio.file.NoSuchFileException
 
 import firrtl.stage.TransformManager.TransformDependency
@@ -59,6 +59,40 @@ object FirrtlFileAnnotation extends HasShellOptions {
       helpText = "An input FIRRTL file",
       shortOption = Some("i"),
       helpValueName = Some("<file>")
+    )
+  )
+
+}
+
+/** Read a directory of FIRRTL files or ProtoBufs
+  *  - set with `-I/--input-directory`
+  *  - If unset, an [[FirrtlFileAnnotation]] with the default input file __will not be generated__
+  * @param file input filename
+  */
+case class FirrtlDirectoryAnnotation(dir: String) extends NoTargetAnnotation with CircuitOption {
+
+  def toCircuit(info: Parser.InfoMode): FirrtlCircuitAnnotation = {
+    val circuit =
+      try {
+        proto.FromProto.fromDirectory(dir)
+      } catch {
+        case a @ (_: FileNotFoundException | _: NoSuchFileException) =>
+          throw new OptionsException(s"Directory '$dir' not found! (Did you misspell it?)", a)
+      }
+    FirrtlCircuitAnnotation(circuit)
+  }
+
+}
+
+object FirrtlDirectoryAnnotation extends HasShellOptions {
+
+  val options = Seq(
+    new ShellOption[String](
+      longOption = "input-directory",
+      toAnnotationSeq = a => Seq(FirrtlDirectoryAnnotation(a)),
+      helpText = "A directory of FIRRTL files",
+      shortOption = Some("I"),
+      helpValueName = Some("<directory>")
     )
   )
 
