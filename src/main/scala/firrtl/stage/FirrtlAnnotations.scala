@@ -66,7 +66,6 @@ object FirrtlFileAnnotation extends HasShellOptions {
 
 /** Read a directory of FIRRTL files or ProtoBufs
   *  - set with `-I/--input-directory`
-  *  - If unset, an [[FirrtlFileAnnotation]] with the default input file __will not be generated__
   * @param file input filename
   */
 case class FirrtlDirectoryAnnotation(dir: String) extends NoTargetAnnotation with CircuitOption {
