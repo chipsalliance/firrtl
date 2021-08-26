@@ -252,8 +252,6 @@ class ZeroWidthTests extends FirrtlFlatSpec {
         |    input y : SInt<1>
         |    output z : SInt<1>
         |    z <= y""".stripMargin
-    println(parse(exec(input)).serialize)
-    println(parse(check).serialize)
     (parse(exec(input))) should be(parse(check))
   }
 
