@@ -10,6 +10,7 @@ import FirrtlProtos._
 import com.google.protobuf.CodedInputStream
 import Firrtl.Statement.{Formal, ReadUnderWrite}
 import firrtl.ir.DefModule
+import Utils.combine
 
 object FromProto {
 
@@ -47,15 +48,7 @@ object FromProto {
       List[File]()
     }
 
-    val circuits = fileList.map(f => fromInputStream(new FileInputStream(f)))
-    val tops = circuits.map(c => c.main).distinct
-
-    require(tops.length == 1, "Not all multi-ProtoBufs point to the same top")
-
-    // Concatenate all modules together
-    val modules = circuits.flatMap(c => c.modules).distinct
-
-    ir.Circuit(ir.NoInfo, modules, tops.head)
+    combine(fileList.map(f => fromInputStream(new FileInputStream(f))))
   }
 
   // Convert from ProtoBuf message repeated Statements to FIRRRTL Block

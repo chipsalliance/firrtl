@@ -978,6 +978,37 @@ object Utils extends LazyLogging {
     map.view.map({ case (k, vs) => k -> vs.toList }).toList
   }
 
+  /** Combines several separate circuit modules (typically emitted by -e or -p compiler options) into a single circuit */
+  def combine(circuits: Seq[Circuit]): Circuit = {
+    def dedup(modules: Seq[DefModule]): Seq[Either[Module, DefModule]] = {
+      // Left means "lone module", Right means has ExtModules
+      val module: Option[Module] = {
+        val found: Seq[Module] = modules.collect { case m: Module => m }
+        assert(found.size <= 1)
+        found.headOption
+      }
+      val extModules: Seq[ExtModule] = modules.collect { case e: ExtModule => e }.distinct
+
+      if (extModules.isEmpty) Seq(Left(module.get)) else (module ++: extModules).map(Right(_))
+    }
+
+    // 1. Combine modules
+    val grouped: Seq[(String, Seq[DefModule])] = groupByIntoSeq(circuits.flatMap(_.modules))({
+      case mod: Module    => mod.name
+      case ext: ExtModule => ext.defname
+    })
+    val deduped: Iterable[Either[Module, DefModule]] = grouped.flatMap { case (_, insts) => dedup(insts) }
+
+    // 2. Determine top
+    val top = {
+      val found = deduped.collect { case Left(m) => m }
+      assert(found.size == 1)
+      found.head
+    }
+    val res = deduped.collect { case Right(m: Module) => m }
+    ir.Circuit(NoInfo, top +: res.toSeq, top.name)
+  }
+
   object True {
     private val _True = UIntLiteral(1, IntWidth(1))
 

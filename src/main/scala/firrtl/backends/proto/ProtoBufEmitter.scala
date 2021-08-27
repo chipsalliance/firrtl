@@ -69,7 +69,7 @@ sealed abstract class ProtoBufEmitter(prereqs: Seq[TransformDependency])
       def onStmt(stmt: Statement): Unit = stmt match {
         case DefInstance(_, _, name, _) => modules += map(name)
         case _: WDefInstanceConnector => throwInternalError(s"unrecognized statement: $stmt")
-        case other => other.foreach(onStmt)
+        case other => other.foreachStmt(onStmt)
       }
       onStmt(mod.body)
       modules.distinct.toSeq
