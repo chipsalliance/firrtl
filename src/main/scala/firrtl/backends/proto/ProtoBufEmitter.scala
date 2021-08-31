@@ -9,6 +9,7 @@ import firrtl.options.Viewer.view
 import firrtl.proto.ToProto
 import firrtl.stage.{FirrtlOptions, Forms}
 import firrtl.stage.TransformManager.TransformDependency
+import firrtl.traversals.Foreachers._
 import java.io.{ByteArrayOutputStream, Writer}
 import scala.collection.mutable.ArrayBuffer
 import Utils.throwInternalError
@@ -69,7 +70,7 @@ sealed abstract class ProtoBufEmitter(prereqs: Seq[TransformDependency])
       def onStmt(stmt: Statement): Unit = stmt match {
         case DefInstance(_, _, name, _) => modules += map(name)
         case _: WDefInstanceConnector => throwInternalError(s"unrecognized statement: $stmt")
-        case other => other.foreachStmt(onStmt)
+        case other => other.foreach(onStmt)
       }
       onStmt(mod.body)
       modules.distinct.toSeq
