@@ -37,6 +37,7 @@ lazy val firrtlSettings = Seq(
     "org.apache.commons" % "commons-text" % "1.8",
     "io.github.alexarchambault" %% "data-class" % "0.2.5",
     "com.lihaoyi" %% "os-lib" % "0.7.8",
+    "org.parboiled" %% "parboiled" % "2.3.0",
   ),
   // macros for the data-class library
   libraryDependencies ++= {
