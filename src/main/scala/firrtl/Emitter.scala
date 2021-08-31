@@ -99,7 +99,7 @@ object EmitCircuitAnnotation extends HasShellOptions {
           case "low-opt" =>
             Seq(
               RunFirrtlTransformAnnotation(new ProtoEmitter.OptLow),
-              EmitCircuitAnnotation(classOf[ProtoEmitter.Low])
+              EmitCircuitAnnotation(classOf[ProtoEmitter.OptLow])
             )
           case _ => throw new PhaseException(s"Unknown emitter '$a'! (Did you misspell it?)")
         },
@@ -181,7 +181,7 @@ object EmitAllModulesAnnotation extends HasShellOptions {
           case "low-opt" =>
             Seq(
               RunFirrtlTransformAnnotation(new ProtoEmitter.OptLow),
-              EmitAllModulesAnnotation(classOf[ProtoEmitter.Low])
+              EmitAllModulesAnnotation(classOf[ProtoEmitter.OptLow])
             )
           case _ => throw new PhaseException(s"Unknown emitter '$a'! (Did you misspell it?)")
         },
