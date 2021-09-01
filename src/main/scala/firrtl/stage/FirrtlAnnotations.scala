@@ -7,7 +7,7 @@ import firrtl.ir.Circuit
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
 import firrtl.options.{Dependency, HasShellOptions, OptionsException, ShellOption, Unserializable}
 import java.io.{File, FileNotFoundException}
-import java.nio.file.NoSuchFileException
+import java.nio.file.{NoSuchFileException, NotDirectoryException}
 
 import firrtl.stage.TransformManager.TransformDependency
 
@@ -77,6 +77,8 @@ case class FirrtlDirectoryAnnotation(dir: String) extends NoTargetAnnotation wit
       } catch {
         case a @ (_: FileNotFoundException | _: NoSuchFileException) =>
           throw new OptionsException(s"Directory '$dir' not found! (Did you misspell it?)", a)
+        case _: NotDirectoryException =>
+          throw new OptionsException(s"Directory '$dir' is not a directory")
       }
     FirrtlCircuitAnnotation(circuit)
   }

@@ -11,6 +11,9 @@ import com.google.protobuf.CodedInputStream
 import Firrtl.Statement.{Formal, ReadUnderWrite}
 import firrtl.ir.DefModule
 import Utils.combine
+import java.io.FileNotFoundException
+import firrtl.options.OptionsException
+import java.nio.file.NotDirectoryException
 
 object FromProto {
 
@@ -35,19 +38,23 @@ object FromProto {
     proto.FromProto.convert(pb)
   }
 
-  /** Deserialize all the ProtoBuf representations of [[ir.Circuit]] in @directory
+  /** Deserialize all the ProtoBuf representations of [[ir.Circuit]] in @dir
     *
     * @param dir directory containing ProtoBuf representation(s)
     * @return Deserialized FIRRTL Circuit
+    * @throws FileNotFoundException if dir does not exist
+    * @throws NotDirectoryException if dir exists but is not a directory
     */
   def fromDirectory(dir: String): ir.Circuit = {
     val d = new File(dir)
-    val fileList = if (d.exists && d.isDirectory) {
-      d.listFiles.filter(_.isFile).toList
-    } else {
-      List[File]()
+    if (!d.exists) {
+      throw new FileNotFoundException
+    }
+    if (!d.isDirectory) {
+      throw new NotDirectoryException("Not a directory")
     }
 
+    val fileList = d.listFiles.filter(_.isFile).toList
     combine(fileList.map(f => fromInputStream(new FileInputStream(f))))
   }
 
