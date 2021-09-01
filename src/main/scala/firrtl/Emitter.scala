@@ -153,7 +153,7 @@ object EmitAllModulesAnnotation extends HasShellOptions {
       helpValueName = Some("<chirrtl|high|middle|low|verilog|mverilog|sverilog>")
     ),
     new ShellOption[String](
-      longOption = "emit-module-protobufs",
+      longOption = "emit-modules-protobuf",
       toAnnotationSeq = (a: String) =>
         a match {
           case "chirrtl" =>
