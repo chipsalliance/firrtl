@@ -42,8 +42,8 @@ object FromProto {
     *
     * @param dir directory containing ProtoBuf representation(s)
     * @return Deserialized FIRRTL Circuit
-    * @throws FileNotFoundException if dir does not exist
-    * @throws NotDirectoryException if dir exists but is not a directory
+    * @throws java.io.FileNotFoundException if dir does not exist
+    * @throws java.nio.file.NotDirectoryException if dir exists but is not a directory
     */
   def fromDirectory(dir: String): ir.Circuit = {
     val d = new File(dir)
