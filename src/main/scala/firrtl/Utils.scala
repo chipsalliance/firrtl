@@ -989,7 +989,15 @@ object Utils extends LazyLogging {
       }
       val extModules: Seq[ExtModule] = modules.collect { case e: ExtModule => e }.distinct
 
-      if (extModules.isEmpty) Seq(Left(module.get)) else (module ++: extModules).map(Right(_))
+      // If the module is a lone module (no extmodule references in any other file)
+      if (extModules.isEmpty && !module.isEmpty)
+        Seq(Left(module.get))
+      // If a module has extmodules, but no other file contains the implementation
+      else if (!extModules.isEmpty && module.isEmpty)
+        extModules.map(Right(_))
+      // Otherwise there is a module implementation with extmodule references
+      else
+        Seq(Right(module.get))
     }
 
     // 1. Combine modules
@@ -1005,7 +1013,7 @@ object Utils extends LazyLogging {
       assert(found.size == 1)
       found.head
     }
-    val res = deduped.collect { case Right(m: Module) => m }
+    val res = deduped.collect { case m: Either[Module, DefModule] => m.merge }
     ir.Circuit(NoInfo, top +: res.toSeq, top.name)
   }
 
