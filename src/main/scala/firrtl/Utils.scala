@@ -981,7 +981,7 @@ object Utils extends LazyLogging {
   /** Combines several separate circuit modules (typically emitted by -e or -p compiler options) into a single circuit */
   def combine(circuits: Seq[Circuit]): Circuit = {
     def dedup(modules: Seq[DefModule]): Seq[Either[Module, DefModule]] = {
-      // Left means "lone module", Right means has ExtModules
+      // Left means module with no ExtModules, Right means child modules or lone ExtModules
       val module: Option[Module] = {
         val found: Seq[Module] = modules.collect { case m: Module => m }
         assert(found.size <= 1)
@@ -1013,7 +1013,7 @@ object Utils extends LazyLogging {
       assert(found.size == 1)
       found.head
     }
-    val res = deduped.collect { case m: Either[Module, DefModule] => m.merge }
+    val res = deduped.collect { case Right(m) => m }
     ir.Circuit(NoInfo, top +: res.toSeq, top.name)
   }
 
