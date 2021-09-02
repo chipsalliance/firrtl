@@ -335,7 +335,7 @@ class FirrtlMainSpec
     }
 
     Scenario("User compiles to multiple Protocol Buffers") {
-      val stage1 = new FirrtlMainFixture
+      val f = new FirrtlMainFixture
       val td = new TargetDirectoryFixture("multi-protobuf")
       val c = new SimpleFirrtlCircuitFixture
       val protobufs = Seq("Top.hi.pb", "Child.hi.pb")
@@ -350,7 +350,7 @@ class FirrtlMainSpec
       }
 
       When("the user tries to compile to multiple Protocol Buffers in the target directory")
-      stage1.stage.main(
+      f.stage.main(
         inputFile ++ Array("-X", "none", "-p", "high", "-td", td.buildDir.toString)
       )
 
@@ -360,9 +360,8 @@ class FirrtlMainSpec
         out should (exist)
       }
 
-      val stage2 = new FirrtlMainFixture
       When("the user compiles the Protobufs to a single High FIRRTL IR")
-      stage2.stage.main(
+      f.stage.main(
         Array("-I", td.buildDir.toString, "-X", "none", "-E", "high", "-td", td.buildDir.toString, "-o", "Foo")
       )
 
