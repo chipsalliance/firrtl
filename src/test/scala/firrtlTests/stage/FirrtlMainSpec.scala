@@ -349,7 +349,7 @@ class FirrtlMainSpec
         Array("-i", in.toString)
       }
 
-      When("the user tries to compile to multiple Protocol Buffers in the target directory")
+      When("the user tries to emit a circuit to multiple Protocol Buffer files in the target directory")
       f.stage.main(
         inputFile ++ Array("-X", "none", "-p", "high", "-td", td.buildDir.toString)
       )
