@@ -338,7 +338,7 @@ class FirrtlMainSpec
       val f = new FirrtlMainFixture
       val td = new TargetDirectoryFixture("multi-protobuf")
       val c = new SimpleFirrtlCircuitFixture
-      val protobufs = Seq("Top.hi.pb", "Child.hi.pb")
+      val protobufs = Seq("Top.pb", "Child.pb")
 
       And("some input multi-module FIRRTL IR")
       val inputFile: Array[String] = {
@@ -351,7 +351,7 @@ class FirrtlMainSpec
 
       When("the user tries to emit a circuit to multiple Protocol Buffer files in the target directory")
       f.stage.main(
-        inputFile ++ Array("-X", "none", "-p", "high", "-td", td.buildDir.toString)
+        inputFile ++ Array("-X", "none", "-p", "chirrtl", "-td", td.buildDir.toString)
       )
 
       protobufs.foreach { f =>
@@ -360,13 +360,19 @@ class FirrtlMainSpec
         out should (exist)
       }
 
-      When("the user compiles the Protobufs to a single High FIRRTL IR")
+      When("the user compiles the Protobufs to a single FIRRTL IR")
       f.stage.main(
-        Array("-I", td.buildDir.toString, "-X", "none", "-E", "high", "-td", td.buildDir.toString, "-o", "Foo")
+        Array("-I", td.buildDir.toString, "-X", "none", "-E", "chirrtl", "-td", td.buildDir.toString, "-o", "Foo")
       )
 
-      Then("one single High FIRRTL file should be emitted")
-      new File(td.buildDir + "/Foo.hi.fir") should (exist)
+      Then("one single FIRRTL file should be emitted")
+      val outFile = new File(td.buildDir + "/Foo.fir")
+      outFile should (exist)
+      And("it should be the same as using FIRRTL input")
+      firrtl.Utils.orderAgnosticEquality(
+        firrtl.Parser.parse(c.input),
+        firrtl.Parser.parseFile(td.buildDir + "/Foo.fir", firrtl.Parser.IgnoreInfo)
+      ) should be(true)
     }
 
   }
