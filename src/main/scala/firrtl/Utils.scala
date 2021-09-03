@@ -978,6 +978,10 @@ object Utils extends LazyLogging {
     map.view.map({ case (k, vs) => k -> vs.toList }).toList
   }
 
+  /** Checks if two circuits are equal regardless of their ordering of module definitions */
+  def orderAgnosticEquality(a: Circuit, b: Circuit): Boolean =
+    a.copy(modules = a.modules.sortBy(_.name)) == b.copy(modules = b.modules.sortBy(_.name))
+
   /** Combines several separate circuit modules (typically emitted by -e or -p compiler options) into a single circuit */
   def combine(circuits: Seq[Circuit]): Circuit = {
     def dedup(modules: Seq[DefModule]): Seq[Either[Module, DefModule]] = {
