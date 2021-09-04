@@ -978,6 +978,19 @@ object Utils extends LazyLogging {
     map.view.map({ case (k, vs) => k -> vs.toList }).toList
   }
 
+  // For a given module, returns a Seq of all instantiated modules inside of it
+  private[firrtl] def collectInstantiatedModules(mod: Module, map: Map[String, DefModule]): Seq[DefModule] = {
+    // Use list instead of set to maintain order
+    val modules = mutable.ArrayBuffer.empty[DefModule]
+    def onStmt(stmt: Statement): Unit = stmt match {
+      case DefInstance(_, _, name, _) => modules += map(name)
+      case _: WDefInstanceConnector => throwInternalError(s"unrecognized statement: $stmt")
+      case other => other.foreach(onStmt)
+    }
+    onStmt(mod.body)
+    modules.distinct.toSeq
+  }
+
   /** Checks if two circuits are equal regardless of their ordering of module definitions */
   def orderAgnosticEquality(a: Circuit, b: Circuit): Boolean =
     a.copy(modules = a.modules.sortBy(_.name)) == b.copy(modules = b.modules.sortBy(_.name))
