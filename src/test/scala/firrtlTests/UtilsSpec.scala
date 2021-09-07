@@ -54,7 +54,6 @@ class UtilsSpec extends AnyFlatSpec {
   }
 
   "combine" should "merge multiple module circuits" in {
-    //
     val input = Seq(
       """|circuit Top:
          |  extmodule External:
