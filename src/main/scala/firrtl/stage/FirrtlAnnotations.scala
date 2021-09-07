@@ -68,7 +68,7 @@ object FirrtlFileAnnotation extends HasShellOptions {
   *  - set with `-I/--input-directory`
   *
   * TODO: Does not currently support FIRRTL files.
-  * @param file input filename
+  * @param dir input directory name
   */
 case class FirrtlDirectoryAnnotation(dir: String) extends NoTargetAnnotation with CircuitOption {
 
