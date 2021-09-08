@@ -274,11 +274,31 @@ class FirrtlMainSpec
         args = Array("-X", "none", "--emit-modules-protobuf", "chirrtl"),
         files = Seq("Top.pb", "Child.pb")
       ),
-      FirrtlMainTest(args = Array("-X", "none", "-p", "mhigh"), files = Seq("Top.mhi.pb", "Child.mhi.pb")),
-      FirrtlMainTest(args = Array("-X", "none", "-p", "high"), files = Seq("Top.hi.pb", "Child.hi.pb")),
-      FirrtlMainTest(args = Array("-X", "none", "-p", "middle"), files = Seq("Top.mid.pb", "Child.mid.pb")),
-      FirrtlMainTest(args = Array("-X", "none", "-p", "low"), files = Seq("Top.lo.pb", "Child.lo.pb")),
-      FirrtlMainTest(args = Array("-X", "none", "-p", "low-opt"), files = Seq("Top.lo.pb", "Child.lo.pb")),
+      FirrtlMainTest(
+        args = Array("-X", "none", "-p", "mhigh"),
+        stdout = defaultStdOut,
+        files = Seq("Top.mhi.pb", "Child.mhi.pb")
+      ),
+      FirrtlMainTest(
+        args = Array("-X", "none", "-p", "high"),
+        stdout = defaultStdOut,
+        files = Seq("Top.hi.pb", "Child.hi.pb")
+      ),
+      FirrtlMainTest(
+        args = Array("-X", "none", "-p", "middle"),
+        stdout = defaultStdOut,
+        files = Seq("Top.mid.pb", "Child.mid.pb")
+      ),
+      FirrtlMainTest(
+        args = Array("-X", "none", "-p", "low"),
+        stdout = defaultStdOut,
+        files = Seq("Top.lo.pb", "Child.lo.pb")
+      ),
+      FirrtlMainTest(
+        args = Array("-X", "none", "-p", "low-opt"),
+        stdout = defaultStdOut,
+        files = Seq("Top.lo.pb", "Child.lo.pb")
+      ),
       /* Test mixing of -E with -e */
       FirrtlMainTest(
         args = Array("-X", "middle", "-E", "high", "-e", "middle"),
