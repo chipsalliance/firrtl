@@ -1001,7 +1001,10 @@ object Utils extends LazyLogging {
       // Left means module with no ExtModules, Right means child modules or lone ExtModules
       val module: Option[Module] = {
         val found: Seq[Module] = modules.collect { case m: Module => m }
-        assert(found.size <= 1, s"Module definitions should have unique names, found ${found.size} definitions named ${found.head.name}")
+        assert(
+          found.size <= 1,
+          s"Module definitions should have unique names, found ${found.size} definitions named ${found.head.name}"
+        )
         found.headOption
       }
       val extModules: Seq[ExtModule] = modules.collect { case e: ExtModule => e }.distinct
