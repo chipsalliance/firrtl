@@ -160,7 +160,7 @@ class UtilsSpec extends AnyFlatSpec {
     combineTest(input, output)
   }
 
-  "combine" should "not dedup lone ExtModules" in {
+  "combine" should "support lone ExtModules" in {
     val input = Seq(
       """|circuit Top:
          |  extmodule External:

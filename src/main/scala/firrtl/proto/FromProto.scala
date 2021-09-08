@@ -48,10 +48,10 @@ object FromProto {
   def fromDirectory(dir: String): ir.Circuit = {
     val d = new File(dir)
     if (!d.exists) {
-      throw new FileNotFoundException
+      throw new FileNotFoundException(s"Specified directory '$d' does not exist!")
     }
     if (!d.isDirectory) {
-      throw new NotDirectoryException("Not a directory")
+      throw new NotDirectoryException(s"'$d' is not a directory!")
     }
 
     val fileList = d.listFiles.filter(_.isFile).toList
