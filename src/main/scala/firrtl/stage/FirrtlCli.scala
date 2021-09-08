@@ -13,6 +13,7 @@ trait FirrtlCli { this: Shell =>
   parser.note("FIRRTL Compiler Options")
   Seq(
     FirrtlFileAnnotation,
+    FirrtlDirectoryAnnotation,
     OutputFileAnnotation,
     InfoModeAnnotation,
     FirrtlSourceAnnotation,
