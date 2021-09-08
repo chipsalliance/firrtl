@@ -272,7 +272,6 @@ class FirrtlMainSpec
       /* Test all one protobuf per module emitters */
       FirrtlMainTest(
         args = Array("-X", "none", "--emit-modules-protobuf", "chirrtl"),
-        stdout = defaultStdOut,
         files = Seq("Top.pb", "Child.pb")
       ),
       FirrtlMainTest(
