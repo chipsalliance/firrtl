@@ -49,6 +49,10 @@ class ReplSeqMemSpec extends SimpleTransformSpec {
     }.get
     // Verify that this does not throw an exception
     val fromConf = MemConf.fromString(text)
+    // Verify that the number of lines in the Conf file is equivalent to the number
+    // of entries (no missing or extra newlines)
+    require(fromConf.size == text.count(_ == '\n'),
+      s"Unexpected formatting in mem.conf file containing ${fromConf.size} confs:\n${text}")
     // Verify the mems in the conf are the same as the expected ones
     require(
       Set(fromConf: _*) == mems,
