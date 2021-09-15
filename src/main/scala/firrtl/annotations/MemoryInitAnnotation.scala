@@ -8,7 +8,8 @@ import firrtl.{
   MemoryFileInlineInit,
   MemoryInitValue,
   MemoryRandomInit,
-  MemoryScalarInit
+  MemoryScalarInit,
+  Utils
 }
 
 /**
@@ -52,3 +53,9 @@ case class MemoryFileInlineAnnotation(
   override def initValue:    MemoryInitValue = MemoryFileInlineInit(filename, hexOrBinary)
   override def isRandomInit: Boolean = false
 }
+
+/** Initializes the memory inside the `ifndef SYNTHESIS` block (default) */
+case object MemoryNoSynthInit extends NoTargetAnnotation
+
+/** Initializes the memory outside the `ifndef SYNTHESIS` block */
+case object MemorySynthInit extends NoTargetAnnotation

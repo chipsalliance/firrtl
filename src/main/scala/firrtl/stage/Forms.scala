@@ -47,7 +47,11 @@ object Forms {
       Dependency[firrtl.transforms.InferResets]
     )
 
-  val Deduped: Seq[TransformDependency] = Resolved :+ Dependency[firrtl.transforms.DedupModules]
+  val Deduped: Seq[TransformDependency] = Resolved ++
+    Seq(
+      Dependency[firrtl.transforms.DedupModules],
+      Dependency[firrtl.transforms.DedupAnnotationsTransform]
+    )
 
   val HighForm: Seq[TransformDependency] = ChirrtlForm ++
     MinimalHighForm ++
@@ -101,7 +105,7 @@ object Forms {
       Dependency[firrtl.transforms.FixAddingNegativeLiterals],
       Dependency[firrtl.transforms.ReplaceTruncatingArithmetic],
       Dependency[firrtl.transforms.InlineBitExtractionsTransform],
-      Dependency[firrtl.transforms.InlineCastsTransform],
+      Dependency[firrtl.transforms.InlineAcrossCastsTransform],
       Dependency[firrtl.transforms.LegalizeClocksTransform],
       Dependency[firrtl.transforms.FlattenRegUpdate],
       Dependency(passes.VerilogModulusCleanup),

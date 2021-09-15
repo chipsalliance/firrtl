@@ -12,7 +12,18 @@ import firrtl.testutils._
 import annotations._
 import FirrtlCheckers._
 
+object ReplSeqMemSpec {
+  private case class DummyAnno(targets: CompleteTarget*) extends Annotation {
+    override def update(renames: RenameMap): Seq[Annotation] = {
+      Seq(DummyAnno(targets.flatMap { t =>
+        renames.get(t).getOrElse(Seq(t))
+      }: _*))
+    }
+  }
+}
+
 class ReplSeqMemSpec extends SimpleTransformSpec {
+  import ReplSeqMemSpec._
   def emitter = new LowFirrtlEmitter
   def transforms = Seq(
     new ChirrtlToHighFirrtl(),
@@ -30,6 +41,7 @@ class ReplSeqMemSpec extends SimpleTransformSpec {
     }
   )
 
+  @deprecated("API will be changed in 1.5.", "FIRRTL 1.4")
   def checkMemConf(filename: String, mems: Set[MemConf]) {
     // Read the mem conf
     val text = FileUtils.getText(filename)
@@ -422,7 +434,7 @@ circuit CustomMemory :
 circuit CustomMemory :
   module CustomMemory :
     input clock : Clock
-    output io : { flip en : UInt<1>, out : UInt<8>[2], flip raddr : UInt<10>, flip waddr : UInt<10>, flip wdata : UInt<8>[2], flip mask : UInt<8>[2] }
+    output io : { flip en : UInt<1>, out : UInt<8>[2], flip raddr : UInt<10>, flip waddr : UInt<10>, flip wdata : UInt<8>[2], flip mask : UInt<1>[2] }
 
     smem mem : UInt<8>[2][1024]
     read mport r = mem[io.raddr], clock
@@ -452,7 +464,7 @@ circuit CustomMemory :
 circuit CustomMemory :
   module CustomMemory :
     input clock : Clock
-    output io : { flip en : UInt<1>, out : UInt<8>[2], flip raddr : UInt<10>, flip waddr : UInt<10>, flip wdata : UInt<8>[2], flip mask : UInt<8>[2] }
+    output io : { flip en : UInt<1>, out : UInt<8>[2], flip raddr : UInt<10>, flip waddr : UInt<10>, flip wdata : UInt<8>[2], flip mask : UInt<1>[2] }
 
     io.out is invalid
 
@@ -552,4 +564,50 @@ circuit Top :
     (new java.io.File(confLoc)).delete()
   }
 
+  "ReplSeqMem" should "rename reference targets to blackbox instance targets" in {
+    val input =
+      """
+        |circuit CustomMemory :
+        |  module CustomMemory :
+        |    input clock : Clock
+        |    input reset : UInt<1>
+        |    output io : {flip rClk : Clock, flip rAddr : UInt<3>, dO : UInt<16>, flip wClk : Clock, flip wAddr : UInt<3>, flip wEn : UInt<1>, flip dI : UInt<16>}
+
+        |    io is invalid
+        |    smem mem_0 : UInt<16>[7]
+        |    smem mem_1 : UInt<16>[7]
+        |    read mport _T_17 = mem_0[io.rAddr], clock
+        |    read mport _T_19 = mem_1[io.rAddr], clock
+        |    io.dO <= and(_T_17, _T_19)
+        |    when io.wEn :
+        |      write mport _T_18 = mem_0[io.wAddr], clock
+        |      write mport _T_20 = mem_1[io.wAddr], clock
+        |      _T_18 <= io.dI
+        |      _T_20 <= io.dI
+        |""".stripMargin
+    val mems = Set(
+      MemConf("mem_0_ext", 7, 16, Map(WritePort -> 1, ReadPort -> 1), None)
+    )
+    val confLoc = "ReplSeqMemTests.confTEMP"
+    val annos = Seq(
+      ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:" + confLoc),
+      DummyAnno(
+        CircuitTarget("CustomMemory").module("CustomMemory").ref("mem_0"),
+        CircuitTarget("CustomMemory").module("CustomMemory").ref("mem_1")
+      )
+    )
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+    val resAnnos = res.annotations.collect { case a: DummyAnno => a.targets }.flatten
+    val expected = Seq(
+      CircuitTarget("CustomMemory")
+        .module("CustomMemory")
+        .instOf("mem_0", "mem_0")
+        .instOf("mem_0_ext", "mem_0_ext"),
+      CircuitTarget("CustomMemory")
+        .module("CustomMemory")
+        .instOf("mem_1", "mem_0")
+        .instOf("mem_0_ext", "mem_0_ext")
+    )
+    resAnnos should be(expected)
+  }
 }

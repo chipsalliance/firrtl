@@ -380,8 +380,12 @@ class InlineInstancesTests extends LowTransformSpec {
     execute(input, check, Seq(inline("Inline")))
   }
 
-  case class DummyAnno(target: ReferenceTarget) extends SingleTargetAnnotation[ReferenceTarget] {
-    override def duplicate(n: ReferenceTarget): Annotation = DummyAnno(n)
+  case class DummyAnno(targets: CompleteTarget*) extends Annotation {
+    override def update(renames: RenameMap): Seq[Annotation] = {
+      Seq(DummyAnno(targets.flatMap { t =>
+        renames.get(t).getOrElse(Seq(t))
+      }: _*))
+    }
   }
   "annotations" should "be renamed" in {
     val input =
@@ -519,6 +523,9 @@ class InlineInstancesTests extends LowTransformSpec {
     val nestedNotInlined = inlined.instOf("bar", "NestedNoInline")
     val innerNestedInlined = nestedNotInlined.instOf("foo", "NestedInline")
 
+    val inlineModuleTarget = top.copy(module = "Inline")
+    val nestedInlineModuleTarget = top.copy(module = "NestedInline")
+
     executeWithAnnos(
       input,
       check,
@@ -532,7 +539,10 @@ class InlineInstancesTests extends LowTransformSpec {
         DummyAnno(nestedNotInlined.ref("a")),
         DummyAnno(nestedNotInlined.ref("b")),
         DummyAnno(innerNestedInlined.ref("a")),
-        DummyAnno(innerNestedInlined.ref("b"))
+        DummyAnno(innerNestedInlined.ref("b")),
+        DummyAnno(inlineModuleTarget.instOf("bar", "NestedNoInline")),
+        DummyAnno(inlineModuleTarget.ref("a"), inlineModuleTarget.ref("b")),
+        DummyAnno(nestedInlineModuleTarget.ref("a"))
       ),
       Seq(
         DummyAnno(top.ref("i_a")),
@@ -542,7 +552,10 @@ class InlineInstancesTests extends LowTransformSpec {
         DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("a")),
         DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("b")),
         DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("foo_a")),
-        DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("foo_b"))
+        DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("foo_b")),
+        DummyAnno(top.instOf("i_bar", "NestedNoInline")),
+        DummyAnno(top.ref("i_a"), top.ref("i_b")),
+        DummyAnno(top.ref("i_foo_a"), top.copy(module = "NestedNoInline").ref("foo_a"))
       )
     )
   }

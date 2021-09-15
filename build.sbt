@@ -60,12 +60,23 @@ lazy val firrtlSettings = Seq(
 import com.typesafe.tools.mima.core._
 lazy val mimaSettings = Seq(
   mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.4.2"),
-  // Public method on private object
   mimaBinaryIssueFilters ++= Seq(
+    // Public method on private object
     ProblemFilters.exclude[IncompatibleMethTypeProblem]("firrtl.passes.DestructTypes.destructInstance"),
     ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.FirrtlProtos#Firrtl#StatementOrBuilder.hasVerification"),
     ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.FirrtlProtos#Firrtl#StatementOrBuilder.getVerification"),
-    ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.FirrtlProtos#Firrtl#StatementOrBuilder.getVerificationOrBuilder")
+    ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.FirrtlProtos#Firrtl#StatementOrBuilder.getVerificationOrBuilder"),
+    // Constructor is private, but companion object being able to invoke it makes it public in bytecode
+    ProblemFilters.exclude[DirectMissingMethodProblem]("firrtl.RenameMap.this"),
+    // Package private case classes
+    ProblemFilters.exclude[MissingTypesProblem]("firrtl.stage.phases.Defaults$"),
+    ProblemFilters.exclude[DirectMissingMethodProblem]("firrtl.stage.phases.Defaults.apply"),
+    ProblemFilters.exclude[DirectMissingMethodProblem]("firrtl.stage.phases.Defaults.copy"),
+    ProblemFilters.exclude[DirectMissingMethodProblem]("firrtl.stage.phases.Defaults.this"),
+    ProblemFilters.exclude[MissingTypesProblem]("firrtl.stage.phases.CompilerRun$"),
+    ProblemFilters.exclude[DirectMissingMethodProblem]("firrtl.stage.phases.CompilerRun.apply"),
+    ProblemFilters.exclude[DirectMissingMethodProblem]("firrtl.stage.phases.CompilerRun.copy"),
+    ProblemFilters.exclude[DirectMissingMethodProblem]("firrtl.stage.phases.CompilerRun.this")
   )
 )
 

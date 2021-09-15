@@ -15,18 +15,6 @@ sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Em
   val outputSuffix: String = form.outputSuffix
 
   private def emitAllModules(circuit: Circuit): Seq[EmittedFirrtlModule] = {
-    // For a given module, returns a Seq of all modules instantited inside of it
-    def collectInstantiatedModules(mod: Module, map: Map[String, DefModule]): Seq[DefModule] = {
-      // Use list instead of set to maintain order
-      val modules = mutable.ArrayBuffer.empty[DefModule]
-      def onStmt(stmt: Statement): Unit = stmt match {
-        case DefInstance(_, _, name, _) => modules += map(name)
-        case _: WDefInstanceConnector => throwInternalError(s"unrecognized statement: $stmt")
-        case other => other.foreach(onStmt)
-      }
-      onStmt(mod.body)
-      modules.distinct.toSeq
-    }
     val modMap = circuit.modules.map(m => m.name -> m).toMap
     // Turn each module into it's own circuit with it as the top and all instantied modules as ExtModules
     circuit.modules.collect {
@@ -61,6 +49,13 @@ sealed abstract class FirrtlEmitter(form: CircuitForm) extends Transform with Em
 }
 
 class ChirrtlEmitter extends FirrtlEmitter(CircuitForm.ChirrtlForm)
+class MinimumHighFirrtlEmitter extends FirrtlEmitter(CircuitForm.HighForm) {
+  override def prerequisites = stage.Forms.MinimalHighForm
+  override def optionalPrerequisites = Seq.empty
+  override def optionalPrerequisiteOf = Seq.empty
+  override def invalidates(a: Transform) = false
+  override val outputSuffix = ".mhi.fir"
+}
 class HighFirrtlEmitter extends FirrtlEmitter(CircuitForm.HighForm)
 class MiddleFirrtlEmitter extends FirrtlEmitter(CircuitForm.MidForm)
 class LowFirrtlEmitter extends FirrtlEmitter(CircuitForm.LowForm)

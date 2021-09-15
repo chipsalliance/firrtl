@@ -13,6 +13,7 @@ trait FirrtlCli { this: Shell =>
   parser.note("FIRRTL Compiler Options")
   Seq(
     FirrtlFileAnnotation,
+    FirrtlDirectoryAnnotation,
     OutputFileAnnotation,
     InfoModeAnnotation,
     FirrtlSourceAnnotation,
@@ -22,7 +23,8 @@ trait FirrtlCli { this: Shell =>
     NoCircuitDedupAnnotation,
     WarnNoScalaVersionDeprecation,
     PrettyNoExprInlining,
-    DisableFold
+    DisableFold,
+    CurrentFirrtlStateAnnotation
   )
     .map(_.addOptions(parser))
 

@@ -205,6 +205,7 @@ class FirrtlMainSpec
     Seq(
       /* Test all standard emitters with and without annotation file outputs */
       FirrtlMainTest(args = Array("-X", "none", "-E", "chirrtl"), files = Seq("Top.fir")),
+      FirrtlMainTest(args = Array("-X", "mhigh", "-E", "mhigh"), stdout = defaultStdOut, files = Seq("Top.mhi.fir")),
       FirrtlMainTest(args = Array("-X", "high", "-E", "high"), stdout = defaultStdOut, files = Seq("Top.hi.fir")),
       FirrtlMainTest(
         args = Array("-X", "middle", "-E", "middle", "-foaf", "Top"),
@@ -226,8 +227,23 @@ class FirrtlMainSpec
         stdout = defaultStdOut,
         files = Seq("Top.sv", "foo.json.anno.json")
       ),
+      /* Test all ProtoBuf emitters */
+      FirrtlMainTest(
+        args = Array("-X", "none", "--emit-circuit-protobuf", "chirrtl"),
+        files = Seq("Top.pb")
+      ),
+      FirrtlMainTest(args = Array("-X", "none", "-P", "mhigh"), stdout = defaultStdOut, files = Seq("Top.mhi.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-P", "high"), stdout = defaultStdOut, files = Seq("Top.hi.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-P", "middle"), stdout = defaultStdOut, files = Seq("Top.mid.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-P", "low"), stdout = defaultStdOut, files = Seq("Top.lo.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-P", "low-opt"), stdout = defaultStdOut, files = Seq("Top.lo.pb")),
       /* Test all one file per module emitters */
       FirrtlMainTest(args = Array("-X", "none", "-e", "chirrtl"), files = Seq("Top.fir", "Child.fir")),
+      FirrtlMainTest(
+        args = Array("-X", "mhigh", "-e", "mhigh"),
+        stdout = defaultStdOut,
+        files = Seq("Top.mhi.fir", "Child.mhi.fir")
+      ),
       FirrtlMainTest(
         args = Array("-X", "high", "-e", "high"),
         stdout = defaultStdOut,
@@ -253,6 +269,36 @@ class FirrtlMainSpec
         stdout = defaultStdOut,
         files = Seq("Top.sv", "Child.sv")
       ),
+      /* Test all one protobuf per module emitters */
+      FirrtlMainTest(
+        args = Array("-X", "none", "--emit-modules-protobuf", "chirrtl"),
+        files = Seq("Top.pb", "Child.pb")
+      ),
+      FirrtlMainTest(
+        args = Array("-X", "none", "-p", "mhigh"),
+        stdout = defaultStdOut,
+        files = Seq("Top.mhi.pb", "Child.mhi.pb")
+      ),
+      FirrtlMainTest(
+        args = Array("-X", "none", "-p", "high"),
+        stdout = defaultStdOut,
+        files = Seq("Top.hi.pb", "Child.hi.pb")
+      ),
+      FirrtlMainTest(
+        args = Array("-X", "none", "-p", "middle"),
+        stdout = defaultStdOut,
+        files = Seq("Top.mid.pb", "Child.mid.pb")
+      ),
+      FirrtlMainTest(
+        args = Array("-X", "none", "-p", "low"),
+        stdout = defaultStdOut,
+        files = Seq("Top.lo.pb", "Child.lo.pb")
+      ),
+      FirrtlMainTest(
+        args = Array("-X", "none", "-p", "low-opt"),
+        stdout = defaultStdOut,
+        files = Seq("Top.lo.pb", "Child.lo.pb")
+      ),
       /* Test mixing of -E with -e */
       FirrtlMainTest(
         args = Array("-X", "middle", "-E", "high", "-e", "middle"),
@@ -262,6 +308,11 @@ class FirrtlMainSpec
       ),
       /* Test changes to output file name */
       FirrtlMainTest(args = Array("-X", "none", "-E", "chirrtl", "-o", "foo"), files = Seq("foo.fir")),
+      FirrtlMainTest(
+        args = Array("-X", "mhigh", "-E", "mhigh", "-o", "foo"),
+        stdout = defaultStdOut,
+        files = Seq("foo.mhi.fir")
+      ),
       FirrtlMainTest(
         args = Array("-X", "high", "-E", "high", "-o", "foo"),
         stdout = defaultStdOut,
@@ -334,6 +385,49 @@ class FirrtlMainSpec
       new File(td.buildDir + "/Foo.hi.fir") should (exist)
     }
 
+    Scenario("User compiles to multiple Protocol Buffers") {
+      val f = new FirrtlMainFixture
+      val td = new TargetDirectoryFixture("multi-protobuf")
+      val c = new SimpleFirrtlCircuitFixture
+      val protobufs = Seq("Top.pb", "Child.pb")
+
+      And("some input multi-module FIRRTL IR")
+      val inputFile: Array[String] = {
+        val in = new File(td.dir, s"${c.main}.fir")
+        val pw = new PrintWriter(in)
+        pw.write(c.input)
+        pw.close()
+        Array("-i", in.toString)
+      }
+
+      When("the user tries to emit a circuit to multiple Protocol Buffer files in the target directory")
+      f.stage.main(
+        inputFile ++ Array("-X", "none", "-p", "chirrtl", "-td", td.buildDir.toString)
+      )
+
+      protobufs.foreach { f =>
+        Then(s"file '$f' should be emitted")
+        val out = new File(td.buildDir + s"/$f")
+        out should (exist)
+      }
+
+      // NOTE the .fir out needs to be a different directory than the multi proto out because
+      // reruns will pick up the .fir and try to parse as .pb
+      When("the user compiles the Protobufs to a single FIRRTL IR")
+      f.stage.main(
+        Array("-I", td.buildDir.toString, "-X", "none", "-E", "chirrtl", "-td", td.dir.toString, "-o", "Foo")
+      )
+
+      Then("one single FIRRTL file should be emitted")
+      val outFile = new File(td.dir + "/Foo.fir")
+      outFile should (exist)
+      And("it should be the same as using FIRRTL input")
+      firrtl.Utils.orderAgnosticEquality(
+        firrtl.Parser.parse(c.input),
+        firrtl.Parser.parseFile(td.dir + "/Foo.fir", firrtl.Parser.IgnoreInfo)
+      ) should be(true)
+    }
+
   }
 
   info("As a FIRRTL command line user")
@@ -390,6 +484,12 @@ class FirrtlMainSpec
         args = Array("-i", "foo", "-X", "Verilog"),
         circuit = None,
         stdout = Some("Unknown compiler name 'Verilog'! (Did you misspell it?)"),
+        result = 1
+      ),
+      FirrtlMainTest(
+        args = Array("-I", "test_run_dir/I-DO-NOT-EXIST"),
+        circuit = None,
+        stdout = Some("Directory 'test_run_dir/I-DO-NOT-EXIST' not found!"),
         result = 1
       )
     )

@@ -14,6 +14,7 @@ import firrtl.Utils.throwInternalError
 import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
 import firrtl.options.{Dependency, DependencyAPI, StageUtils, TransformLike}
 import firrtl.stage.Forms
+import firrtl.transforms.DedupAnnotationsTransform
 
 /** Container of all annotations for a Firrtl compiler */
 class AnnotationSeq private (private[firrtl] val underlying: List[Annotation]) {
@@ -227,17 +228,7 @@ private[firrtl] object Transform {
 
     logger.info(s"Form: ${after.form}")
     logger.trace(s"Annotations:")
-    logger.trace {
-      JsonProtocol
-        .serializeTry(remappedAnnotations)
-        .recoverWith {
-          case NonFatal(e) =>
-            val msg = s"Exception thrown during Annotation serialization:\n  " +
-              e.toString.replaceAll("\n", "\n  ")
-            Try(msg)
-        }
-        .get
-    }
+    logger.trace(JsonProtocol.serializeRecover(remappedAnnotations))
 
     logger.trace(s"Circuit:\n${after.circuit.serialize}")
     logger.info(s"======== Finished Transform $name ========\n")
