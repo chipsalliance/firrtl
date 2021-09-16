@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package firrtl.backends.experimental.rtlil
 
 import java.io.Writer
@@ -20,7 +22,10 @@ import scala.language.postfixOps
 private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with DependencyAPIMigration {
 
   override def prerequisites: Seq[TransformManager.TransformDependency] =
-    Seq(Dependency[firrtl.transforms.CombineCats]) ++: firrtl.stage.Forms.LowFormOptimized
+    Seq(
+      Dependency[firrtl.transforms.CombineCats],
+      Dependency(firrtl.passes.memlib.VerilogMemDelays)
+    ) ++: firrtl.stage.Forms.LowFormOptimized
 
   override def outputSuffix: String = ".il"
   val tab = "  "
@@ -424,12 +429,60 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
         case x: Literal =>
           val width = x.width.asInstanceOf[IntWidth].width
           SrcInfo(bigint_to_str_rep(x.value, width), x.isInstanceOf[SIntLiteral], width)
-        case x: DoPrim =>
-          val tempNetName = namespace.newName("$_PRIM_EX")
-          if (infos_to_attr(i).nonEmpty) declares += Seq(i)
-          declares += Seq("wire ", x.tpe, " ", tempNetName)
-          assigns ++= output_expr(tempNetName, x, i)
-          SrcInfo(tempNetName, x.tpe.isInstanceOf[SIntType], get_type_width(x.tpe))
+        case x @ DoPrim(op, args, consts, tpe) =>
+          op match {
+            case Cat =>
+              SrcInfo(
+                Seq(" { ", args.map(SrcInfo(_).str_rep).mkString(" "), " }").mkString,
+                tpe.isInstanceOf[SIntType],
+                get_type_width(tpe)
+              )
+            case Head =>
+              val src0 = SrcInfo(args.head)
+              SrcInfo(
+                Seq(src0.str_rep, " [", (src0.width - 1).toInt, ":", consts.head.toInt, "]").mkString,
+                tpe.isInstanceOf[SIntType],
+                get_type_width(tpe)
+              )
+            case Tail =>
+              val src0 = SrcInfo(args.head)
+              SrcInfo(
+                Seq(src0.str_rep, " [", (src0.width - 1 - consts.head).toInt, ":0]").mkString,
+                tpe.isInstanceOf[SIntType],
+                get_type_width(tpe)
+              )
+            case Pad =>
+              val src0 = SrcInfo(args.head)
+              if (src0.width >= consts.head)
+                SrcInfo(
+                  Seq(src0.str_rep, " [", (consts.head - 1).toInt, ":0]").mkString,
+                  tpe.isInstanceOf[SIntType],
+                  get_type_width(tpe)
+                )
+              else if (src0.signed)
+                SrcInfo(
+                  Seq(
+                    " { ",
+                    s"${src0.str_rep} [${src0.width - 1}] " * (consts.head - src0.width).toInt,
+                    src0.str_rep,
+                    " }"
+                  ).mkString,
+                  tpe.isInstanceOf[SIntType],
+                  get_type_width(tpe)
+                )
+              else
+                SrcInfo(
+                  Seq(" { ", (consts.head - src0.width).toInt, "'0 ", src0.str_rep, " }").mkString,
+                  tpe.isInstanceOf[SIntType],
+                  get_type_width(tpe)
+                )
+            case _ =>
+              val tempNetName = namespace.newName("$_PRIM_EX")
+              if (infos_to_attr(i).nonEmpty) declares += Seq(i)
+              declares += Seq("wire ", x.tpe, " ", tempNetName)
+              assigns ++= output_expr(tempNetName, x, i)
+              SrcInfo(tempNetName, x.tpe.isInstanceOf[SIntType], get_type_width(x.tpe))
+          }
         case x @ SubField(Reference(modname, _, InstanceKind, _), portname, _, _) =>
           val currentPortConn = instdeclares(modname).getConnection(portname)
           if (currentPortConn.isEmpty) {
@@ -438,8 +491,9 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
             declares += Seq("wire ", x.tpe, " ", tempNetName)
             instdeclares(modname).addConnection(portname, tempNetName)
             SrcInfo(tempNetName, x.tpe.isInstanceOf[SIntType], get_type_width(x.tpe))
-          } else
+          } else {
             SrcInfo(currentPortConn.get, x.tpe.isInstanceOf[SIntType], get_type_width(x.tpe))
+          }
         case x: SubField =>
           SrcInfo("\\" + LowerTypes.loweredName(x), x.tpe.isInstanceOf[SIntType], get_type_width(x.tpe))
         case x: (Mux) =>
@@ -689,12 +743,21 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
           instdeclares(name) = InstInfo(name, mdle, info)
           instdeclares(name).params = if (params.nonEmpty) params.map(stringify) else Seq()
           for ((port, ref) <- portCons) {
-            instdeclares(name).addConnection(SrcInfo(remove_root(port)).str_rep.tail, SrcInfo(ref).str_rep)
+            val portName = SrcInfo(remove_root(port)).str_rep.tail
+            if (instdeclares(name).getConnection(portName).nonEmpty) {
+              assigns ++= output_expr(instdeclares(name).getConnection(portName).get, ref, NoInfo)
+            } else {
+              instdeclares(name).addConnection(SrcInfo(remove_root(port)).str_rep.tail, SrcInfo(ref).str_rep)
+            }
           }
         case Connect(info, loc @ WRef(_, _, PortKind | WireKind | InstanceKind, _), expr) =>
           assigns ++= output_expr(ref_to_name(loc), expr, info)
         case Connect(info, SubField(Reference(modname, _, InstanceKind, _), portname, _, _), expr) =>
-          instdeclares(modname).addConnection(portname, SrcInfo(expr, info).str_rep)
+          if (instdeclares(modname).getConnection(portname).nonEmpty) {
+            assigns ++= output_expr(instdeclares(modname).getConnection(portname).get, expr, NoInfo)
+          } else {
+            instdeclares(modname).addConnection(portname, SrcInfo(expr, info).str_rep)
+          }
         case sx: DefWire =>
           declares += Seq(sx.info)
           declares += Seq("wire ", sx.tpe, " ", string_to_rtlil_name(sx.name))
@@ -790,7 +853,7 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
             val transparent = runderw match {
               case ReadUnderWrite.New       => "1'1"
               case ReadUnderWrite.Old       => "1'0"
-              case ReadUnderWrite.Undefined => "1'0"
+              case ReadUnderWrite.Undefined => "1'x"
             }
             declares += Seq("wire ", data.tpe, " ", SrcInfo(data).str_rep)
             assigns ++= emit_cell(

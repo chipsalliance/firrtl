@@ -222,16 +222,16 @@ object RunFirrtlTransformAnnotation extends HasShellOptions {
 
   private[firrtl] def stringToEmitter(a: String): RunFirrtlTransformAnnotation = {
     val emitter = a match {
-      case "none"     => new ChirrtlEmitter
-      case "mhigh"    => new MinimumHighFirrtlEmitter
-      case "high"     => new HighFirrtlEmitter
-      case "low"      => new LowFirrtlEmitter
-      case "middle"   => new MiddleFirrtlEmitter
-      case "verilog"  => new VerilogEmitter
-      case "mverilog" => new MinimumVerilogEmitter
-      case "sverilog" => new SystemVerilogEmitter
-      case "experimental-rtlil" => RtlilEmitter
-      case _          => throw new OptionsException(s"Unknown compiler name '$a'! (Did you misspell it?)")
+      case "none"               => new ChirrtlEmitter
+      case "mhigh"              => new MinimumHighFirrtlEmitter
+      case "high"               => new HighFirrtlEmitter
+      case "low"                => new LowFirrtlEmitter
+      case "middle"             => new MiddleFirrtlEmitter
+      case "verilog"            => new VerilogEmitter
+      case "mverilog"           => new MinimumVerilogEmitter
+      case "sverilog"           => new SystemVerilogEmitter
+      case "experimental-rtlil" => new RtlilEmitter
+      case _                    => throw new OptionsException(s"Unknown compiler name '$a'! (Did you misspell it?)")
     }
     RunFirrtlTransformAnnotation(emitter)
   }

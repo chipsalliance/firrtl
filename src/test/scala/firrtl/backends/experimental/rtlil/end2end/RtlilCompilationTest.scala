@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
+
 package firrtl.backends.experimental.rtlil.end2end
 
 import firrtl.stage.{FirrtlStage, OutputFileAnnotation}
