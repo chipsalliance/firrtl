@@ -59,7 +59,7 @@ lazy val firrtlSettings = Seq(
 
 import com.typesafe.tools.mima.core._
 lazy val mimaSettings = Seq(
-  mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.4.2"),
+  mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.4.4"),
   mimaBinaryIssueFilters ++= Seq(
     // Public method on private object
     ProblemFilters.exclude[IncompatibleMethTypeProblem]("firrtl.passes.DestructTypes.destructInstance"),
