@@ -5,6 +5,7 @@ package firrtl
 import firrtl.ir._
 import firrtl.PrimOps._
 import firrtl.Mappers._
+import firrtl.traversals.Foreachers._
 import firrtl.WrappedExpression._
 
 import scala.collection.mutable
@@ -50,7 +51,18 @@ object getWidth {
   def apply(e: Expression): Width = apply(e.tpe)
 }
 
+/**
+  * Helper object for computing the width of a firrtl type.
+  */
 object bitWidth {
+
+  /**
+    * Compute the width of a firrtl type.
+    * For example, a Vec of 4 UInts of width 8 should have a width of 32.
+    *
+    * @param dt firrtl type
+    * @return Width of the given type
+    */
   def apply(dt:           Type): BigInt = widthOf(dt)
   private def widthOf(dt: Type): BigInt = dt match {
     case t: VectorType => t.size * bitWidth(t.tpe)
@@ -210,6 +222,24 @@ object Utils extends LazyLogging {
     case _                                                 => false
   }
 
+  /** Selects all the elements of this list ignoring the duplicates as determined by == after
+    * applying the transforming function f
+    *
+    * @note In Scala Standard Library starting in 2.13
+    */
+  def distinctBy[A, B](xs: List[A])(f: A => B): List[A] = {
+    val buf = new mutable.ListBuffer[A]
+    val seen = new mutable.HashSet[B]
+    for (x <- xs) {
+      val y = f(x)
+      if (!seen(y)) {
+        buf += x
+        seen += y
+      }
+    }
+    buf.toList
+  }
+
   /** Provide a nice name to create a temporary * */
   def niceName(e: Expression): String = niceName(1)(e)
   def niceName(depth: Int)(e: Expression): String = {
@@ -325,6 +355,7 @@ object Utils extends LazyLogging {
     onExp(expression)
     ReferenceTarget(main, module, Nil, ref, tokens.toSeq)
   }
+
   @deprecated("get_flip is fundamentally slow, use to_flip(flow(expr))", "FIRRTL 1.2")
   def get_flip(t: Type, i: Int, f: Orientation): Orientation = {
     if (i >= get_size(t)) throwInternalError(s"get_flip: shouldn't be here - $i >= get_size($t)")
@@ -649,6 +680,19 @@ object Utils extends LazyLogging {
     case _ => NoInfo
   }
 
+  /** Finds all root References in a nested Expression */
+  def getAllRefs(expr: Expression): Seq[Reference] = {
+    val refs = mutable.ListBuffer.empty[Reference]
+    def rec(e: Expression): Unit = {
+      e match {
+        case ref: Reference => refs += ref
+        case other => other.foreach(rec)
+      }
+    }
+    rec(expr)
+    refs.toList
+  }
+
   /** Splits an Expression into root Ref and tail
     *
     * @example
@@ -659,19 +703,24 @@ object Utils extends LazyLogging {
     *   Given:   SubField(SubIndex(Ref("b"), 2), "c")
     *   Returns: (Ref("b"), SubField(SubIndex(EmptyExpression, 2), "c"))
     *   b[2].c -> (b, EMPTY[2].c)
-    * @note This function only supports WRef, WSubField, and WSubIndex
+    * @note This function only supports [[firrtl.ir.RefLikeExpression RefLikeExpression]]s: [[firrtl.ir.Reference
+    * Reference]], [[firrtl.ir.SubField SubField]], [[firrtl.ir.SubIndex SubIndex]], and [[firrtl.ir.SubAccess
+    * SubAccess]]
     */
   def splitRef(e: Expression): (WRef, Expression) = e match {
-    case e: WRef => (e, EmptyExpression)
-    case e: WSubIndex =>
+    case e: Reference => (e, EmptyExpression)
+    case e: SubIndex =>
       val (root, tail) = splitRef(e.expr)
-      (root, WSubIndex(tail, e.value, e.tpe, e.flow))
-    case e: WSubField =>
+      (root, SubIndex(tail, e.value, e.tpe, e.flow))
+    case e: SubField =>
       val (root, tail) = splitRef(e.expr)
       tail match {
-        case EmptyExpression => (root, WRef(e.name, e.tpe, root.kind, e.flow))
-        case exp             => (root, WSubField(tail, e.name, e.tpe, e.flow))
+        case EmptyExpression => (root, Reference(e.name, e.tpe, root.kind, e.flow))
+        case exp             => (root, SubField(tail, e.name, e.tpe, e.flow))
       }
+    case e: SubAccess =>
+      val (root, tail) = splitRef(e.expr)
+      (root, SubAccess(tail, e.index, e.tpe, e.flow))
   }
 
   /** Adds a root reference to some SubField/SubIndex chain */
@@ -862,6 +911,149 @@ object Utils extends LazyLogging {
     */
   def maskBigInt(value: BigInt, width: Int): BigInt = {
     value & ((BigInt(1) << width) - 1)
+  }
+
+  /** Returns true iff the expression is a Literal or a Literal cast to a different type. */
+  def isLiteral(e: Expression): Boolean = e match {
+    case _: Literal => true
+    case DoPrim(op, args, _, _) if isCast(op) => args.exists(isLiteral)
+    case _                                    => false
+  }
+
+  /** Applies the firrtl And primop. Automatically constant propagates when one of the expressions is True or False. */
+  def and(e1: Expression, e2: Expression): Expression = {
+    assert(e1.tpe == e2.tpe)
+    (e1, e2) match {
+      case (a: UIntLiteral, b: UIntLiteral) => UIntLiteral(a.value | b.value, a.width)
+      case (True(), b)      => b
+      case (a, True())      => a
+      case (False(), _)     => False()
+      case (_, False())     => False()
+      case (a, b) if a == b => a
+      case (a, b)           => DoPrim(PrimOps.And, Seq(a, b), Nil, BoolType)
+    }
+  }
+
+  /** Applies the firrtl Eq primop. */
+  def eq(e1: Expression, e2: Expression): Expression = DoPrim(PrimOps.Eq, Seq(e1, e2), Nil, BoolType)
+
+  /** Applies the firrtl Or primop. Automatically constant propagates when one of the expressions is True or False. */
+  def or(e1: Expression, e2: Expression): Expression = {
+    assert(e1.tpe == e2.tpe)
+    (e1, e2) match {
+      case (a: UIntLiteral, b: UIntLiteral) => UIntLiteral(a.value | b.value, a.width)
+      case (True(), _)      => True()
+      case (_, True())      => True()
+      case (False(), b)     => b
+      case (a, False())     => a
+      case (a, b) if a == b => a
+      case (a, b)           => DoPrim(PrimOps.Or, Seq(a, b), Nil, BoolType)
+    }
+  }
+
+  /** Applies the firrtl Not primop. Automatically constant propagates when the expressions is True or False. */
+  def not(e: Expression): Expression = e match {
+    case True()  => False()
+    case False() => True()
+    case a       => DoPrim(PrimOps.Not, Seq(a), Nil, BoolType)
+  }
+
+  /** implies(e1, e2) = or(not(e1), e2). Automatically constant propagates when one of the expressions is True or False. */
+  def implies(e1: Expression, e2: Expression): Expression = or(not(e1), e2)
+
+  /** Builds a Mux expression with the correct type. */
+  def mux(cond: Expression, tval: Expression, fval: Expression): Expression = {
+    require(tval.tpe == fval.tpe)
+    Mux(cond, tval, fval, tval.tpe)
+  }
+
+  /** Similar to Seq.groupBy except that it preserves ordering of elements within each group */
+  def groupByIntoSeq[A, K](xs: Iterable[A])(f: A => K): Seq[(K, Seq[A])] = {
+    val map = mutable.LinkedHashMap.empty[K, mutable.ListBuffer[A]]
+    for (x <- xs) {
+      val key = f(x)
+      val l = map.getOrElseUpdate(key, mutable.ListBuffer.empty[A])
+      l += x
+    }
+    map.view.map({ case (k, vs) => k -> vs.toList }).toList
+  }
+
+  // For a given module, returns a Seq of all instantiated modules inside of it
+  private[firrtl] def collectInstantiatedModules(mod: Module, map: Map[String, DefModule]): Seq[DefModule] = {
+    // Use list instead of set to maintain order
+    val modules = mutable.ArrayBuffer.empty[DefModule]
+    def onStmt(stmt: Statement): Unit = stmt match {
+      case DefInstance(_, _, name, _) => modules += map(name)
+      case _: WDefInstanceConnector => throwInternalError(s"unrecognized statement: $stmt")
+      case other => other.foreach(onStmt)
+    }
+    onStmt(mod.body)
+    modules.distinct.toSeq
+  }
+
+  /** Checks if two circuits are equal regardless of their ordering of module definitions */
+  def orderAgnosticEquality(a: Circuit, b: Circuit): Boolean =
+    a.copy(modules = a.modules.sortBy(_.name)) == b.copy(modules = b.modules.sortBy(_.name))
+
+  /** Combines several separate circuit modules (typically emitted by -e or -p compiler options) into a single circuit */
+  def combine(circuits: Seq[Circuit]): Circuit = {
+    def dedup(modules: Seq[DefModule]): Seq[Either[Module, DefModule]] = {
+      // Left means module with no ExtModules, Right means child modules or lone ExtModules
+      val module: Option[Module] = {
+        val found: Seq[Module] = modules.collect { case m: Module => m }
+        assert(
+          found.size <= 1,
+          s"Module definitions should have unique names, found ${found.size} definitions named ${found.head.name}"
+        )
+        found.headOption
+      }
+      val extModules: Seq[ExtModule] = modules.collect { case e: ExtModule => e }.distinct
+
+      // If the module is a lone module (no extmodule references in any other file)
+      if (extModules.isEmpty && !module.isEmpty)
+        Seq(Left(module.get))
+      // If a module has extmodules, but no other file contains the implementation
+      else if (!extModules.isEmpty && module.isEmpty)
+        extModules.map(Right(_))
+      // Otherwise there is a module implementation with extmodule references
+      else
+        Seq(Right(module.get))
+    }
+
+    // 1. Combine modules
+    val grouped: Seq[(String, Seq[DefModule])] = groupByIntoSeq(circuits.flatMap(_.modules))({
+      case mod: Module    => mod.name
+      case ext: ExtModule => ext.defname
+    })
+    val deduped: Iterable[Either[Module, DefModule]] = grouped.flatMap { case (_, insts) => dedup(insts) }
+
+    // 2. Determine top
+    val top = {
+      val found = deduped.collect { case Left(m) => m }
+      assert(found.size == 1, s"There should only be 1 top module, got: ${found.map(_.name).mkString(", ")}")
+      found.head
+    }
+    val res = deduped.collect { case Right(m) => m }
+    ir.Circuit(NoInfo, top +: res.toSeq, top.name)
+  }
+
+  object True {
+    private val _True = UIntLiteral(1, IntWidth(1))
+
+    /** Matches `UInt<1>(1)` */
+    def unapply(e: UIntLiteral): Boolean = e.value == 1 && e.width == _True.width
+
+    /** Returns `UInt<1>(1)` */
+    def apply(): UIntLiteral = _True
+  }
+  object False {
+    private val _False = UIntLiteral(0, IntWidth(1))
+
+    /** Matches `UInt<1>(0)` */
+    def unapply(e: UIntLiteral): Boolean = e.value == 0 && e.width == _False.width
+
+    /** Returns `UInt<1>(0)` */
+    def apply(): UIntLiteral = _False
   }
 }
 

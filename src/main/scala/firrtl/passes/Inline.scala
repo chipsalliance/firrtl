@@ -179,7 +179,7 @@ class InlineInstances extends Transform with DependencyAPIMigration with Registe
 
     /** Add a prefix to all declarations updating a [[Namespace]] and appending to a [[RenameMap]] */
     def appendNamePrefix(
-      currentModule: IsModule,
+      currentModule: InstanceTarget,
       nextModule:    IsModule,
       prefix:        String,
       ns:            Namespace,
@@ -187,18 +187,28 @@ class InlineInstances extends Transform with DependencyAPIMigration with Registe
       renameMap:     RenameMap
     )(s:             Statement
     ): Statement = {
-      def onName(ofModuleOpt: Option[String])(name: String) = {
-        if (prefix.nonEmpty && !ns.tryName(prefix + name)) {
-          throw new Exception(s"Inlining failed. Inlined name '${prefix + name}' already exists")
+      def onName(ofModuleOpt: Option[String])(name: String): String = {
+        // Empty names are allowed for backwards compatibility reasons and
+        // indicate that the entity has essentially no name and thus cannot be prefixed.
+        if (name.isEmpty) { name }
+        else {
+          if (prefix.nonEmpty && !ns.tryName(prefix + name)) {
+            throw new Exception(s"Inlining failed. Inlined name '${prefix + name}' already exists")
+          }
+          ofModuleOpt match {
+            case None =>
+              renameMap.record(currentModule.ofModuleTarget.ref(name), nextModule.ref(prefix + name))
+              renameMap.record(currentModule.ref(name), nextModule.ref(prefix + name))
+            case Some(ofModule) =>
+              renameMap.record(
+                currentModule.ofModuleTarget.instOf(name, ofModule),
+                nextModule.instOf(prefix + name, ofModule)
+              )
+              renameMap.record(currentModule.instOf(name, ofModule), nextModule.instOf(prefix + name, ofModule))
+          }
+          renames(name) = prefix + name
+          prefix + name
         }
-        ofModuleOpt match {
-          case None =>
-            renameMap.record(currentModule.ref(name), nextModule.ref(prefix + name))
-          case Some(ofModule) =>
-            renameMap.record(currentModule.instOf(name, ofModule), nextModule.instOf(prefix + name, ofModule))
-        }
-        renames(name) = prefix + name
-        prefix + name
       }
 
       s match {
@@ -343,7 +353,6 @@ class InlineInstances extends Transform with DependencyAPIMigration with Registe
             .map(appendRefPrefix(inlineTarget, prefixMap))
 
           renames.record(inlineTarget, currentModule)
-
           renamedBody
         case sx =>
           sx

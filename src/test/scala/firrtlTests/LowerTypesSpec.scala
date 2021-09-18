@@ -18,19 +18,27 @@ import firrtl.util.TestOptions
 class LowerTypesSpec extends FirrtlFlatSpec {
   private val compiler = new TransformManager(Seq(Dependency(LowerTypes)))
 
-  private def executeTest(input: String, expected: Seq[String]) = {
-    val fir = Parser.parse(input.split("\n").toIterator)
-    val c = compiler.runTransform(CircuitState(fir, Seq())).circuit
-    val lines = c.serialize.split("\n").map(normalized)
+  private def executeTest(input: String, expected: Seq[String]): Unit = executeTest(input, expected, Nil, Nil)
+  private def executeTest(
+    input:         String,
+    expected:      Seq[String],
+    inputAnnos:    Seq[Annotation],
+    expectedAnnos: Seq[Annotation]
+  ): Unit = {
+    val circuit = Parser.parse(input.split("\n").toIterator)
+    val result = compiler.runTransform(CircuitState(circuit, inputAnnos))
+    val lines = result.circuit.serialize.split("\n").map(normalized)
 
-    expected.foreach { e =>
-      lines should contain(e)
+    expected.map(normalized).foreach { e =>
+      assert(lines.contains(e), f"Failed to find $e in ${lines.mkString("\n")}")
     }
+
+    result.annotations.toSeq should equal(expectedAnnos)
   }
 
   behavior.of("Lower Types")
 
-  it should "lower ports" in {
+  it should "lower ports and rename them appropriately (no duplicates)" in {
     val input =
       """circuit Test :
         |  module Test :
@@ -39,7 +47,7 @@ class LowerTypesSpec extends FirrtlFlatSpec {
         |    input y : UInt<1>[4]
         |    input z : { c : { d : UInt<1>, e : UInt<1>}, f : UInt<1>[2] }[2]
       """.stripMargin
-    val expected = Seq(
+    val expectedNames = Seq(
       "w",
       "x_a",
       "x_b",
@@ -55,9 +63,27 @@ class LowerTypesSpec extends FirrtlFlatSpec {
       "z_1_c_e",
       "z_1_f_0",
       "z_1_f_1"
-    ).map(x => s"input $x : UInt<1>").map(normalized)
+    )
+    val expected = expectedNames.map(x => s"input $x : UInt<1>").map(normalized)
 
-    executeTest(input, expected)
+    // This annotation will error if the RenameMap returns any duplicates, checking the .distinct
+    // invariant on renames
+    case class CheckDuplicationAnnotation(ts: Seq[ReferenceTarget]) extends MultiTargetAnnotation {
+      def targets = ts.map(Seq(_))
+
+      def duplicate(n: Seq[Seq[Target]]): Annotation = {
+        val flat: Seq[ReferenceTarget] = n.flatten.map(_.asInstanceOf[ReferenceTarget])
+        val distinct = flat.distinct
+        assert(flat.size == distinct.size, s"There must be no duplication of targets! Got ${flat.map(_.serialize)}")
+        this.copy(flat)
+      }
+    }
+
+    val m = CircuitTarget("Test").module("Test")
+    val inputAnnos = CheckDuplicationAnnotation(Seq("w", "x", "y", "z").map(m.ref(_))) :: Nil
+    val expectedAnnos = CheckDuplicationAnnotation(expectedNames.map(m.ref(_))) :: Nil
+
+    executeTest(input, expected, inputAnnos, expectedAnnos)
   }
 
   it should "lower mixed-direction ports" in {
@@ -321,6 +347,25 @@ class LowerTypesUniquifySpec extends FirrtlFlatSpec {
     executeTest(input, expected)
   }
 
+  it should "rename nodes colliding with labled statements" in {
+    val input =
+      """circuit Test :
+        |  module Test :
+        |    input clock : Clock
+        |    reg x : { b : UInt<1>, c : { d : UInt<2>, e : UInt<3>}[2], c_1_e : UInt<4>}[2], clock
+        |    node a = x
+        |    printf(clock, UInt(1), "") : a_0_c_
+        |    assert(clock, UInt(1), UInt(1), "") : a__0
+      """.stripMargin
+    val expected = Seq(
+      "node a___0_b = x_0_b",
+      "node a___1_c__1_e = x_1_c__1_e",
+      "node a___1_c_1_e = x_1_c_1_e"
+    )
+
+    executeTest(input, expected)
+  }
+
   it should "rename DefRegister expressions: clock, reset, and init" in {
     val input =
       """circuit Test :
@@ -447,10 +492,10 @@ class LowerTypesUniquifySpec extends FirrtlFlatSpec {
         |    input a : { b : UInt<1>, flip c : { d : UInt<2>, e : UInt<3>}[2], c_1_e : UInt<4>}[2]
         |    output a_0_b : UInt<1>
         |    input a__0_c_ : { d : UInt<2>, e : UInt<3>}[2]
-        |    a_0_b <= mux(a[UInt(0)].c_1_e, or(a[or(a[0].b, a[1].b)].b, xorr(a[0].c_1_e)), orr(cat(a__0_c_[0].e, a[1].c_1_e)))
+        |    a_0_b <= mux(bits(a[UInt(0)].c_1_e, 0, 0), or(a[or(a[0].b, a[1].b)].b, xorr(a[0].c_1_e)), orr(cat(a__0_c_[0].e, a[1].c_1_e)))
       """.stripMargin
     val expected = Seq(
-      "a_0_b <= mux(a___0_c_1_e, or(_a_or_b, xorr(a___0_c_1_e)), orr(cat(a__0_c__0_e, a___1_c_1_e)))"
+      "a_0_b <= mux(bits(a___0_c_1_e, 0, 0), or(_a_or_b, xorr(a___0_c_1_e)), orr(cat(a__0_c__0_e, a___1_c_1_e)))"
     )
 
     executeTest(input, expected)

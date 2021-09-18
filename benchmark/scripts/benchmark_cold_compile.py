@@ -20,9 +20,7 @@ def get_firrtl_repo():
 
 firrtl_repo = get_firrtl_repo()
 
-def run_firrtl(java, jar, design):
-    java_cmd = java.split()
-    cmd = java_cmd + ['-cp', jar, 'firrtl.stage.FirrtlMain', '-i', design,'-o','out.v','-X','verilog']
+def run_firrtl(cmd):
     print(' '.join(cmd))
     resource_use = monitor_job(cmd)
     size = resource_use.maxrss // 1024 # KiB -> MiB
@@ -31,14 +29,20 @@ def run_firrtl(java, jar, design):
 
 def parseargs():
     parser = argparse.ArgumentParser("Benchmark FIRRTL")
-    parser.add_argument('--designs', type=str, nargs='+',
+    parser.add_argument('--designs', type=str, nargs='+', required=True,
                         help='FIRRTL input files to use as benchmarks')
-    parser.add_argument('--versions', type=str, nargs='+', default=['HEAD'],
-                        help='FIRRTL commit hashes to benchmark')
     parser.add_argument('--iterations', '-N', type=int, default=10,
                         help='Number of times to run each benchmark')
     parser.add_argument('--jvms', type=str, nargs='+', default=['java'],
                         help='JVMs to use')
+    parser.add_argument('--cmd', type=str,
+                        default='-cp {jar} firrtl.stage.FirrtlMain -i {design} -o out -X verilog',
+                        help='Command to run, will sub {jar} and {design}')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument('--versions', type=str, nargs='+', default=['HEAD'],
+                        help='FIRRTL commit hashes to benchmark')
+    group.add_argument('--jars', type=str, nargs='+',
+                        help='FIRRTL fat jars to benchmark')
     return parser.parse_args()
 
 def get_version_hashes(versions):
@@ -83,19 +87,27 @@ def build_firrtl_jars(versions):
         jars[hashcode] = clone_and_build(hashcode)
     return jars
 
-def check_designs(designs):
-    for design in designs:
-        assert os.path.exists(design), '{} must be an existing file!'.format(design)
+
+def check_args_exist(args):
+    for arg in args:
+        assert os.path.exists(arg), '{} must be an existing file!'.format(arg)
 
 
 def main():
     args = parseargs()
     designs = args.designs
-    check_designs(designs)
-    hashes = get_version_hashes(args.versions)
-    jars = build_firrtl_jars(hashes)
+    check_args_exist(designs)
+    if args.jars is None:
+        hashes = get_version_hashes(args.versions)
+        jars = build_firrtl_jars(hashes)
+    else:
+        check_args_exist(args.jars)
+        jars = OrderedDict()
+        for jar in args.jars:
+            jars[os.path.basename(jar)] = jar
     jvms = args.jvms
     N = args.iterations
+    base_cmd = args.cmd
     info = [['java', 'revision', 'design', 'max heap (MiB)', 'SD', 'runtime (s)', 'SD']]
     for java in jvms:
         print("Running with '{}'".format(java))
@@ -105,7 +117,8 @@ def main():
             java_title = java
             for design in designs:
                 print('Running {}...'.format(design))
-                (sizes, runtimes) = zip(*[run_firrtl(java, jar, design) for i in range(N)])
+                cmd = java.split() + base_cmd.format(jar=jar, design=design).split()
+                (sizes, runtimes) = zip(*[run_firrtl(cmd) for i in range(N)])
                 info.append([java_title, revision, design, median(sizes), stdev(sizes), median(runtimes), stdev(runtimes)])
                 java_title = ''
                 revision = ''

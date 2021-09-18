@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        scala: [2.13.2, 2.12.12, 2.11.12]
+        scala: [2.13.6, 2.12.14]
     container:
       image: ucbbar/chisel3-tools
       options: --user github --entrypoint /bin/bash
@@ -30,15 +30,14 @@ jobs:
         with:
           java-version: adopt@1.8
       - name: Cache Scala
-        uses: coursier/cache-action@v5
+        uses: coursier/cache-action@v6
       - name: Check Formatting (Scala 2.12 only)
-        if: matrix.scala == '2.12.12'
+        if: startsWith(matrix.scala, '2.12')
         run: sbt ++${{ matrix.scala }} scalafmtCheckAll
-      - name: Unidoc builds (Scala 2.12 only)
-        if: matrix.scala == '2.12.12'
+      - name: Unidoc
         run: sbt ++${{ matrix.scala }} unidoc
-      - name: Sanity check benchmarking scripts (Scala 2.12 only)
-        if: matrix.scala == '2.12.12'
+      - name: Sanity check benchmarking scripts (Scala 2.13 only)
+        if: startsWith(matrix.scala, '2.13')
         run: |
           benchmark/scripts/benchmark_cold_compile.py -N 2 --designs regress/ICache.fir --versions HEAD
           benchmark/scripts/find_heap_bound.py -- -cp firrtl*jar firrtl.stage.FirrtlMain -i regress/ICache.fir -o out -X verilog
@@ -46,6 +45,24 @@ jobs:
         run: sbt ++${{ matrix.scala }} test
       - name: Binary compatibility
         run: sbt ++${{ matrix.scala }} mimaReportBinaryIssues
+
+  mill:
+    name: Mill Sanity Check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        scala: [2.13.6, 2.12.14]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup Scala
+        uses: olafurpg/setup-scala@v10
+      - name: Cache
+        uses: coursier/cache-action@v5
+      - name: Setup Mill
+        uses: jodersky/setup-mill@v0.2.3
+      - name: Mill sanity check
+        run: mill _[${{ matrix.scala }}].compile
 
   # TODO find better way to express Ops and AddNot as single test
   equiv:
@@ -70,6 +87,11 @@ jobs:
       - name: Cache Scala
         uses: coursier/cache-action@v5
       - name: Run Formal Equivalence
+        # This is here instead of on the whole job because if a job is skipped, so are dependent jobs
+        # If this job were skipped, all_tests_passed would be skipped to
+        # By having this "if" here, this job returns success so that all_tests_passed will succeed too
+        if: github.event_name == 'pull_request' &&
+            ! contains(github.event.pull_request.labels.*.name, 'Skip Formal CI')
         run: ./.run_formal_checks.sh ${{ matrix.design }}
 
   # Sentinel job to simplify how we specify which checks need to pass in branch
@@ -78,7 +100,7 @@ jobs:
   # When adding new jobs, please add them to `needs` below
   all_tests_passed:
     name: "all tests passed"
-    needs: [test, equiv]
+    needs: [test, mill, equiv]
     runs-on: ubuntu-latest
     steps:
       - run: echo Success!

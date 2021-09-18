@@ -2,9 +2,17 @@
 
 package firrtl.backends.experimental.smt
 
-private class FirrtlExpressionSemanticsSpec extends SMTBackendBaseSpec {
+import org.scalatest.flatspec.AnyFlatSpec
 
-  def primop(op: String, resTpe: String, inTpes: Seq[String], consts: Seq[Int]): String = {
+class FirrtlExpressionSemanticsSpec extends AnyFlatSpec {
+
+  private def primopSys(
+    op:         String,
+    resTpe:     String,
+    inTpes:     Seq[String],
+    consts:     Seq[Int],
+    modelUndef: Boolean
+  ): TransitionSystem = {
     val inputs = inTpes.zipWithIndex.map { case (tpe, ii) => s"    input i$ii : $tpe" }.mkString("\n")
     val args = (inTpes.zipWithIndex.map { case (_, ii) => s"i$ii" } ++ consts.map(_.toString)).mkString(", ")
     val src =
@@ -15,9 +23,28 @@ private class FirrtlExpressionSemanticsSpec extends SMTBackendBaseSpec {
          |    res <= $op($args)
          |
          |""".stripMargin
-    val sys = toSys(src)
-    assert(sys.signals.length == 1)
-    sys.signals.head.e.toString
+    SMTBackendHelpers.toSys(src, modelUndef = modelUndef)
+  }
+
+  def primop(op: String, resTpe: String, inTpes: Seq[String], consts: Seq[Int]): String = {
+    val sys = primopSys(op, resTpe, inTpes, consts, modelUndef = false)
+    assert(sys.signals.length >= 1)
+    sys.signals.last.e.toString
+  }
+
+  private def primopSys(
+    signed:            Boolean,
+    op:                String,
+    resWidth:          Int,
+    inWidth:           Seq[Int],
+    consts:            Seq[Int],
+    resAlwaysUnsigned: Boolean,
+    modelUndef:        Boolean
+  ): TransitionSystem = {
+    val tpe = if (signed) "SInt" else "UInt"
+    val resTpe = if (resAlwaysUnsigned) "UInt" else tpe
+    val inTpes = inWidth.map(w => s"$tpe<$w>")
+    primopSys(op, s"$resTpe<$resWidth>", inTpes, consts, modelUndef)
   }
 
   def primop(
@@ -26,12 +53,12 @@ private class FirrtlExpressionSemanticsSpec extends SMTBackendBaseSpec {
     resWidth:          Int,
     inWidth:           Seq[Int],
     consts:            Seq[Int] = List(),
-    resAlwaysUnsigned: Boolean = false
+    resAlwaysUnsigned: Boolean = false,
+    modelUndef:        Boolean = false
   ): String = {
-    val tpe = if (signed) "SInt" else "UInt"
-    val resTpe = if (resAlwaysUnsigned) "UInt" else tpe
-    val inTpes = inWidth.map(w => s"$tpe<$w>")
-    primop(op, s"$resTpe<$resWidth>", inTpes, consts)
+    val sys = primopSys(signed, op, resWidth, inWidth, consts, resAlwaysUnsigned, modelUndef)
+    assert(sys.signals.length >= 1)
+    sys.signals.last.e.toString
   }
 
   it should "correctly translate the add primitive operation with different operand sizes" in {
@@ -58,24 +85,34 @@ private class FirrtlExpressionSemanticsSpec extends SMTBackendBaseSpec {
 
   it should "correctly translate the `div` primitive operation" in {
     // division is a little bit more complicated because the result of division by zero is undefined
+    //val sys = primopSys(false, "div", 8, List(8, 8), List(), false)
+    //println(sys.serialize)
+
     assert(
-      primop(false, "div", 8, List(8, 8)) ==
-        "ite(eq(i1, 8'b0), RANDOM.res, udiv(i0, i1))"
+      primop(false, "div", 8, List(8, 8), modelUndef = true) ==
+        "ite(res_invalid_cond, res_invalid, udiv(i0, i1))"
     )
     assert(
-      primop(false, "div", 8, List(8, 4)) ==
-        "ite(eq(i1, 4'b0), RANDOM.res, udiv(i0, zext(i1, 4)))"
+      primop(false, "div", 8, List(8, 4), modelUndef = true) ==
+        "ite(res_invalid_cond, res_invalid, udiv(i0, zext(i1, 4)))"
     )
 
     // signed division increases result width by 1
     assert(
-      primop(true, "div", 8, List(7, 7)) ==
-        "ite(eq(i1, 7'b0), RANDOM.res, sdiv(sext(i0, 1), sext(i1, 1)))"
+      primop(true, "div", 8, List(7, 7), modelUndef = true) ==
+        "ite(res_invalid_cond, res_invalid, sdiv(sext(i0, 1), sext(i1, 1)))"
     )
     assert(
-      primop(true, "div", 8, List(7, 4))
-        == "ite(eq(i1, 4'b0), RANDOM.res, sdiv(sext(i0, 1), sext(i1, 4)))"
+      primop(true, "div", 8, List(7, 4), modelUndef = true)
+        == "ite(res_invalid_cond, res_invalid, sdiv(sext(i0, 1), sext(i1, 4)))"
     )
+
+    // ---------------------------------------------------------
+    // without modelling the undefined-ness of division by zero:
+    assert(primop(false, "div", 8, List(8, 8), modelUndef = false) == "udiv(i0, i1)")
+    assert(primop(false, "div", 8, List(8, 4), modelUndef = false) == "udiv(i0, zext(i1, 4))")
+    assert(primop(true, "div", 8, List(7, 7), modelUndef = false) == "sdiv(sext(i0, 1), sext(i1, 1))")
+    assert(primop(true, "div", 8, List(7, 4), modelUndef = false) == "sdiv(sext(i0, 1), sext(i1, 4))")
   }
 
   it should "correctly translate the `rem` primitive operation" in {

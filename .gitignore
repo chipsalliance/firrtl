@@ -62,7 +62,9 @@ project/project/
 out/
 .bloop
 .metals
+.bsp
 project/metals.sbt
 
 *~
 *#*#
+.vscode

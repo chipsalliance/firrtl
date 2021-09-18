@@ -380,8 +380,12 @@ class InlineInstancesTests extends LowTransformSpec {
     execute(input, check, Seq(inline("Inline")))
   }
 
-  case class DummyAnno(target: ReferenceTarget) extends SingleTargetAnnotation[ReferenceTarget] {
-    override def duplicate(n: ReferenceTarget): Annotation = DummyAnno(n)
+  case class DummyAnno(targets: CompleteTarget*) extends Annotation {
+    override def update(renames: RenameMap): Seq[Annotation] = {
+      Seq(DummyAnno(targets.flatMap { t =>
+        renames.get(t).getOrElse(Seq(t))
+      }: _*))
+    }
   }
   "annotations" should "be renamed" in {
     val input =
@@ -460,6 +464,60 @@ class InlineInstancesTests extends LowTransformSpec {
     )
   }
 
+  "inlining named statements" should "work" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input clock : Clock
+        |    input a : UInt<32>
+        |    output b : UInt<32>
+        |    inst i of Inline
+        |    i.clock <= clock
+        |    i.a <= a
+        |    b <= i.b
+        |  module Inline :
+        |    input clock : Clock
+        |    input a : UInt<32>
+        |    output b : UInt<32>
+        |    b <= a
+        |    assert(clock, UInt(1), eq(a,b), "a == b") : assert1
+        |    assert(clock, UInt(1), not(eq(a,b)), "a != b")
+        |    stop(clock, UInt(0), 0)
+        |""".stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    input clock : Clock
+        |    input a : UInt<32>
+        |    output b : UInt<32>
+        |    wire i_clock : Clock
+        |    wire i_a : UInt<32>
+        |    wire i_b : UInt<32>
+        |    i_b <= i_a
+        |    assert(i_clock, UInt(1), eq(i_a, i_b), "a == b") : i_assert1
+        |    assert(i_clock, UInt(1), not(eq(i_a, i_b)), "a != b")
+        |    stop(i_clock, UInt(0), 0)
+        |    b <= i_b
+        |    i_clock <= clock
+        |    i_a <= a
+        |""".stripMargin
+    val top = CircuitTarget("Top").module("Top")
+    val inlined = top.instOf("i", "Inline")
+
+    executeWithAnnos(
+      input,
+      check,
+      Seq(
+        inline("Inline"),
+        NoCircuitDedupAnnotation,
+        DummyAnno(inlined.ref("assert1"))
+      ),
+      Seq(
+        DummyAnno(top.ref("i_assert1"))
+      )
+    )
+  }
+
   "inlining both grandparent and grandchild" should "should work" in {
     val input =
       """circuit Top :
@@ -519,6 +577,9 @@ class InlineInstancesTests extends LowTransformSpec {
     val nestedNotInlined = inlined.instOf("bar", "NestedNoInline")
     val innerNestedInlined = nestedNotInlined.instOf("foo", "NestedInline")
 
+    val inlineModuleTarget = top.copy(module = "Inline")
+    val nestedInlineModuleTarget = top.copy(module = "NestedInline")
+
     executeWithAnnos(
       input,
       check,
@@ -532,7 +593,10 @@ class InlineInstancesTests extends LowTransformSpec {
         DummyAnno(nestedNotInlined.ref("a")),
         DummyAnno(nestedNotInlined.ref("b")),
         DummyAnno(innerNestedInlined.ref("a")),
-        DummyAnno(innerNestedInlined.ref("b"))
+        DummyAnno(innerNestedInlined.ref("b")),
+        DummyAnno(inlineModuleTarget.instOf("bar", "NestedNoInline")),
+        DummyAnno(inlineModuleTarget.ref("a"), inlineModuleTarget.ref("b")),
+        DummyAnno(nestedInlineModuleTarget.ref("a"))
       ),
       Seq(
         DummyAnno(top.ref("i_a")),
@@ -542,7 +606,10 @@ class InlineInstancesTests extends LowTransformSpec {
         DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("a")),
         DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("b")),
         DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("foo_a")),
-        DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("foo_b"))
+        DummyAnno(top.instOf("i_bar", "NestedNoInline").ref("foo_b")),
+        DummyAnno(top.instOf("i_bar", "NestedNoInline")),
+        DummyAnno(top.ref("i_a"), top.ref("i_b")),
+        DummyAnno(top.ref("i_foo_a"), top.copy(module = "NestedNoInline").ref("foo_a"))
       )
     )
   }

@@ -3,6 +3,7 @@
 package firrtl.stage
 
 import firrtl._
+import firrtl.backends.experimental.smt.{Btor2Emitter, SMTLibEmitter}
 import firrtl.options.Dependency
 import firrtl.stage.TransformManager.TransformDependency
 
@@ -25,7 +26,8 @@ object Forms {
       Dependency[annotations.transforms.CleanupNamedTargets]
     )
 
-  val WorkingIR: Seq[TransformDependency] = MinimalHighForm :+ Dependency(passes.ToWorkingIR)
+  @deprecated("Use firrtl.stage.forms.MinimalHighForm", "FIRRTL 1.4.2")
+  val WorkingIR: Seq[TransformDependency] = MinimalHighForm
 
   val Checks: Seq[TransformDependency] =
     Seq(
@@ -35,7 +37,7 @@ object Forms {
       Dependency(passes.CheckWidths)
     )
 
-  val Resolved: Seq[TransformDependency] = WorkingIR ++ Checks ++
+  val Resolved: Seq[TransformDependency] = MinimalHighForm ++ Checks ++
     Seq(
       Dependency(passes.ResolveKinds),
       Dependency(passes.InferTypes),
@@ -46,11 +48,14 @@ object Forms {
       Dependency[firrtl.transforms.InferResets]
     )
 
-  val Deduped: Seq[TransformDependency] = Resolved :+ Dependency[firrtl.transforms.DedupModules]
+  val Deduped: Seq[TransformDependency] = Resolved ++
+    Seq(
+      Dependency[firrtl.transforms.DedupModules],
+      Dependency[firrtl.transforms.DedupAnnotationsTransform]
+    )
 
   val HighForm: Seq[TransformDependency] = ChirrtlForm ++
     MinimalHighForm ++
-    WorkingIR ++
     Resolved ++
     Deduped
 
@@ -71,7 +76,7 @@ object Forms {
   val LowForm: Seq[TransformDependency] = MidForm ++
     Seq(
       Dependency(passes.LowerTypes),
-      Dependency(passes.Legalize),
+      Dependency(passes.LegalizeConnects),
       Dependency(firrtl.transforms.RemoveReset),
       Dependency[firrtl.transforms.CheckCombLoops],
       Dependency[checks.CheckResets],
@@ -82,39 +87,42 @@ object Forms {
     Seq(
       Dependency(passes.RemoveValidIf),
       Dependency(passes.PadWidths),
-      Dependency(passes.memlib.VerilogMemDelays),
-      Dependency(passes.SplitExpressions),
-      Dependency[firrtl.transforms.LegalizeAndReductionsTransform]
+      Dependency(passes.SplitExpressions)
     )
 
   val LowFormOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
     Seq(
       Dependency[firrtl.transforms.ConstantPropagation],
-      Dependency[firrtl.transforms.CombineCats],
       Dependency(passes.CommonSubexpressionElimination),
       Dependency[firrtl.transforms.DeadCodeElimination]
     )
 
-  val VerilogMinimumOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++
+  private def VerilogLowerings(optimize: Boolean): Seq[TransformDependency] = {
     Seq(
-      Dependency[firrtl.transforms.BlackBoxSourceHelper],
-      Dependency[firrtl.transforms.FixAddingNegativeLiterals],
-      Dependency[firrtl.transforms.ReplaceTruncatingArithmetic],
-      Dependency[firrtl.transforms.InlineBitExtractionsTransform],
-      Dependency[firrtl.transforms.InlineCastsTransform],
-      Dependency[firrtl.transforms.LegalizeClocksTransform],
-      Dependency[firrtl.transforms.FlattenRegUpdate],
-      Dependency(passes.VerilogModulusCleanup),
-      Dependency[firrtl.transforms.VerilogRename],
-      Dependency(passes.VerilogPrep),
-      Dependency[firrtl.AddDescriptionNodes]
-    )
-
-  val VerilogOptimized: Seq[TransformDependency] = LowFormOptimized ++
-    Seq(
-      Dependency[firrtl.transforms.InlineBooleanExpressions]
+      Dependency(firrtl.backends.verilog.LegalizeVerilog),
+      Dependency(passes.memlib.VerilogMemDelays),
+      Dependency[firrtl.transforms.CombineCats]
     ) ++
-    VerilogMinimumOptimized
+      (if (optimize) Seq(Dependency[firrtl.transforms.InlineBooleanExpressions]) else Seq()) ++
+      Seq(
+        Dependency[firrtl.transforms.LegalizeAndReductionsTransform],
+        Dependency[firrtl.transforms.BlackBoxSourceHelper],
+        Dependency[firrtl.transforms.FixAddingNegativeLiterals],
+        Dependency[firrtl.transforms.ReplaceTruncatingArithmetic],
+        Dependency[firrtl.transforms.InlineBitExtractionsTransform],
+        Dependency[firrtl.transforms.InlineAcrossCastsTransform],
+        Dependency[firrtl.transforms.LegalizeClocksTransform],
+        Dependency[firrtl.transforms.FlattenRegUpdate],
+        Dependency(passes.VerilogModulusCleanup),
+        Dependency[firrtl.transforms.VerilogRename],
+        Dependency(passes.VerilogPrep),
+        Dependency[firrtl.AddDescriptionNodes]
+      )
+  }
+
+  val VerilogMinimumOptimized: Seq[TransformDependency] = LowFormMinimumOptimized ++ VerilogLowerings(optimize = false)
+
+  val VerilogOptimized: Seq[TransformDependency] = LowFormOptimized ++ VerilogLowerings(optimize = true)
 
   val AssertsRemoved: Seq[TransformDependency] =
     Seq(
@@ -123,7 +131,13 @@ object Forms {
     )
 
   val BackendEmitters =
-    Seq(Dependency[VerilogEmitter], Dependency[MinimumVerilogEmitter], Dependency[SystemVerilogEmitter])
+    Seq(
+      Dependency[VerilogEmitter],
+      Dependency[MinimumVerilogEmitter],
+      Dependency[SystemVerilogEmitter],
+      Dependency(SMTLibEmitter),
+      Dependency(Btor2Emitter)
+    )
 
   val LowEmitters = Dependency[LowFirrtlEmitter] +: BackendEmitters
 

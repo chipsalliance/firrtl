@@ -25,19 +25,12 @@ object ZeroWidth extends Transform with DependencyAPIMigration {
     case _          => false
   }
 
-  private def makeEmptyMemBundle(name: String): Field =
-    Field(
-      name,
-      Flip,
-      BundleType(
-        Seq(
-          Field("addr", Default, UIntType(IntWidth(0))),
-          Field("en", Default, UIntType(IntWidth(0))),
-          Field("clk", Default, UIntType(IntWidth(0))),
-          Field("data", Flip, UIntType(IntWidth(0)))
-        )
-      )
-    )
+  private def makeZero(tpe: ir.Type): ir.Type = tpe match {
+    case ClockType => UIntType(IntWidth(0))
+    case a: UIntType      => a.copy(IntWidth(0))
+    case a: SIntType      => a.copy(IntWidth(0))
+    case a: AggregateType => a.map(makeZero)
+  }
 
   private def onEmptyMemStmt(s: Statement): Statement = s match {
     case d @ DefMemory(info, name, tpe, _, _, _, rs, ws, rws, _) =>
@@ -46,11 +39,9 @@ object ZeroWidth extends Transform with DependencyAPIMigration {
           DefWire(
             info,
             name,
-            BundleType(
-              rs.map(r => makeEmptyMemBundle(r)) ++
-                ws.map(w => makeEmptyMemBundle(w)) ++
-                rws.map(rw => makeEmptyMemBundle(rw))
-            )
+            MemPortUtils
+              .memType(d)
+              .map(makeZero)
           )
         case Some(_) => d
       }
@@ -135,11 +126,16 @@ object ZeroWidth extends Transform with DependencyAPIMigration {
         }
       }
       nonZeros match {
-        case Nil    => UIntLiteral(ZERO, IntWidth(BigInt(1)))
-        case Seq(x) => x
+        case Nil => UIntLiteral(ZERO, IntWidth(BigInt(1)))
+        // We may have an SInt, Cat has type UInt so cast
+        case Seq(x) => castRhs(tpe, x)
         case seq    => DoPrim(Cat, seq, consts, tpe).map(onExp)
       }
     case DoPrim(Andr, Seq(x), _, _) if (bitWidth(x.tpe) == 0) => UIntLiteral(1) // nothing false
+    // The width of the result type of dshl is a function of the width of the shift.  This has to be special cased for
+    // the zero-width shift case to prevent increasing the result width.  Canonicalize a dshl by a zero-width element as
+    // just returning the unshifted expression.
+    case DoPrim(Dshl, Seq(x, a), _, _) if (bitWidth(a.tpe) == 0) => x
     case other =>
       other.tpe match {
         case UIntType(IntWidth(ZERO)) => UIntLiteral(ZERO, IntWidth(BigInt(1)))

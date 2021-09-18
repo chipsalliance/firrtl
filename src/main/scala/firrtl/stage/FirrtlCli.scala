@@ -3,6 +3,7 @@
 package firrtl.stage
 
 import firrtl.options.Shell
+import firrtl.passes.CommonSubexpressionElimination
 import firrtl.transforms.NoCircuitDedupAnnotation
 
 /** [[firrtl.options.Shell Shell]] mixin that provides command line options for FIRRTL. This does not include any
@@ -13,6 +14,7 @@ trait FirrtlCli { this: Shell =>
   parser.note("FIRRTL Compiler Options")
   Seq(
     FirrtlFileAnnotation,
+    FirrtlDirectoryAnnotation,
     OutputFileAnnotation,
     InfoModeAnnotation,
     FirrtlSourceAnnotation,
@@ -22,7 +24,10 @@ trait FirrtlCli { this: Shell =>
     NoCircuitDedupAnnotation,
     WarnNoScalaVersionDeprecation,
     PrettyNoExprInlining,
-    DisableFold
+    DisableFold,
+    OptimizeForFPGA,
+    CurrentFirrtlStateAnnotation,
+    CommonSubexpressionElimination
   )
     .map(_.addOptions(parser))
 

@@ -14,6 +14,7 @@ import firrtl.Utils.throwInternalError
 import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
 import firrtl.options.{Dependency, DependencyAPI, StageUtils, TransformLike}
 import firrtl.stage.Forms
+import firrtl.transforms.DedupAnnotationsTransform
 
 /** Container of all annotations for a Firrtl compiler */
 class AnnotationSeq private (private[firrtl] val underlying: List[Annotation]) {
@@ -210,37 +211,13 @@ final case object UnknownForm extends CircuitForm(-1) {
 // Internal utilities to keep code DRY, not a clean interface
 private[firrtl] object Transform {
 
-  // Run transform with logging
-  def runTransform(name: String, mk: => CircuitState, logger: Logger): CircuitState = {
-    logger.info(s"======== Starting Transform $name ========")
-
-    val (timeMillis, result) = Utils.time(mk)
-
-    logger.info(s"""----------------------------${"-" * name.size}---------\n""")
-    logger.info(f"Time: $timeMillis%.1f ms")
-
-    result
-  }
-
   def remapAnnotations(name: String, before: CircuitState, after: CircuitState, logger: Logger): CircuitState = {
     val remappedAnnotations = propagateAnnotations(name, logger, before.annotations, after.annotations, after.renames)
 
-    logger.info(s"Form: ${after.form}")
     logger.trace(s"Annotations:")
-    logger.trace {
-      JsonProtocol
-        .serializeTry(remappedAnnotations)
-        .recoverWith {
-          case NonFatal(e) =>
-            val msg = s"Exception thrown during Annotation serialization:\n  " +
-              e.toString.replaceAll("\n", "\n  ")
-            Try(msg)
-        }
-        .get
-    }
+    logger.trace(JsonProtocol.serializeRecover(remappedAnnotations))
 
     logger.trace(s"Circuit:\n${after.circuit.serialize}")
-    logger.info(s"======== Finished Transform $name ========\n")
 
     CircuitState(after.circuit, after.form, remappedAnnotations, None)
   }
@@ -385,7 +362,7 @@ trait Transform extends TransformLike[CircuitState] with DependencyAPI[Transform
     * @return A transformed Firrtl AST
     */
   final def runTransform(state: CircuitState): CircuitState = {
-    val result = Transform.runTransform(name, execute(prepare(state)), logger)
+    val result = execute(prepare(state))
     Transform.remapAnnotations(name, state, result, logger)
   }
 
@@ -420,6 +397,9 @@ trait ResolvedAnnotationPaths {
   override def prepare(state: CircuitState): CircuitState = {
     state.resolvePathsOf(annotationClasses.toSeq: _*)
   }
+
+  // Any transform with this trait invalidates DedupAnnotationsTransform
+  override def invalidates(a: Transform) = a.isInstanceOf[DedupAnnotationsTransform]
 }
 
 /** Defines old API for Emission. Deprecated */

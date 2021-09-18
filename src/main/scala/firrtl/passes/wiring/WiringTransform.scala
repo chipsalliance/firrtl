@@ -40,15 +40,16 @@ class WiringTransform extends Transform with DependencyAPIMigration {
 
   override def prerequisites = Forms.MidForm
   override def optionalPrerequisites = Seq.empty
-  override def optionalPrerequisiteOf = Forms.MidEmitters
+  override def optionalPrerequisiteOf = Forms.MidEmitters ++
+    // once wire targets are turned into nodes, our logic to wire them up no longer works
+    Seq(Dependency[firrtl.transforms.RemoveWires])
 
   private val invalidates = Forms.VerilogOptimized.toSet -- Forms.MinimalHighForm
   override def invalidates(a: Transform): Boolean = invalidates(Dependency.fromTransform(a))
 
   /** Defines the sequence of Transform that should be applied */
   private def transforms(w: Seq[WiringInfo]): Seq[Transform] = Seq(
-    new Wiring(w),
-    ToWorkingIR
+    new Wiring(w)
   )
   def execute(state: CircuitState): CircuitState = {
     val annos = state.annotations.collect {

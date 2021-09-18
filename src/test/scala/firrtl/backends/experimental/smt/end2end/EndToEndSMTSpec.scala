@@ -2,18 +2,19 @@
 
 package firrtl.backends.experimental.smt.end2end
 
-import java.io.{File, PrintWriter}
-
 import firrtl.annotations.{Annotation, CircuitTarget, PresetAnnotation}
+import firrtl.backends.experimental.smt.random.{InvalidToRandomPass, UndefinedMemoryBehaviorPass}
 import firrtl.backends.experimental.smt.{Btor2Emitter, SMTLibEmitter}
-import firrtl.options.TargetDirAnnotation
+import firrtl.options.{Dependency, TargetDirAnnotation}
 import firrtl.stage.{FirrtlCircuitAnnotation, FirrtlStage, OutputFileAnnotation, RunFirrtlTransformAnnotation}
-import firrtl.util.BackendCompilationUtilities
+import firrtl.util.BackendCompilationUtilities.timeStamp
 import logger.{LazyLogging, LogLevel, LogLevelAnnotation}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.must.Matchers
+import os._
 
 import scala.sys.process._
+import scala.util.Properties
 
 class EndToEndSMTSpec extends EndToEndSMTBaseSpec with LazyLogging {
   "we" should "check if Z3 is available" taggedAs (RequiresZ3) in {
@@ -132,7 +133,10 @@ abstract class EndToEndSMTBaseSpec extends AnyFlatSpec with Matchers {
     }
     val fir = firrtl.Parser.parse(src)
     val name = fir.main
-    val testDir = BackendCompilationUtilities.createTestDirectory("EndToEndSMT." + name)
+    // @todo rewrite BackendCompilationUtilities
+    val testBaseDir = os.pwd / "test_run_dir" / s"EndToEndSMT.$name"
+    os.makeDir.all(testBaseDir)
+    val testDir = os.temp.dir(testBaseDir, timeStamp, deleteOnExit = false)
     // we automagically add a preset annotation if an input called preset exists
     val presetAnno = if (!src.contains("input preset")) { None }
     else {
@@ -142,16 +146,19 @@ abstract class EndToEndSMTBaseSpec extends AnyFlatSpec with Matchers {
       Array(),
       Seq(
         LogLevelAnnotation(LogLevel.Error), // silence warnings for tests
-        RunFirrtlTransformAnnotation(new SMTLibEmitter),
-        RunFirrtlTransformAnnotation(new Btor2Emitter),
+        RunFirrtlTransformAnnotation(Dependency(SMTLibEmitter)),
+        RunFirrtlTransformAnnotation(Dependency(Btor2Emitter)),
         FirrtlCircuitAnnotation(fir),
-        TargetDirAnnotation(testDir.getAbsolutePath)
+        TargetDirAnnotation(testDir.toString)
       ) ++ presetAnno ++ annos
     )
     assert(res.collectFirst { case _: OutputFileAnnotation => true }.isDefined)
     val r = Z3ModelChecker.bmc(testDir, name, kmax)
     assert(r == expected, clue + "\n" + s"$testDir")
   }
+
+  val UndefinedMemAnnos = Seq(RunFirrtlTransformAnnotation(Dependency(UndefinedMemoryBehaviorPass)))
+  val InvalidToRandomAnnos = Seq(RunFirrtlTransformAnnotation(Dependency(InvalidToRandomPass)))
 }
 
 /** Minimal implementation of a Z3 based bounded model checker.
@@ -167,42 +174,36 @@ private object Z3ModelChecker extends LazyLogging {
     version
   }
 
-  def bmc(testDir: File, main: String, kmax: Int): MCResult = {
+  def bmc(testDir: Path, main: String, kmax: Int): MCResult = {
     assert(kmax >= 0 && kmax < 50, "Trying to keep kmax in a reasonable range.")
-    val smtFile = new File(testDir, main + ".smt2")
-    val header = read(smtFile)
-    val steps = (0 to kmax).map(k => new File(testDir, main + s"_step$k.smt2")).zipWithIndex
-    steps.foreach {
-      case (f, k) =>
-        writeStep(f, main, header, k)
-        val success = executeStep(f.getAbsolutePath)
-        if (!success) return MCFail(k)
+    (0 to kmax).foreach { k =>
+      val stepFile = testDir / s"${main}_step$k.smt2"
+      os.copy(testDir / s"$main.smt2", stepFile)
+      os.write.append(stepFile, s"""${step(main, k)}
+                                   |(check-sat)
+                                   |""".stripMargin)
+      val success = executeStep(stepFile)
+      if (!success) return MCFail(k)
     }
     MCSuccess
   }
 
-  private def executeStep(filename: String): Boolean = {
-    val (out, ret) = executeCmd(filename)
-    assert(ret == 0, s"expected success (0), not $ret: `$out`\nz3 $filename")
-    assert(out == "sat" || out == "unsat", s"Unexpected output: $out")
-    out == "unsat"
+  private def executeStep(path: Path): Boolean = {
+    val (out, ret) = executeCmd(path.toString)
+    assert(ret == 0, s"expected success (0), not $ret: `$out`\nz3 ${path.toString}")
+    assert(
+      out == "sat" + Properties.lineSeparator || out == "unsat" + Properties.lineSeparator,
+      s"Unexpected output: $out"
+    )
+    out == "unsat" + Properties.lineSeparator
   }
 
   private def executeCmd(cmd: String): (String, Int) = {
-    var out = ""
-    val log = ProcessLogger(s => out = s, logger.warn(_))
-    val ret = Process(Seq("z3", cmd)).run(log).exitValue()
-    (out, ret)
+    val process = os.proc("z3", cmd).call(stderr = ProcessOutput.Readlines(logger.warn(_)))
+    (process.out.chunks.mkString, process.exitCode)
   }
 
-  private def writeStep(f: File, main: String, header: Iterable[String], k: Int): Unit = {
-    val pw = new PrintWriter(f)
-    val lines = header ++ step(main, k) ++ List("(check-sat)")
-    lines.foreach(pw.println)
-    pw.close()
-  }
-
-  private def step(main: String, k: Int): Iterable[String] = {
+  private def step(main: String, k: Int): String = {
     // define all states
     (0 to k).map(ii => s"(declare-fun s$ii () $main$StateTpe)") ++
       // assert that init holds in state 0
@@ -215,13 +216,7 @@ private object Z3ModelChecker extends LazyLogging {
       (0 until k).map(ii => s"(assert ($main$Asserts s$ii))") ++
       // check to see if we can violate the assertions in the last state
       List(s"(assert (not ($main$Asserts s$k)))")
-  }
-
-  private def read(f: File): Iterable[String] = {
-    val source = scala.io.Source.fromFile(f)
-    try source.getLines().toVector
-    finally source.close()
-  }
+  }.mkString("\n")
 
   // the following suffixes have to match the ones in [[SMTTransitionSystemEncoder]]
   private val Transition = "_t"

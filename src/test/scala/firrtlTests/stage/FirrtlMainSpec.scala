@@ -164,16 +164,6 @@ class FirrtlMainSpec
          |""".stripMargin
   }
 
-  /** This returns a string containing the default standard out string based on the Scala version. E.g., if there are
-    * version-specific deprecation warnings, those are available here and can be passed to tests that should have them.
-    */
-  val defaultStdOut: Option[String] = BuildInfo.scalaVersion.split("\\.").toList match {
-    case "2" :: v :: _ :: Nil if v.toInt <= 11 =>
-      Some(CheckScalaVersion.deprecationMessage("2.11", s"--${WarnNoScalaVersionDeprecation.longOption}"))
-    case x =>
-      None
-  }
-
   info("As a FIRRTL command line user")
   info("I want to compile some FIRRTL")
   Feature("FirrtlMain command line interface") {
@@ -205,92 +195,102 @@ class FirrtlMainSpec
     Seq(
       /* Test all standard emitters with and without annotation file outputs */
       FirrtlMainTest(args = Array("-X", "none", "-E", "chirrtl"), files = Seq("Top.fir")),
-      FirrtlMainTest(args = Array("-X", "high", "-E", "high"), stdout = defaultStdOut, files = Seq("Top.hi.fir")),
+      FirrtlMainTest(args = Array("-X", "mhigh", "-E", "mhigh"), files = Seq("Top.mhi.fir")),
+      FirrtlMainTest(args = Array("-X", "high", "-E", "high"), files = Seq("Top.hi.fir")),
       FirrtlMainTest(
         args = Array("-X", "middle", "-E", "middle", "-foaf", "Top"),
-        stdout = defaultStdOut,
         files = Seq("Top.mid.fir", "Top.anno.json")
       ),
       FirrtlMainTest(
         args = Array("-X", "low", "-E", "low", "-foaf", "annotations.anno.json"),
-        stdout = defaultStdOut,
         files = Seq("Top.lo.fir", "annotations.anno.json")
       ),
       FirrtlMainTest(
         args = Array("-X", "verilog", "-E", "verilog", "-foaf", "foo.anno"),
-        stdout = defaultStdOut,
         files = Seq("Top.v", "foo.anno.anno.json")
       ),
       FirrtlMainTest(
         args = Array("-X", "sverilog", "-E", "sverilog", "-foaf", "foo.json"),
-        stdout = defaultStdOut,
         files = Seq("Top.sv", "foo.json.anno.json")
       ),
+      /* Test all ProtoBuf emitters */
+      FirrtlMainTest(args = Array("-X", "none", "--emit-circuit-protobuf", "chirrtl"), files = Seq("Top.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-P", "mhigh"), files = Seq("Top.mhi.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-P", "high"), files = Seq("Top.hi.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-P", "middle"), files = Seq("Top.mid.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-P", "low"), files = Seq("Top.lo.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-P", "low-opt"), files = Seq("Top.lo.pb")),
       /* Test all one file per module emitters */
       FirrtlMainTest(args = Array("-X", "none", "-e", "chirrtl"), files = Seq("Top.fir", "Child.fir")),
       FirrtlMainTest(
+        args = Array("-X", "mhigh", "-e", "mhigh"),
+        files = Seq("Top.mhi.fir", "Child.mhi.fir")
+      ),
+      FirrtlMainTest(
         args = Array("-X", "high", "-e", "high"),
-        stdout = defaultStdOut,
         files = Seq("Top.hi.fir", "Child.hi.fir")
       ),
       FirrtlMainTest(
         args = Array("-X", "middle", "-e", "middle"),
-        stdout = defaultStdOut,
         files = Seq("Top.mid.fir", "Child.mid.fir")
       ),
       FirrtlMainTest(
         args = Array("-X", "low", "-e", "low"),
-        stdout = defaultStdOut,
         files = Seq("Top.lo.fir", "Child.lo.fir")
       ),
       FirrtlMainTest(
         args = Array("-X", "verilog", "-e", "verilog"),
-        stdout = defaultStdOut,
         files = Seq("Top.v", "Child.v")
       ),
       FirrtlMainTest(
         args = Array("-X", "sverilog", "-e", "sverilog"),
-        stdout = defaultStdOut,
         files = Seq("Top.sv", "Child.sv")
       ),
+      /* Test all one protobuf per module emitters */
+      FirrtlMainTest(
+        args = Array("-X", "none", "--emit-modules-protobuf", "chirrtl"),
+        files = Seq("Top.pb", "Child.pb")
+      ),
+      FirrtlMainTest(args = Array("-X", "none", "-p", "mhigh"), files = Seq("Top.mhi.pb", "Child.mhi.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-p", "high"), files = Seq("Top.hi.pb", "Child.hi.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-p", "middle"), files = Seq("Top.mid.pb", "Child.mid.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-p", "low"), files = Seq("Top.lo.pb", "Child.lo.pb")),
+      FirrtlMainTest(args = Array("-X", "none", "-p", "low-opt"), files = Seq("Top.lo.pb", "Child.lo.pb")),
       /* Test mixing of -E with -e */
       FirrtlMainTest(
         args = Array("-X", "middle", "-E", "high", "-e", "middle"),
-        stdout = defaultStdOut,
         files = Seq("Top.hi.fir", "Top.mid.fir", "Child.mid.fir"),
         notFiles = Seq("Child.hi.fir")
       ),
       /* Test changes to output file name */
       FirrtlMainTest(args = Array("-X", "none", "-E", "chirrtl", "-o", "foo"), files = Seq("foo.fir")),
       FirrtlMainTest(
+        args = Array("-X", "mhigh", "-E", "mhigh", "-o", "foo"),
+        files = Seq("foo.mhi.fir")
+      ),
+      FirrtlMainTest(
         args = Array("-X", "high", "-E", "high", "-o", "foo"),
-        stdout = defaultStdOut,
         files = Seq("foo.hi.fir")
       ),
       FirrtlMainTest(
         args = Array("-X", "middle", "-E", "middle", "-o", "foo.middle"),
-        stdout = defaultStdOut,
         files = Seq("foo.middle.mid.fir")
       ),
       FirrtlMainTest(
         args = Array("-X", "low", "-E", "low", "-o", "foo.lo.fir"),
-        stdout = defaultStdOut,
         files = Seq("foo.lo.fir")
       ),
       FirrtlMainTest(
         args = Array("-X", "verilog", "-E", "verilog", "-o", "foo.sv"),
-        stdout = defaultStdOut,
         files = Seq("foo.sv.v")
       ),
       FirrtlMainTest(
         args = Array("-X", "sverilog", "-E", "sverilog", "-o", "Foo"),
-        stdout = defaultStdOut,
         files = Seq("Foo.sv")
       ),
       /* Test that an output is generated if no emitter is specified */
       FirrtlMainTest(
         args = Array("-X", "verilog", "-o", "Foo"),
-        stdout = defaultStdOut,
         files = Seq("Foo.v")
       )
     )
@@ -332,6 +332,49 @@ class FirrtlMainSpec
 
       Then("the output should be the same as using FIRRTL input")
       new File(td.buildDir + "/Foo.hi.fir") should (exist)
+    }
+
+    Scenario("User compiles to multiple Protocol Buffers") {
+      val f = new FirrtlMainFixture
+      val td = new TargetDirectoryFixture("multi-protobuf")
+      val c = new SimpleFirrtlCircuitFixture
+      val protobufs = Seq("Top.pb", "Child.pb")
+
+      And("some input multi-module FIRRTL IR")
+      val inputFile: Array[String] = {
+        val in = new File(td.dir, s"${c.main}.fir")
+        val pw = new PrintWriter(in)
+        pw.write(c.input)
+        pw.close()
+        Array("-i", in.toString)
+      }
+
+      When("the user tries to emit a circuit to multiple Protocol Buffer files in the target directory")
+      f.stage.main(
+        inputFile ++ Array("-X", "none", "-p", "chirrtl", "-td", td.buildDir.toString)
+      )
+
+      protobufs.foreach { f =>
+        Then(s"file '$f' should be emitted")
+        val out = new File(td.buildDir + s"/$f")
+        out should (exist)
+      }
+
+      // NOTE the .fir out needs to be a different directory than the multi proto out because
+      // reruns will pick up the .fir and try to parse as .pb
+      When("the user compiles the Protobufs to a single FIRRTL IR")
+      f.stage.main(
+        Array("-I", td.buildDir.toString, "-X", "none", "-E", "chirrtl", "-td", td.dir.toString, "-o", "Foo")
+      )
+
+      Then("one single FIRRTL file should be emitted")
+      val outFile = new File(td.dir + "/Foo.fir")
+      outFile should (exist)
+      And("it should be the same as using FIRRTL input")
+      firrtl.Utils.orderAgnosticEquality(
+        firrtl.Parser.parse(c.input),
+        firrtl.Parser.parseFile(td.dir + "/Foo.fir", firrtl.Parser.IgnoreInfo)
+      ) should be(true)
     }
 
   }
@@ -390,6 +433,12 @@ class FirrtlMainSpec
         args = Array("-i", "foo", "-X", "Verilog"),
         circuit = None,
         stdout = Some("Unknown compiler name 'Verilog'! (Did you misspell it?)"),
+        result = 1
+      ),
+      FirrtlMainTest(
+        args = Array("-I", "test_run_dir/I-DO-NOT-EXIST"),
+        circuit = None,
+        stdout = Some("Directory 'test_run_dir/I-DO-NOT-EXIST' not found!"),
         result = 1
       )
     )

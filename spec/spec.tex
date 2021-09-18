@@ -170,7 +170,7 @@ There are five ground types in FIRRTL: an unsigned integer type, a signed intege
 
 \subsubsection{Integer Types}
 
-Both unsigned and signed integer types may optionally be given a known positive integer bit width.
+Both unsigned and signed integer types may optionally be given a known non-negative integer bit width.
 
 \begin{lstlisting}
 UInt<10>
@@ -892,19 +892,19 @@ mem mymem :
 
 In the example above, the type of \verb|mymem| is:
 \begin{lstlisting}
-{flip r1: {flip data: {real:SInt<16>, imag:SInt<16>},
-           addr: UInt<8>,
+{flip r1: {addr: UInt<8>,
            en: UInt<1>,
-           clk: Clock}
- flip r2: {flip data: {real:SInt<16>, imag:SInt<16>},
-           addr: UInt<8>,
+           clk: Clock,
+           flip data: {real:SInt<16>, imag:SInt<16>}}
+ flip r2: {addr: UInt<8>,
            en: UInt<1>,
-           clk: Clock}
- flip w: {data: {real:SInt<16>, imag:SInt<16>},
-          mask: {real:UInt<1>, imag:UInt<1>},
-          addr: UInt<8>,
+           clk: Clock,
+           flip data: {real:SInt<16>, imag:SInt<16>}}
+ flip w: {addr: UInt<8>,
           en: UInt<1>,
-          clk: Clock}}
+          clk: Clock},
+          data: {real:SInt<16>, imag:SInt<16>},
+          mask: {real:UInt<1>, imag:UInt<1>}}
 \end{lstlisting}
 
 The following sections describe how a memory's field types are calculated and the behavior of each type of memory port.
@@ -912,7 +912,7 @@ The following sections describe how a memory's field types are calculated and th
 \subsubsection{Read Ports}
 If a memory is declared with element type \verb|T|, has a size less than or equal to $2^N$, then its read ports have type:
 \begin{lstlisting}
-{flip data:T, addr:UInt<N>, en:UInt<1>, clk:Clock}
+{addr:UInt<N>, en:UInt<1>, clk:Clock, flip data:T}
 \end{lstlisting}
 
 If the \verb|en| field is high, then the element value associated with the address in the \verb|addr| field can be retrieved by reading from the \verb|data| field after the appropriate read latency. If the \verb|en| field is low, then the value in the \verb|data| field, after the appropriate read latency, is undefined. The port is driven by the clock signal in the \verb|clk| field.
@@ -920,7 +920,7 @@ If the \verb|en| field is high, then the element value associated with the addre
 \subsubsection{Write Ports}
 If a memory is declared with element type \verb|T|, has a size less than or equal to $2^N$, then its write ports have type:
 \begin{lstlisting}
-{data:T, mask:M, addr:UInt<N>, en:UInt<1>, clk:Clock}
+{addr:UInt<N>, en:UInt<1>, clk:Clock, data:T, mask:M}
 \end{lstlisting}
 where \verb|M| is the mask type calculated from the element type \verb|T|. Intuitively, the mask type mirrors the aggregate structure of the element type except with all ground types replaced with a single bit unsigned integer type. The {\em non-masked portion} of the data value is defined as the set of data value leaf sub-elements where the corresponding mask leaf sub-element is high.
 
@@ -929,8 +929,7 @@ If the \verb|en| field is high, then the non-masked portion of the \verb|data| f
 \subsubsection{Readwrite Ports}
 Finally, the readwrite ports have type:
 \begin{lstlisting}
-{wmode:UInt<1>, flip rdata:T, wdata:T, wmask:M,
- addr:UInt<N>, en:UInt<1>, clk:Clock}
+{addr:UInt<N>, en:UInt<1>, clk:Clock, flip rdata:T, wmode:UInt<1>, wdata:T, wmask:M}
 \end{lstlisting}
 A readwrite port is a single port that, on a given cycle, can be used either as a read or a write port. If the readwrite port is not in write mode (the \verb|wmode| field is low), then the \verb|rdata|, \verb|addr|, \verb|en|, and \verb|clk| fields constitute its read port fields, and should be used accordingly. If the readwrite port is in write mode (the \verb|wmode| field is high), then the \verb|wdata|, \verb|wmask|, \verb|addr|, \verb|en|, and \verb|clk| fields constitute its write port fields, and should be used accordingly.
 
@@ -989,10 +988,15 @@ is determined by their syntactic order in the enclosing module. The order of exe
 side-effect-having statements in different modules or with different clocks that trigger
 concurrently is undefined.
 
+The stop statement has an optional name attribute which can be used to
+attach metadata to the statement. The name is part of the module level
+namespace. However it can never be used in a reference since it is not of
+any valid type.
+
 \begin{lstlisting}
 wire clk:Clock
 wire halt:UInt<1>
-stop(clk,halt,42)
+stop(clk,halt,42) : optional_name
 ...
 \end{lstlisting}
 
@@ -1004,12 +1008,17 @@ A printf statement requires a clock signal, a print condition signal, a format s
 For information about execution ordering of clocked statements with observable environmental side
 effects, see section \ref{stop_stmt}.
 
+The printf statement has an optional name attribute which can be used to
+attach metadata to the statement. The name is part of the module level
+namespace. However it can never be used in a reference since it is not of
+any valid type.
+
 \begin{lstlisting}
 wire clk:Clock
 wire condition:UInt<1>
 wire a:UInt
 wire b:UInt
-printf(clk, condition, "a in hex: %x, b in decimal:%d.\n", a, b)
+printf(clk, condition, "a in hex: %x, b in decimal:%d.\n", a, b) : optional_name
 ...
 \end{lstlisting}
 
@@ -1043,6 +1052,11 @@ Backends are free to generate the corresponding model checking constructs in the
 For information about execution ordering of clocked statements with observable environmental side
 effects, see section \ref{stop_stmt}.
 
+Any verification statement has an optional name attribute which can be used to
+attach metadata to the statement. The name is part of the module level
+namespace. However it can never be used in a reference since it is not of
+any valid type.
+
 \subsubsection{Assert}
 
 The assert statement verifies that the predicate is true on the rising edge of any clock cycle when the enable is true. In other words, it verifies that enable implies predicate.
@@ -1053,7 +1067,7 @@ wire pred:UInt<1>
 wire en:UInt<1>
 pred <= eq(X, Y)
 en <= Z_valid
-assert(clk, pred, en, "X equals Y when Z is valid")
+assert(clk, pred, en, "X equals Y when Z is valid") : optional_name
 \end{lstlisting}
 
 \subsubsection{Assume}
@@ -1066,7 +1080,7 @@ wire pred:UInt<1>
 wire en:UInt<1>
 pred <= eq(X, Y)
 en <= Z_valid
-assume(clk, pred, en, "X equals Y when Z is valid")
+assume(clk, pred, en, "X equals Y when Z is valid") : optional_name
 \end{lstlisting}
 
 \subsubsection{Cover}
@@ -1079,7 +1093,7 @@ wire pred:UInt<1>
 wire en:UInt<1>
 pred <= eq(X, Y)
 en <= Z_valid
-cover(clk, pred, en, "X equals Y when Z is valid")
+cover(clk, pred, en, "X equals Y when Z is valid") : optional_name
 \end{lstlisting}
 
 \section{Expressions}
@@ -1275,7 +1289,7 @@ module MyModule :
 
 \subsection{Multiplexers}\label{multiplexers}
 
-A multiplexer outputs one of two input expressions depending on the value of an unsigned single bit selection signal.
+A multiplexer outputs one of two input expressions depending on the value of an unsigned selection signal.
 
 The following example connects to the \verb|c| port the result of selecting between the \verb|a| and \verb|b| ports. The \verb|a| port is selected when the \verb|sel| signal is high, otherwise the \verb|b| port is selected.
 \begin{lstlisting}
@@ -1289,7 +1303,12 @@ module MyModule :
 
 A multiplexer expression is legal only if the following holds.
 \begin{enumerate}
-\item The type of the selection signal is a single bit unsigned integer.
+\item The type of the selection signal is an unsigned integer.
+\item The width of the selection signal is any of:
+  \begin{enumerate}
+  \item One-bit
+  \item Unspecified, but will infer to one-bit
+  \end{enumerate}
 \item The types of the two input expressions are equivalent.
 \item The types of the two input expressions are passive (see section \ref{passive_types}).
 \end{enumerate}
@@ -2108,8 +2127,8 @@ The concrete syntax of FIRRTL is defined in section \ref{syntax_tree}. Productio
                 &\pipe &\pd{exp} \vv{is invalid} \opt{\pd{info}}                                               &\text{Invalidate}\\
                 &\pipe &\vv{attach}\vv{(}\rpt{\pd{exp}}\vv{)} \opt{\pd{info}}                                  &\text{Attach}\\
                 &\pipe &\vv{when} \pd{exp} \vv{:} \opt{\pd{info}} \pd{stmt} \opt{\vv{else} \vv{:} \pd{stmt}}   &\text{Conditional}\\
-                &\pipe &\vv{stop(}\pd{exp}, \pd{exp}, \pd{int})\opt{\pd{info}}                                 &\text{Stop}\\
-                &\pipe &\vv{printf(}\pd{exp}, \pd{exp}, \pd{string}, \rpt{\pd{exp}}\vv{)} \opt{\pd{info}}      &\text{Printf}\\
+                &\pipe &\vv{stop(}\pd{exp}, \pd{exp}, \pd{int}) \opt{\vv{:}\pd{id}} \opt{\pd{info}}            &\text{Stop}\\
+                &\pipe &\vv{printf(}\pd{exp}, \pd{exp}, \pd{string}, \rpt{\pd{exp}}\vv{)} \opt{\vv{:}\pd{id}} \opt{\pd{info}}  &\text{Printf}\\
                 &\pipe &\vv{skip} \opt{\pd{info}}                                                              &\text{Empty}\\
                 &\pipe &\vv{(}\rpt{\pd{stmt}}\vv{)}                                                            &\text{Statement Group}\\
 \pd{ruw}        &=     &\vv{old} \pipe \vv{ new} \pipe \vv{ undefined}                                         &\text{Read Under Write Flag}\\

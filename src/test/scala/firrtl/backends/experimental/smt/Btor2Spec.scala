@@ -2,7 +2,10 @@
 
 package firrtl.backends.experimental.smt
 
-private class Btor2Spec extends SMTBackendBaseSpec {
+import org.scalatest.flatspec.AnyFlatSpec
+
+class Btor2Spec extends AnyFlatSpec {
+  behavior.of("btor2 backend")
 
   it should "convert a hello world module" in {
     val src =
@@ -12,7 +15,7 @@ private class Btor2Spec extends SMTBackendBaseSpec {
         |    input a: UInt<8>
         |    output b: UInt<16>
         |    b <= a
-        |    assert(clock, eq(a, b), UInt(1), "")
+        |    assert(clock, eq(a, b), UInt(1), "") : a_eq_b
         |""".stripMargin
 
     val expected =
@@ -23,12 +26,11 @@ private class Btor2Spec extends SMTBackendBaseSpec {
         |5 output 4 ; b
         |6 sort bitvec 1
         |7 uext 3 2 8
-        |8 eq 6 7 4
-        |9 not 6 8
-        |10 bad 9 ; assert_
+        |8 neq 6 7 4
+        |9 bad 8 ; a_eq_b
         |""".stripMargin
 
-    assert(toBotr2Str(src) == expected)
+    assert(SMTBackendHelpers.toBotr2Str(src) == expected)
   }
 
   it should "include FileInfo in the output" in {
@@ -43,19 +45,18 @@ private class Btor2Spec extends SMTBackendBaseSpec {
         |""".stripMargin
 
     val expected =
-      """; @ module 0:0
+      """; @[module 0:0]
         |1 sort bitvec 8
-        |2 input 1 a ; @ a 0:0
+        |2 input 1 a ; @[a 0:0]
         |3 sort bitvec 16
         |4 uext 3 2 8
-        |5 output 4 ; b @ b 0:0, b_a 0:0
+        |5 output 4 ; b @[b 0:0], @[b_a 0:0]
         |6 sort bitvec 1
         |7 uext 3 2 8
-        |8 eq 6 7 4
-        |9 not 6 8
-        |10 bad 9 ; assert_ @ assert 0:0
+        |8 neq 6 7 4
+        |9 bad 8 ; assert_0 @[assert 0:0]
         |""".stripMargin
 
-    assert(toBotr2Str(src) == expected)
+    assert(SMTBackendHelpers.toBotr2Str(src) == expected)
   }
 }

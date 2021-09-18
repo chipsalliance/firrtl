@@ -166,7 +166,7 @@ class InlineBooleanExpressionsSpec extends FirrtlFlatSpec {
         |    node _c = in_1 @[A 1:1]
         |    node _t = in_2 @[A 1:1]
         |    node _f = in_3 @[A 1:1]
-        |    out <= mux(in_1, in_2, in_3) @[A 1:1 A 2:2 A 3:3]""".stripMargin
+        |    out <= mux(in_1, in_2, in_3) @[A 1:1 2:2 3:3]""".stripMargin
     val result = exec(input)
     (result) should be(parse(check).serialize)
   }
@@ -389,6 +389,22 @@ class InlineBooleanExpressionsSpec extends FirrtlFlatSpec {
         |    input b: UInt<1>
         |    output o: UInt<2>
         |    o <= add(a, not(b))""".stripMargin
+    firrtlEquivalenceTest(input, Seq(new InlineBooleanExpressions))
+  }
+
+  // https://github.com/chipsalliance/firrtl/issues/2035
+  // This is interesting because other ways of trying to express this get split out by
+  // SplitExpressions and don't get inlined again
+  // If we were to inline more expressions (ie. not just boolean ones) the issue this represents
+  // would come up more often
+  it should "handle cvt nested inside of a dshl" in {
+    val input =
+      """circuit DshlCvt:
+        |  module DshlCvt:
+        |    input a: UInt<4>
+        |    input b: SInt<1>
+        |    output o: UInt
+        |    o <= dshl(a, asUInt(cvt(b)))""".stripMargin
     firrtlEquivalenceTest(input, Seq(new InlineBooleanExpressions))
   }
 

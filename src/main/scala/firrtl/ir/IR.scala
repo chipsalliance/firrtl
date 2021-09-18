@@ -4,6 +4,8 @@ package firrtl
 package ir
 
 import Utils.{dec2string, trim}
+import firrtl.backends.experimental.smt.random.DefRandom
+import dataclass.{data, since}
 import firrtl.constraint.{Constraint, IsKnown, IsVar}
 import org.apache.commons.text.translate.{AggregateTranslator, JavaUnicodeEscaper, LookupTranslator}
 
@@ -33,6 +35,7 @@ case class FileInfo(escaped: String) extends Info {
   override def toString: String = " @[" + escaped + "]"
   def ++(that: Info): Info = if (that == NoInfo) this else MultiInfo(Seq(this, that))
   def unescaped: String = FileInfo.unescape(escaped)
+  def split:     (String, String, String) = FileInfo.split(escaped)
   @deprecated("Use FileInfo.unescaped instead. FileInfo.info will be removed in FIRRTL 1.5.", "FIRRTL 1.4")
   def info: StringLit = StringLit(this.unescaped)
 }
@@ -86,6 +89,17 @@ object FileInfo {
     JavaUnicodeEscaper.outsideOf(32, 0x7f)
   )
 
+  // Splits the FileInfo into its corresponding file, line, and column strings
+  private def split(s: String): (String, String, String) = {
+    s match {
+      // Yield the three
+      case FileInfoRegex(file, line, col) => (file, line, col)
+      // Otherwise, just return the string itself and null for the other values
+      case _ => (s, null, null)
+    }
+  }
+
+  private val FileInfoRegex = """(?:([^\s]+)(?: (\d+)\:(\d+)))""".r
 }
 
 case class MultiInfo(infos: Seq[Info]) extends Info {
@@ -100,7 +114,7 @@ case class MultiInfo(infos: Seq[Info]) extends Info {
     else ""
   }
   def ++(that: Info): Info = if (that == NoInfo) this else MultiInfo(infos :+ that)
-  def flatten: Seq[FileInfo] = MultiInfo.flattenInfo(infos)
+  def flatten: Seq[FileInfo] = MultiInfo.compressInfo(MultiInfo.flattenInfo(infos))
 }
 object MultiInfo {
   def apply(infos: Info*) = {
@@ -123,6 +137,100 @@ object MultiInfo {
     case NoInfo => Seq()
     case f: FileInfo => Seq(f)
     case MultiInfo(infos) => flattenInfo(infos)
+  }
+
+  private def compressInfo(infos: Seq[FileInfo]): Seq[FileInfo] = {
+    // Sort infos by file name, then line number, then column number
+    val sorted = infos.sortWith((A, B) => {
+      val (fileA, lineA, colA) = A.split
+      val (fileB, lineB, colB) = B.split
+
+      // A FileInfo with no line nor column number should be sorted to the beginning of
+      // the sequence of FileInfos that share its fileName. This way, they can be immediately
+      // skipped by the algorithm
+      if (lineA == null || lineB == null)
+        fileA <= fileB && lineA == null
+      else
+        // Default comparison
+        fileA <= fileB &&
+        lineA <= lineB &&
+        colA <= colB
+    })
+
+    // Holds the current file/line being parsed.
+    var currentFile = ""
+    var currentLine = ""
+
+    // Holds any compressed line/column numbers to be appended after the file name
+    var locators = new StringBuilder
+    // Holds all encountered columns that exist within the current line
+    var columns: Seq[String] = Seq()
+
+    var out: Seq[FileInfo] = Seq()
+
+    // Helper function to append the contents of the columns Seq to the locators buffer.
+    def serializeColumns: Unit = {
+      if (columns.size == 0)
+        return
+
+      var columnsList = columns.mkString(",")
+      // Wrap the columns in curly braces if it contains more than one entry
+      if (columns.size > 1)
+        columnsList = '{' + columnsList + '}'
+
+      // If there already exists line/column numbers in the buffer, delimit the new
+      // info with a space
+      if (locators.nonEmpty)
+        locators ++= " "
+
+      locators ++= s"$currentLine:$columnsList"
+    }
+
+    for (info <- sorted) {
+      val (file, line, col) = info.split
+
+      // Only process file infos that match the pattern *fully*, so that all 3 capture groups were
+      // matched
+      // TODO: Enforce a specific format for FileInfos (file.name line1:{col1,col2} line2:{col3,col4}...),
+      // so that this code can run with the assumption that all FileInfos obey that format.
+      if (line != null && col != null) {
+        // If we encounter a new file, yield the current compressed info
+        if (file != currentFile) {
+          if (currentFile.nonEmpty) {
+            serializeColumns
+            out :+= FileInfo.fromEscaped(s"$currentFile $locators")
+          }
+
+          // Reset all tracking variables to now track the new file
+          currentFile = file
+          currentLine = ""
+          locators.clear()
+          columns = Seq()
+        }
+
+        // If we encounter a new line, append the current columns to the line buffer.
+        if (line != currentLine) {
+          if (currentLine.nonEmpty)
+            serializeColumns
+          // Track the new current line
+          currentLine = line
+          columns = Seq()
+        }
+
+        columns :+= col
+      } else
+        // Add in the uncompressed FileInfo
+        out :+= info
+    }
+
+    // Serialize any remaining column info that was parsed by the loop
+    serializeColumns
+
+    // Append the remaining FileInfo if one was parsed
+    if (currentFile.nonEmpty)
+      out :+= FileInfo.fromEscaped(s"$currentFile $locators")
+
+    out
   }
 }
 
@@ -226,6 +334,13 @@ abstract class Expression extends FirrtlNode {
   */
 sealed trait RefLikeExpression extends Expression { def flow: Flow }
 
+/** Represents a statement that can be referenced in a firrtl expression.
+  * This explicitly excludes named side-effecting statements like Print, Stop and Verification.
+  * Note: This trait cannot be sealed since the memory ports are declared in WIR.scala.
+  *       Once we fully remove all WIR, this trait could be sealed.
+  */
+trait CanBeReferenced
+
 object Reference {
 
   /** Creates a Reference from a Wire */
@@ -233,6 +348,9 @@ object Reference {
 
   /** Creates a Reference from a Register */
   def apply(reg: DefRegister): Reference = Reference(reg.name, reg.tpe, RegKind, UnknownFlow)
+
+  /** Creates a Reference from a Random Source */
+  def apply(rnd: DefRandom): Reference = Reference(rnd.name, rnd.tpe, RandomKind, UnknownFlow)
 
   /** Creates a Reference from a Node */
   def apply(node: DefNode): Reference = Reference(node.name, node.value.tpe, NodeKind, SourceFlow)
@@ -386,7 +504,11 @@ abstract class Statement extends FirrtlNode {
   def foreachString(f: String => Unit):           Unit
   def foreachInfo(f:   Info => Unit):             Unit
 }
-case class DefWire(info: Info, name: String, tpe: Type) extends Statement with IsDeclaration with UseSerializer {
+case class DefWire(info: Info, name: String, tpe: Type)
+    extends Statement
+    with IsDeclaration
+    with CanBeReferenced
+    with UseSerializer {
   def mapStmt(f:       Statement => Statement):   Statement = this
   def mapExpr(f:       Expression => Expression): Statement = this
   def mapType(f:       Type => Type):             Statement = DefWire(info, name, f(tpe))
@@ -407,6 +529,7 @@ case class DefRegister(
   init:  Expression)
     extends Statement
     with IsDeclaration
+    with CanBeReferenced
     with UseSerializer {
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement =
@@ -428,6 +551,7 @@ object DefInstance {
 case class DefInstance(info: Info, name: String, module: String, tpe: Type = UnknownType)
     extends Statement
     with IsDeclaration
+    with CanBeReferenced
     with UseSerializer {
   def mapExpr(f:       Expression => Expression): Statement = this
   def mapStmt(f:       Statement => Statement):   Statement = this
@@ -461,6 +585,7 @@ case class DefMemory(
   readUnderWrite: ReadUnderWrite.Value = ReadUnderWrite.Undefined)
     extends Statement
     with IsDeclaration
+    with CanBeReferenced
     with UseSerializer {
   def mapStmt(f:       Statement => Statement):   Statement = this
   def mapExpr(f:       Expression => Expression): Statement = this
@@ -476,6 +601,7 @@ case class DefMemory(
 case class DefNode(info: Info, name: String, value: Expression)
     extends Statement
     with IsDeclaration
+    with CanBeReferenced
     with UseSerializer {
   def mapStmt(f:       Statement => Statement):   Statement = this
   def mapExpr(f:       Expression => Expression): Statement = DefNode(info, name, f(value))
@@ -593,40 +719,67 @@ case class Attach(info: Info, exprs: Seq[Expression]) extends Statement with Has
   def foreachString(f: String => Unit):           Unit = ()
   def foreachInfo(f:   Info => Unit):             Unit = f(info)
 }
-case class Stop(info: Info, ret: Int, clk: Expression, en: Expression)
+
+@data class Stop(info: Info, ret: Int, clk: Expression, en: Expression, @since("FIRRTL 1.5") name: String = "")
     extends Statement
     with HasInfo
+    with IsDeclaration
     with UseSerializer {
   def mapStmt(f:     Statement => Statement):   Statement = this
-  def mapExpr(f:     Expression => Expression): Statement = Stop(info, ret, f(clk), f(en))
+  def mapExpr(f:     Expression => Expression): Statement = Stop(info, ret, f(clk), f(en), name)
   def mapType(f:     Type => Type):             Statement = this
-  def mapString(f:   String => String):         Statement = this
+  def mapString(f:   String => String):         Statement = withName(f(name))
   def mapInfo(f:     Info => Info):             Statement = this.copy(info = f(info))
   def foreachStmt(f: Statement => Unit):        Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = { f(clk); f(en) }
   def foreachType(f:   Type => Unit):   Unit = ()
-  def foreachString(f: String => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f:   Info => Unit):   Unit = f(info)
+  def copy(info: Info = info, ret: Int = ret, clk: Expression = clk, en: Expression = en): Stop = {
+    Stop(info, ret, clk, en, name)
+  }
 }
-case class Print(
+object Stop {
+  def unapply(s: Stop): Some[(Info, Int, Expression, Expression)] = {
+    Some((s.info, s.ret, s.clk, s.en))
+  }
+}
+@data class Print(
   info:   Info,
   string: StringLit,
   args:   Seq[Expression],
   clk:    Expression,
-  en:     Expression)
+  en:     Expression,
+  @since("FIRRTL 1.5")
+  name: String = "")
     extends Statement
     with HasInfo
+    with IsDeclaration
     with UseSerializer {
   def mapStmt(f:     Statement => Statement):   Statement = this
-  def mapExpr(f:     Expression => Expression): Statement = Print(info, string, args.map(f), f(clk), f(en))
+  def mapExpr(f:     Expression => Expression): Statement = Print(info, string, args.map(f), f(clk), f(en), name)
   def mapType(f:     Type => Type):             Statement = this
-  def mapString(f:   String => String):         Statement = this
+  def mapString(f:   String => String):         Statement = withName(f(name))
   def mapInfo(f:     Info => Info):             Statement = this.copy(info = f(info))
   def foreachStmt(f: Statement => Unit):        Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = { args.foreach(f); f(clk); f(en) }
   def foreachType(f:   Type => Unit):   Unit = ()
-  def foreachString(f: String => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f:   Info => Unit):   Unit = f(info)
+  def copy(
+    info:   Info = info,
+    string: StringLit = string,
+    args:   Seq[Expression] = args,
+    clk:    Expression = clk,
+    en:     Expression = en
+  ): Print = {
+    Print(info, string, args, clk, en, name)
+  }
+}
+object Print {
+  def unapply(s: Print): Some[(Info, StringLit, Seq[Expression], Expression, Expression)] = {
+    Some((s.info, s.string, s.args, s.clk, s.en))
+  }
 }
 
 // formal
@@ -636,27 +789,45 @@ object Formal extends Enumeration {
   val Cover = Value("cover")
 }
 
-case class Verification(
+@data class Verification(
   op:   Formal.Value,
   info: Info,
   clk:  Expression,
   pred: Expression,
   en:   Expression,
-  msg:  StringLit)
+  msg:  StringLit,
+  @since("FIRRTL 1.5")
+  name: String = "")
     extends Statement
     with HasInfo
+    with IsDeclaration
     with UseSerializer {
   def mapStmt(f: Statement => Statement): Statement = this
   def mapExpr(f: Expression => Expression): Statement =
     copy(clk = f(clk), pred = f(pred), en = f(en))
   def mapType(f:     Type => Type):      Statement = this
-  def mapString(f:   String => String):  Statement = this
+  def mapString(f:   String => String):  Statement = withName(f(name))
   def mapInfo(f:     Info => Info):      Statement = copy(info = f(info))
   def foreachStmt(f: Statement => Unit): Unit = ()
   def foreachExpr(f: Expression => Unit): Unit = { f(clk); f(pred); f(en); }
   def foreachType(f:   Type => Unit):   Unit = ()
-  def foreachString(f: String => Unit): Unit = ()
+  def foreachString(f: String => Unit): Unit = f(name)
   def foreachInfo(f:   Info => Unit):   Unit = f(info)
+  def copy(
+    op:   Formal.Value = op,
+    info: Info = info,
+    clk:  Expression = clk,
+    pred: Expression = pred,
+    en:   Expression = en,
+    msg:  StringLit = msg
+  ): Verification = {
+    Verification(op, info, clk, pred, en, msg, name)
+  }
+}
+object Verification {
+  def unapply(s: Verification): Some[(Formal.Value, Info, Expression, Expression, Expression, StringLit)] = {
+    Some((s.op, s.info, s.clk, s.pred, s.en, s.msg))
+  }
 }
 // end formal
 
@@ -978,6 +1149,7 @@ case class Port(
   tpe:       Type)
     extends FirrtlNode
     with IsDeclaration
+    with CanBeReferenced
     with UseSerializer {
   def mapType(f:   Type => Type):     Port = Port(info, name, direction, f(tpe))
   def mapString(f: String => String): Port = Port(info, f(name), direction, tpe)

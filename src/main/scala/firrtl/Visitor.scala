@@ -58,6 +58,51 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
   private def string2Int(s: String): Int = string2BigInt(s).toInt
 
   private def visitInfo(ctx: Option[InfoContext], parentCtx: ParserRuleContext): Info = {
+    // Convert a compressed FileInfo string into either into a singular FileInfo or a MultiInfo
+    // consisting of several FileInfos
+    def parseCompressedInfo(escaped: String): Info = {
+      var out: Seq[FileInfo] = Seq()
+
+      // Regular expression to match and capture the general File.format line:col pattern.
+      // Also matches the remaining part of the string which doesn't match the expression;
+      // which will be passed directly into the output as a FileInfo.
+      val splitCompressedInfo = """([^\s:]+)((?: \d+:(?:\d+|\{\d+(?:,\d+)+\}))+)|(?:[^\s].*)""".r
+
+      // Regular expression to capture the line number and column numbers in the compressed file info pattern.
+      val splitLineDescriptors = """(\d+):((?:\d+|\{\d+(?:,\d+)+\}))""".r
+
+      // Regular expression to match against individual column numbers in each line:col or line:{col1,col2}
+      // descriptor.
+      val splitColDescriptors = """\d+""".r
+
+      val matches = splitCompressedInfo.findAllIn(escaped)
+
+      // Grab each File.format line:col token from the input string
+      splitCompressedInfo.findAllIn(escaped).matchData.foreach { info =>
+        Option(info.group(1)) match {
+          // If there were no subgroups, the regex matched against a non-conforming source locator
+          // pattern, so do not process it
+          case None => out = out :+ ir.FileInfo.fromEscaped(info.toString)
+          case Some(file) =>
+            val lineDescriptors = info.group(2)
+            // Grab each line:col values from the separated (compressed) FileInfo.
+            splitLineDescriptors.findAllIn(lineDescriptors).matchData.foreach { lineDescriptor =>
+              val line = lineDescriptor.group(1)
+              val cols = lineDescriptor.group(2)
+              splitColDescriptors.findAllIn(cols).matchData.foreach {
+                // Use all the necessary info to generate normal uncompressed FileInfos
+                col => out = out :+ ir.FileInfo.fromEscaped(s"$file $line:$col")
+              }
+            }
+        }
+      }
+
+      out.size match {
+        case 0 => NoInfo
+        case 1 => out.head
+        case _ => new MultiInfo(out)
+      }
+    }
     def genInfo(filename: String): String =
       stripPath(filename) + " " + parentCtx.getStart.getLine + ":" +
         parentCtx.getStart.getCharPositionInLine
@@ -68,11 +113,11 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
     infoMode match {
       case UseInfo =>
         if (useInfo.length == 0) NoInfo
-        else ir.FileInfo.fromEscaped(useInfo)
+        else parseCompressedInfo(useInfo)
       case AppendInfo(filename) if (useInfo.length == 0) =>
         ir.FileInfo.fromEscaped(genInfo(filename))
       case AppendInfo(filename) =>
-        val useFileInfo = ir.FileInfo.fromEscaped(useInfo)
+        val useFileInfo = parseCompressedInfo(useInfo)
         val newFileInfo = ir.FileInfo.fromEscaped(genInfo(filename))
         ir.MultiInfo(useFileInfo, newFileInfo)
       case GenInfo(filename) =>
@@ -318,6 +363,7 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
   private def visitStmt(ctx: StmtContext): Statement = {
     val ctx_exp = ctx.exp.asScala
     val info = visitInfo(Option(ctx.info), ctx)
+    def stmtName = Option(ctx.stmtName).map(_.id.getText).getOrElse("")
     ctx.getChild(0) match {
       case when: WhenContext => visitWhen(when)
       case term: TerminalNode =>
@@ -346,7 +392,8 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
           case "inst" => DefInstance(info, ctx.id(0).getText, ctx.id(1).getText)
           case "node" => DefNode(info, ctx.id(0).getText, visitExp(ctx_exp(0)))
 
-          case "stop("  => Stop(info, string2Int(ctx.intLit().getText), visitExp(ctx_exp(0)), visitExp(ctx_exp(1)))
+          case "stop(" =>
+            Stop(info, string2Int(ctx.intLit().getText), visitExp(ctx_exp(0)), visitExp(ctx_exp(1)), name = stmtName)
           case "attach" => Attach(info, ctx_exp.map(visitExp).toSeq)
           case "printf(" =>
             Print(
@@ -354,7 +401,8 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
               visitStringLit(ctx.StringLit),
               ctx_exp.drop(2).map(visitExp).toSeq,
               visitExp(ctx_exp(0)),
-              visitExp(ctx_exp(1))
+              visitExp(ctx_exp(1)),
+              name = stmtName
             )
           // formal
           case "assert" =>
@@ -364,7 +412,8 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
               visitExp(ctx_exp(0)),
               visitExp(ctx_exp(1)),
               visitExp(ctx_exp(2)),
-              visitStringLit(ctx.StringLit)
+              visitStringLit(ctx.StringLit),
+              name = stmtName
             )
           case "assume" =>
             Verification(
@@ -373,7 +422,8 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
               visitExp(ctx_exp(0)),
               visitExp(ctx_exp(1)),
               visitExp(ctx_exp(2)),
-              visitStringLit(ctx.StringLit)
+              visitStringLit(ctx.StringLit),
+              name = stmtName
             )
           case "cover" =>
             Verification(
@@ -382,7 +432,8 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
               visitExp(ctx_exp(0)),
               visitExp(ctx_exp(1)),
               visitExp(ctx_exp(2)),
-              visitStringLit(ctx.StringLit)
+              visitStringLit(ctx.StringLit),
+              name = stmtName
             )
           // end formal
           case "skip" => EmptyStmt

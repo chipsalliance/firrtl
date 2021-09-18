@@ -5,9 +5,9 @@ package firrtl.stage
 import firrtl._
 import firrtl.ir.Circuit
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
-import firrtl.options.{HasShellOptions, OptionsException, ShellOption, Unserializable}
-import java.io.FileNotFoundException
-import java.nio.file.NoSuchFileException
+import firrtl.options.{Dependency, HasShellOptions, OptionsException, ShellOption, Unserializable}
+import java.io.{File, FileNotFoundException}
+import java.nio.file.{NoSuchFileException, NotDirectoryException}
 
 import firrtl.stage.TransformManager.TransformDependency
 
@@ -59,6 +59,43 @@ object FirrtlFileAnnotation extends HasShellOptions {
       helpText = "An input FIRRTL file",
       shortOption = Some("i"),
       helpValueName = Some("<file>")
+    )
+  )
+
+}
+
+/** Read a directory of ProtoBufs
+  *  - set with `-I/--input-directory`
+  *
+  * TODO: Does not currently support FIRRTL files.
+  * @param dir input directory name
+  */
+case class FirrtlDirectoryAnnotation(dir: String) extends NoTargetAnnotation with CircuitOption {
+
+  def toCircuit(info: Parser.InfoMode): FirrtlCircuitAnnotation = {
+    val circuit =
+      try {
+        proto.FromProto.fromDirectory(dir)
+      } catch {
+        case a @ (_: FileNotFoundException | _: NoSuchFileException) =>
+          throw new OptionsException(s"Directory '$dir' not found! (Did you misspell it?)", a)
+        case _: NotDirectoryException =>
+          throw new OptionsException(s"Directory '$dir' is not a directory")
+      }
+    FirrtlCircuitAnnotation(circuit)
+  }
+
+}
+
+object FirrtlDirectoryAnnotation extends HasShellOptions {
+
+  val options = Seq(
+    new ShellOption[String](
+      longOption = "input-directory",
+      toAnnotationSeq = a => Seq(FirrtlDirectoryAnnotation(a)),
+      helpText = "A directory of FIRRTL files",
+      shortOption = Some("I"),
+      helpValueName = Some("<directory>")
     )
   )
 
@@ -164,7 +201,7 @@ object CompilerAnnotation extends HasShellOptions {
       toAnnotationSeq = a => Seq(RunFirrtlTransformAnnotation.stringToEmitter(a)),
       helpText = "The FIRRTL compiler to use (default: verilog)",
       shortOption = Some("X"),
-      helpValueName = Some("<none|high|middle|low|verilog|mverilog|sverilog>")
+      helpValueName = Some("<none|mhigh|high|middle|low|verilog|mverilog|sverilog>")
     )
   )
 
@@ -180,11 +217,12 @@ case class RunFirrtlTransformAnnotation(transform: Transform) extends NoTargetAn
 object RunFirrtlTransformAnnotation extends HasShellOptions {
 
   def apply(transform: TransformDependency): RunFirrtlTransformAnnotation =
-    RunFirrtlTransformAnnotation(transform.getObject)
+    RunFirrtlTransformAnnotation(transform.getObject())
 
   private[firrtl] def stringToEmitter(a: String): RunFirrtlTransformAnnotation = {
     val emitter = a match {
       case "none"     => new ChirrtlEmitter
+      case "mhigh"    => new MinimumHighFirrtlEmitter
       case "high"     => new HighFirrtlEmitter
       case "low"      => new LowFirrtlEmitter
       case "middle"   => new MiddleFirrtlEmitter
@@ -255,13 +293,18 @@ case class FirrtlCircuitAnnotation(circuit: Circuit) extends NoTargetAnnotation 
   *
   *  - set with `--warn:no-scala-version-deprecation`
   */
+@deprecated("Support for Scala 2.11 has been dropped, this object no longer does anything", "FIRRTL 1.5")
 case object WarnNoScalaVersionDeprecation extends NoTargetAnnotation with FirrtlOption with HasShellOptions {
   def longOption: String = "warn:no-scala-version-deprecation"
   val options = Seq(
     new ShellOption[Unit](
       longOption = longOption,
-      toAnnotationSeq = { _ => Seq(this) },
-      helpText = "Suppress Scala 2.11 deprecation warning (ignored in Scala 2.12+)"
+      toAnnotationSeq = { _ =>
+        val msg = s"'$longOption' no longer does anything and will be removed in FIRRTL 1.6"
+        firrtl.options.StageUtils.dramaticWarning(msg)
+        Seq(this)
+      },
+      helpText = "(deprecated, this option does nothing)"
     )
   )
 }
@@ -286,6 +329,7 @@ case object PrettyNoExprInlining extends NoTargetAnnotation with FirrtlOption wi
   */
 case class DisableFold(op: ir.PrimOp) extends NoTargetAnnotation with FirrtlOption
 
+@deprecated("will be removed and merged into ConstantPropagation in 1.5", "1.4")
 object DisableFold extends HasShellOptions {
 
   private val mapping: Map[String, ir.PrimOp] = PrimOps.builtinPrimOps.map { case op => op.toString -> op }.toMap
@@ -302,6 +346,49 @@ object DisableFold extends HasShellOptions {
       },
       helpText = "Disable folding of specific primitive operations",
       helpValueName = Some("<primop>")
+    )
+  )
+
+}
+
+/** Indicate to the FIRRTL compiler that specific transforms have already been run.
+  *
+  * The intended use of this is for advanced users who want to skip specific transforms in the FIRRTL compiler.  It is
+  * far safer for users to use the command line options to the FIRRTL compiler via `--start-from = <form>`.
+  * @param currentState a sequence of transforms that have already been run on the circuit
+  */
+case class CurrentFirrtlStateAnnotation(currentState: Seq[TransformDependency])
+    extends NoTargetAnnotation
+    with FirrtlOption
+
+private[stage] object CurrentFirrtlStateAnnotation extends HasShellOptions {
+
+  /** This is just the transforms necessary for resolving types and checking that everything is okay. */
+  private val dontSkip: Set[TransformDependency] = Set(
+    Dependency[firrtl.stage.transforms.CheckScalaVersion],
+    Dependency(passes.ResolveKinds),
+    Dependency(passes.InferTypes),
+    Dependency(passes.ResolveFlows)
+  ) ++ Forms.Checks
+
+  override val options = Seq(
+    new ShellOption[String](
+      longOption = "start-from",
+      toAnnotationSeq = a =>
+        (a match {
+          case "chirrtl" => Seq.empty
+          case "mhigh"   => Forms.MinimalHighForm
+          case "high"    => Forms.HighForm
+          case "middle"  => Forms.MidForm
+          case "low"     => Forms.LowForm
+          case "low-opt" => Forms.LowFormOptimized
+          case _         => throw new OptionsException(s"Unknown start-from argument '$a'! (Did you misspell it?)")
+        }).filterNot(dontSkip) match {
+          case b if a.isEmpty => Seq.empty
+          case b              => Seq(CurrentFirrtlStateAnnotation(b))
+        },
+      helpText = "",
+      helpValueName = Some("<chirrtl|mhigh|high|middle|low|low-opt>")
     )
   )
 
