@@ -26,6 +26,6 @@ addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.4.3")
 
 addSbtPlugin("com.typesafe" % "sbt-mima-plugin" % "0.9.2")
 
-addSbtPlugin("com.geirsson" % "sbt-ci-release" % "1.5.7")
+addSbtPlugin("com.github.sbt" % "sbt-ci-release" % "1.5.9")
 
 libraryDependencies += "com.github.os72" % "protoc-jar" % "3.11.4"
