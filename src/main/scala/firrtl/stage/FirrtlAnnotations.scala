@@ -5,7 +5,6 @@ package firrtl.stage
 import firrtl._
 import firrtl.ir.Circuit
 import firrtl.annotations.{Annotation, NoTargetAnnotation}
-import firrtl.backends.experimental.rtlil.RtlilEmitter
 import firrtl.options.{Dependency, HasShellOptions, OptionsException, ShellOption, Unserializable}
 import java.io.{File, FileNotFoundException}
 import java.nio.file.{NoSuchFileException, NotDirectoryException}
@@ -222,16 +221,15 @@ object RunFirrtlTransformAnnotation extends HasShellOptions {
 
   private[firrtl] def stringToEmitter(a: String): RunFirrtlTransformAnnotation = {
     val emitter = a match {
-      case "none"               => new ChirrtlEmitter
-      case "mhigh"              => new MinimumHighFirrtlEmitter
-      case "high"               => new HighFirrtlEmitter
-      case "low"                => new LowFirrtlEmitter
-      case "middle"             => new MiddleFirrtlEmitter
-      case "verilog"            => new VerilogEmitter
-      case "mverilog"           => new MinimumVerilogEmitter
-      case "sverilog"           => new SystemVerilogEmitter
-      case "experimental-rtlil" => new RtlilEmitter
-      case _                    => throw new OptionsException(s"Unknown compiler name '$a'! (Did you misspell it?)")
+      case "none"     => new ChirrtlEmitter
+      case "mhigh"    => new MinimumHighFirrtlEmitter
+      case "high"     => new HighFirrtlEmitter
+      case "low"      => new LowFirrtlEmitter
+      case "middle"   => new MiddleFirrtlEmitter
+      case "verilog"  => new VerilogEmitter
+      case "mverilog" => new MinimumVerilogEmitter
+      case "sverilog" => new SystemVerilogEmitter
+      case _          => throw new OptionsException(s"Unknown compiler name '$a'! (Did you misspell it?)")
     }
     RunFirrtlTransformAnnotation(emitter)
   }

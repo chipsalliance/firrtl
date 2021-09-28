@@ -247,9 +247,3 @@ case class EmittedVerilogCircuitAnnotation(value: EmittedVerilogCircuit)
     extends EmittedCircuitAnnotation[EmittedVerilogCircuit]
 case class EmittedVerilogModuleAnnotation(value: EmittedVerilogModule)
     extends EmittedModuleAnnotation[EmittedVerilogModule]
-
-final case class EmittedRtlilCircuit(name: String, value: String, outputSuffix: String) extends EmittedCircuit
-final case class EmittedRtlilModule(name: String, value: String, outputSuffix: String) extends EmittedModule
-case class EmittedRtlilCircuitAnnotation(value: EmittedRtlilCircuit)
-    extends EmittedCircuitAnnotation[EmittedRtlilCircuit]
-case class EmittedRtlilModuleAnnotation(value: EmittedRtlilModule) extends EmittedModuleAnnotation[EmittedRtlilModule]

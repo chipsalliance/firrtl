@@ -6,18 +6,37 @@ import java.io.Writer
 import firrtl._
 import firrtl.PrimOps._
 import firrtl.ir._
-import firrtl.Utils._
+import firrtl.Utils.{throwInternalError, _}
 import firrtl.WrappedExpression._
 import firrtl.traversals.Foreachers._
 import firrtl.annotations._
-import firrtl.options.Dependency
+import firrtl.options.Viewer.view
+import firrtl.options.{CustomFileEmission, Dependency}
 import firrtl.passes.LowerTypes
 import firrtl.passes.MemPortUtils.memPortField
-import firrtl.stage.TransformManager
+import firrtl.stage.{FirrtlOptions, TransformManager}
 
+import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.language.postfixOps
+
+case class EmittedRtlilCircuitAnnotation(name: String, value: String, outputSuffix: String)
+    extends NoTargetAnnotation
+    with CustomFileEmission {
+  override protected def baseFileName(annotations: AnnotationSeq): String =
+    view[FirrtlOptions](annotations).outputFileName.getOrElse(name)
+  override protected def suffix: Option[String] = Some(outputSuffix)
+  override def getBytes:         Iterable[Byte] = value.getBytes
+}
+case class EmittedRtlilModuleAnnotation(name: String, value: String, outputSuffix: String)
+    extends NoTargetAnnotation
+    with CustomFileEmission {
+  override protected def baseFileName(annotations: AnnotationSeq): String =
+    view[FirrtlOptions](annotations).outputFileName.getOrElse(name)
+  override protected def suffix: Option[String] = Some(outputSuffix)
+  override def getBytes:         Iterable[Byte] = value.getBytes
+}
 
 private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with DependencyAPIMigration {
 
@@ -37,7 +56,7 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
     val emissionOptions = new EmissionOptions(cs.annotations)
     val moduleMap = cs.circuit.modules.map(m => m.name -> m).toMap
     cs.circuit.modules.foreach {
-      case dm @ DescribedMod(d, pds, m: Module) =>
+      case DescribedMod(d, pds, m: Module) =>
         val renderer = new RtlilRender(d, pds, m, moduleMap, cs.circuit.main, emissionOptions)(writer)
         renderer.emit_rtlil()
       case m: Module =>
@@ -56,9 +75,7 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
         val writer = new java.io.StringWriter
         emit(state, writer)
         Seq(
-          EmittedRtlilCircuitAnnotation(
-            EmittedRtlilCircuit(state.circuit.main, writerToString(writer), outputSuffix)
-          )
+          EmittedRtlilModuleAnnotation(state.circuit.main, writerToString(writer), outputSuffix)
         )
 
       case EmitAllModulesAnnotation(a) if this.getClass == a =>
@@ -67,19 +84,19 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
         val moduleMap = cs.circuit.modules.map(m => m.name -> m).toMap
 
         cs.circuit.modules.flatMap {
-          case dm @ DescribedMod(d, pds, module: Module) =>
+          case DescribedMod(d, pds, module: Module) =>
             val writer = new java.io.StringWriter
             val renderer = new RtlilRender(d, pds, module, moduleMap, cs.circuit.main, emissionOptions)(writer)
             renderer.emit_rtlil()
             Some(
-              EmittedRtlilModuleAnnotation(EmittedRtlilModule(module.name, writerToString(writer), outputSuffix))
+              EmittedRtlilModuleAnnotation(module.name, writerToString(writer), outputSuffix)
             )
           case module: Module =>
             val writer = new java.io.StringWriter
             val renderer = new RtlilRender(module, moduleMap, cs.circuit.main, emissionOptions)(writer)
             renderer.emit_rtlil()
             Some(
-              EmittedRtlilModuleAnnotation(EmittedRtlilModule(module.name, writerToString(writer), outputSuffix))
+              EmittedRtlilModuleAnnotation(module.name, writerToString(writer), outputSuffix)
             )
           case _ => None
         }
@@ -106,10 +123,6 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
       implicit writer: Writer
     ) = {
       this(Seq(), Map.empty, m, moduleMap, circuitName, emissionOptions)(writer)
-    }
-
-    def this(m: Module, moduleMap: Map[String, DefModule])(implicit writer: Writer) = {
-      this(Seq(), Map.empty, m, moduleMap, "", new EmissionOptions(Seq.empty))(writer)
     }
 
     private val netlist:   mutable.LinkedHashMap[WrappedExpression, InfoExpr] = mutable.LinkedHashMap()
@@ -146,28 +159,28 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
 
     private def emitCol(x: Any, top: Int, tabs: String)(implicit w: Writer): Unit = {
       x match {
-        case (e: SrcInfo)   => w.write(e.str_rep)
-        case (e: Reference) => w.write(ref_to_name(e))
-        case (e: ValidIf)   => emitCol(Seq(e.value), top + 1, tabs)(writer)
-        case (e: WSubField) => w.write(SrcInfo(e).str_rep)
-        case (e: WSubAccess) =>
+        case e: SrcInfo   => w.write(e.str_rep)
+        case e: Reference => w.write(ref_to_name(e))
+        case e: ValidIf   => emitCol(Seq(e.value), top + 1, tabs)(writer)
+        case e: WSubField => w.write(SrcInfo(e).str_rep)
+        case e: WSubAccess =>
           w.write("\\" + s"${LowerTypes.loweredName(e.expr)} [ ${LowerTypes.loweredName(e.index)} ]")
-        case (e: Literal) => w.write(bigint_to_str_rep(e.value, get_type_width(e.tpe)))
-        case (t: GroundType) => w.write(stringify(t))
-        case (t: VectorType) =>
+        case e: Literal => w.write(bigint_to_str_rep(e.value, get_type_width(e.tpe)))
+        case t: GroundType => w.write(stringify(t))
+        case t: VectorType =>
           emit(t.tpe, top + 1)(writer)
           w.write(s"[${t.size - 1}:0]")
-        case (s: String) => w.write(s)
-        case (i: Int)    => w.write(i.toString)
-        case (i: Long)   => w.write(i.toString)
-        case (i: BigInt) => w.write(bigint_to_str_rep(i, if (i > 0) i.bitLength else i.bitLength + 1))
-        case (i: Info) =>
+        case s: String => w.write(s)
+        case i: Int    => w.write(i.toString)
+        case i: Long   => w.write(i.toString)
+        case i: BigInt => w.write(bigint_to_str_rep(i, if (i > 0) i.bitLength else i.bitLength + 1))
+        case i: Info =>
           infos_to_attr(i) match {
             case Some(attr) =>
               w.write(attr)
             case None =>
           }
-        case (s: Seq[Any]) =>
+        case s: Seq[Any] =>
           s.foreach { e => emitCol(e, top + 1, tabs)(writer) }
           if (top == 0)
             w.write("\n")
@@ -179,7 +192,7 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
       s.foreach(build_netlist)
       s match {
         case sx: Connect   => netlist(sx.loc) = InfoExpr(sx.info, sx.expr)
-        case sx: IsInvalid => error("Should have removed these!")
+        case _:  IsInvalid => error("Should have removed these!")
         // TODO Since only register update and memories use the netlist anymore, I think nodes are unnecessary
         case sx: DefNode =>
           val e = WRef(sx.name, sx.value.tpe, NodeKind, SourceFlow)
@@ -188,17 +201,18 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
       }
     }
 
+    @tailrec
     private def remove_root(ex: Expression): Expression = ex match {
       case ex: WSubField =>
         ex.expr match {
-          case (e: WSubField) => remove_root(e)
-          case (_: WRef)      => WRef(ex.name, ex.tpe, InstanceKind, UnknownFlow)
+          case e: WSubField => remove_root(e)
+          case _: WRef      => WRef(ex.name, ex.tpe, InstanceKind, UnknownFlow)
         }
       case _ => throwInternalError(s"shouldn't be here: remove_root($ex)")
     }
 
     private def stringify(tpe: GroundType): String = tpe match {
-      case (_: UIntType | _: AnalogType) =>
+      case _: UIntType | _: AnalogType =>
         val wx = bitWidth(tpe)
         if (wx > 1) s"width $wx" else ""
       case _: SIntType =>
@@ -219,8 +233,8 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
           }
         s"parameter \\$name $lit"
       case DoubleParam(name, value)    => s"parameter \\$name $value"
-      case StringParam(name, value)    => s"parameter \\${name} ${value.verilogEscape}"
-      case RawStringParam(name, value) => s"parameter \\${name} ${value}"
+      case StringParam(name, value)    => s"parameter \\$name ${value.verilogEscape}"
+      case RawStringParam(name, value) => s"parameter \\$name $value"
     }
 
     // turn strings into Seq[String] verilog comments
@@ -275,10 +289,9 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
 
     private def infos_to_attr(info: Info): Option[String] = {
       def info_extract(info: Info, prev: Seq[String] = Seq()): Seq[String] = info match {
-        case FileInfo(str) => {
+        case FileInfo(str) =>
           val (file, line, col) = FileInfo(str).split
           prev :+ (file + ":" + line + "." + col)
-        }
         case MultiInfo(infos) =>
           infos.foldLeft(prev)((a, b) => {
             info_extract(b, a)
@@ -368,7 +381,7 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
         processes += Seq(info)
         processes += Seq("wire ", r.tpe, " ", regTempName)
         processes += Seq("process ", procName)
-        processes += Seq("assign ", regTempName, " ", init)
+        processes += Seq("assign ", regTempName, " ", loweredInit.str_rep)
         processes ++= addUpdate(info, e, Seq(tab))
         processes += Seq(tab, "sync posedge ", clk)
         processes += Seq(tab, tab, "update ", SrcInfo(r).str_rep, " ", regTempName)
@@ -380,7 +393,7 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
         processes += Seq(finfo)
         processes += Seq("wire ", r.tpe, " ", regTempName)
         processes += Seq("process ", procName)
-        processes += Seq("assign ", regTempName, " ", init)
+        processes += Seq("assign ", regTempName, " ", loweredInit.str_rep)
         processes ++= addUpdate(NoInfo, Mux(reset, tv, fv, mux_type_and_widths(tv, fv)), Seq.empty)
         processes += Seq("sync posedge ", loweredClk.str_rep)
         processes += Seq(tab, "update ", loweredReset.str_rep, " ", regTempName)
@@ -398,7 +411,7 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
 
         while (widthcnt > 32) {
           val lowbits = bigboi & 0xffffffff
-          concatlist = concatlist :+ ("%d'%s".format(32, lowbits.toString(2)))
+          concatlist = concatlist :+ "%d'%s".format(32, lowbits.toString(2))
           bigboi >>= 32
           widthcnt -= 32
         }
@@ -408,8 +421,8 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
         "%d'%s".format(width, bigInt.toString(2))
     }
 
-    private case class InstInfo(val inst_name: String, val mod_name: String, val info: Info) {
-      var conns:  mutable.Map[String, String] = mutable.Map()
+    private case class InstInfo(inst_name: String, mod_name: String, info: Info) {
+      val conns:  mutable.Map[String, String] = mutable.Map()
       var params: Seq[String] = Seq()
       def getConnection(port: String): Option[String] = {
         conns.get(port)
@@ -496,7 +509,7 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
           }
         case x: SubField =>
           SrcInfo("\\" + LowerTypes.loweredName(x), x.tpe.isInstanceOf[SIntType], get_type_width(x.tpe))
-        case x: (Mux) =>
+        case x: Mux =>
           val tempNetName = namespace.newName("$_MUX_EX")
           if (infos_to_attr(i).nonEmpty) declares += Seq(i)
           declares += Seq("wire ", x.tpe, " ", tempNetName)
@@ -556,8 +569,8 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
       case Div  => "$div"
       case Rem  => "$rem"
       case _ =>
-        throw new IllegalArgumentException(
-          "oopsie woopsie! you did a fucky wucky! primop %s shouldn't have propagated this far!".format(p.serialize)
+        throwInternalError(
+          "Internal Error! primop %s shouldn't have propagated this far!".format(p.serialize)
         );
     }
 
@@ -622,6 +635,7 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
       )
     }
 
+    @tailrec
     private def output_expr(n: String, d: Expression, i: Info): Seq[Seq[Any]] = d match {
       case UIntLiteral(_, _) | SIntLiteral(_, _) | Reference(_, _, _, _) | SubField(_, _, _, _) =>
         Seq(Seq("connect ", n, " ", SrcInfo(d, i).str_rep))
@@ -715,7 +729,7 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
       val withoutDescription = s match {
         case DescribedStmt(d, stmt) =>
           stmt match {
-            case sx: IsDeclaration =>
+            case _: IsDeclaration =>
               declares ++= build_description(d)
             case _ =>
           }
@@ -733,8 +747,8 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
           }
           instdeclares(name) = InstInfo(name, module, info)
           instdeclares(name).params = if (params.nonEmpty) params.map(stringify) else Seq()
-        case WDefInstanceConnector(info, name, mdle, tpe, portCons) =>
-          val (module, params) = moduleMap(mdle) match {
+        case WDefInstanceConnector(info, name, mdle, _, portCons) =>
+          val (_, params) = moduleMap(mdle) match {
             case DescribedMod(_, _, ExtModule(_, _, _, extname, params)) => (extname, params)
             case DescribedMod(_, _, Module(_, name, _, _))               => (name, Seq.empty)
             case ExtModule(_, _, _, extname, params)                     => (extname, params)
@@ -774,13 +788,37 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
           declares += Seq(sx.info)
           declares += Seq("wire ", sx.value.tpe, " ", string_to_rtlil_name(sx.name))
           assigns ++= output_expr(string_to_rtlil_name(sx.name), sx.value, sx.info)
+        case x @ Verification(value, info, _, pred, en, _) =>
+          value match {
+            case Formal.Assert =>
+              formals += emit_cell(
+                info,
+                "$assert",
+                Seq(),
+                Seq(("A", SrcInfo(pred).str_rep), ("EN", SrcInfo(en).str_rep))
+              )
+            case Formal.Assume =>
+              formals += emit_cell(
+                info,
+                "$assume",
+                Seq(),
+                Seq(("A", SrcInfo(pred).str_rep), ("EN", SrcInfo(en).str_rep))
+              )
+            case Formal.Cover =>
+              formals += emit_cell(
+                info,
+                "$cover",
+                Seq(),
+                Seq(("A", SrcInfo(pred).str_rep), ("EN", SrcInfo(en).str_rep))
+              )
+          }
         case x @ DefMemory(i, name, tpe, depth, wlat, rlat, rd, wr, rdwr, runderw) =>
           val options = emissionOptions.getMemoryEmissionOption(moduleTarget.ref(name))
-          val hasComplexRW = (rdwr.nonEmpty && (rlat != 1))
+          val hasComplexRW = rdwr.nonEmpty && (rlat != 1)
           if (rlat > 1 || wlat != 1 || hasComplexRW)
             throw EmitterException(
               Seq(
-                s"Memory ${name} is too complex to emit directly.",
+                s"Memory $name is too complex to emit directly.",
                 "Consider running VerilogMemDelays to simplify complex memories.",
                 "Alternatively, add the --repl-seq-mem flag to replace memories with blackboxes."
               ).mkString(" ")
@@ -788,7 +826,7 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
           val dataWidth = bitWidth(tpe)
           val maxDataValue = (BigInt(1) << dataWidth.toInt) - 1
 
-          def checkValueRange(value: BigInt, at: String) = {
+          def checkValueRange(value: BigInt, at: String): Unit = {
             if (value > maxDataValue)
               throw EmitterException(
                 s"Memory $at cannot be initialized with value: $value. Too large (> $maxDataValue)!"
@@ -799,7 +837,7 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
             case MemoryArrayInit(values) =>
               values.zipWithIndex.foreach {
                 case (value, addr) =>
-                  checkValueRange(value, s"${name}[$addr]")
+                  checkValueRange(value, s"$name[$addr]")
                   initials ++= emit_cell(
                     i,
                     "$meminit_v2",
@@ -819,7 +857,7 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
               }
 
             case MemoryScalarInit(value) =>
-              for (addr <- (0 until depth.intValue)) {
+              for (addr <- 0 until depth.intValue) {
                 initials ++= emit_cell(
                   i,
                   "$meminit_v2",
@@ -840,7 +878,7 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
             case MemoryRandomInit =>
               println(s"Memory $name cannot be initialized with random data, RTLIL cannot express this.")
               println("Leaving memory uninitialized.")
-            case MemoryFileInlineInit(filename, hexOrBinary) =>
+            case MemoryFileInlineInit(_, _) =>
               throw EmitterException(s"Memory $name cannot be initialized from a file, RTLIL cannot express this.")
           }
           for (r <- rd) {
@@ -950,7 +988,7 @@ private[firrtl] class EmissionOptionMap[V <: EmissionOption](val df: V) {
   def +=(elem: (ReferenceTarget, V)): EmissionOptionMap.this.type = {
     if (m.contains(elem._1))
       throw EmitterException(s"Multiple EmissionOption for the target ${elem._1} (${m(elem._1)} ; ${elem._2})")
-    m += (elem)
+    m += elem
     this
   }
   def apply(key: ReferenceTarget): V = m.apply(key)
@@ -989,7 +1027,7 @@ private[firrtl] class EmissionOptions(annotations: AnnotationSeq) {
       case Seq()                  => true
       case Seq(MemoryNoSynthInit) => true
       case Seq(MemorySynthInit)   => false
-      case other =>
+      case _ =>
         throw new FirrtlUserException(
           "There should only be at most one memory initialization option annotation, got $other"
         )
