@@ -69,7 +69,7 @@ class TopWiringTransform extends Transform with DependencyAPIMigration {
   )(s:             Statement
   ): Statement = s match {
     // If target wire, add name and size to to sourceMap
-    case w: IsDeclaration =>
+    case w: IsDeclaration with CanBeReferenced =>
       if (sourceList.keys.toSeq.contains(ComponentName(w.name, currentmodule))) {
         val (isport, tpe, prefix) = w match {
           case d: DefWire     => (false, d.tpe, sourceList(ComponentName(w.name, currentmodule)))
