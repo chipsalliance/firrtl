@@ -136,7 +136,7 @@ class Flatten extends Transform with DependencyAPIMigration {
 
         val cleanedAnnos = flattenedState.annotations.filterNot {
           case FlattenAnnotation(_) => true
-          case _ => false
+          case _                    => false
         }
 
         flattenedState.copy(annotations = cleanedAnnos)
