@@ -29,7 +29,7 @@ class VerificationSpec extends FirrtlFlatSpec {
         |    outputEquals0xAA <= eq(out, UInt<8>("hAA"))
         |    node true = UInt("b1")
         |    assume(clock, inputEquals0xAA, true, "assume input is 0xAA")
-        |    assert(clock, areEqual, true, "assert that output equals input")
+        |    assert(clock, areEqual, true, "assert that output equals input") : are_equal
         |    cover(clock, outputEquals0xAA, true, "cover output is 0xAA")
         |""".stripMargin
     val expected =
@@ -48,7 +48,7 @@ class VerificationSpec extends FirrtlFlatSpec {
         |    end
         |    // assert that output equals input
         |    if (1'h1) begin
-        |      assert(areEqual);
+        |      assert(areEqual); // Asserting.are_equal
         |    end
         |    // cover output is 0xAA
         |    if (1'h1) begin

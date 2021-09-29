@@ -931,15 +931,23 @@ class VerilogEmitter extends SeqTransform with Emitter {
       addFormalStatement(formals, clk, en, stmt, info, msg)
     }
 
-    def formalStatement(op: Formal.Value, cond: Expression): Seq[Any] = {
-      Seq(op.toString, "(", cond, ");")
+    private def namedStatementComment(name: String): String = if (name.isEmpty) ""
+    else {
+      s" // ${m.name}.${name}"
     }
 
-    def stop(ret: Int): Seq[Any] = Seq(if (ret == 0) "$finish;" else "$fatal;")
+    def formalStatement(op: Formal.Value, cond: Expression, name: String): Seq[Any] = {
+      Seq(op.toString, "(", cond, ");", namedStatementComment(name))
+    }
 
-    def printf(str: StringLit, args: Seq[Expression]): Seq[Any] = {
+    def stop(ret: Int, name: String): Seq[Any] = {
+      val function = if (ret == 0) "finish" else "fatal"
+      Seq("$" + function + ";" + namedStatementComment(name))
+    }
+
+    def printf(str: StringLit, args: Seq[Expression], name: String): Seq[Any] = {
       val strx = str.verilogEscape +: args.flatMap(Seq(",", _))
-      Seq("$fwrite(32'h80000002,", strx, ");")
+      Seq("$fwrite(32'h80000002,", strx, ");" + namedStatementComment(name))
     }
 
     // turn strings into Seq[String] verilog comments
@@ -1037,11 +1045,11 @@ class VerilogEmitter extends SeqTransform with Emitter {
         case sx: DefNode =>
           declare("wire", sx.name, sx.value.tpe, sx.info, sx.value)
         case sx: Stop =>
-          simulate(sx.clk, sx.en, stop(sx.ret), Some("STOP_COND"), sx.info)
+          simulate(sx.clk, sx.en, stop(sx.ret, sx.name), Some("STOP_COND"), sx.info)
         case sx: Print =>
-          simulate(sx.clk, sx.en, printf(sx.string, sx.args), Some("PRINTF_COND"), sx.info)
+          simulate(sx.clk, sx.en, printf(sx.string, sx.args, sx.name), Some("PRINTF_COND"), sx.info)
         case sx: Verification =>
-          addFormal(sx.clk, sx.en, formalStatement(sx.op, sx.pred), sx.info, sx.msg)
+          addFormal(sx.clk, sx.en, formalStatement(sx.op, sx.pred, sx.name), sx.info, sx.msg)
         // If we are emitting an Attach, it must not have been removable in VerilogPrep
         case sx: Attach =>
           // For Synthesis
