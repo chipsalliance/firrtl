@@ -31,11 +31,66 @@ class ParserSpec extends FirrtlFlatSpec {
 
   private object KeywordTests {
     val prelude = Seq("circuit top :", "  module top :")
+<<<<<<< HEAD
     val keywords = Seq("circuit", "module", "extmodule", "parameter", "input", "output", "UInt",
       "SInt", "Analog", "Fixed", "flip", "Clock", "wire", "reg", "reset", "with", "mem", "depth",
       "reader", "writer", "readwriter", "inst", "of", "node", "is", "invalid", "when", "else",
       "stop", "printf", "skip", "old", "new", "undefined", "mux", "validif", "cmem", "smem",
       "mport", "infer", "read", "write", "rdwr") ++ PrimOps.listing
+=======
+    val keywords = Seq(
+      "circuit",
+      "module",
+      "extmodule",
+      "parameter",
+      "input",
+      "output",
+      "UInt",
+      "SInt",
+      "Analog",
+      "Fixed",
+      "Interval",
+      "flip",
+      "Clock",
+      "Reset",
+      "AsyncReset",
+      "wire",
+      "reg",
+      "reset",
+      "with",
+      "mem",
+      "depth",
+      "reader",
+      "writer",
+      "readwriter",
+      "inst",
+      "of",
+      "node",
+      "is",
+      "invalid",
+      "when",
+      "else",
+      "stop",
+      "printf",
+      "skip",
+      "old",
+      "new",
+      "undefined",
+      "mux",
+      "validif",
+      "cmem",
+      "smem",
+      "mport",
+      "infer",
+      "read",
+      "write",
+      "rdwr",
+      "attach",
+      "assert",
+      "assume",
+      "cover"
+    ) ++ PrimOps.listing
+>>>>>>> ef1d27a8 (Support parsing missing keywords as ids (#2381))
   }
 
   // ********** Memories **********
@@ -100,6 +155,15 @@ class ParserSpec extends FirrtlFlatSpec {
     keywords foreach { keyword =>
       firrtl.Parser.parse((prelude ++ Seq(s"      wire ${keyword} : UInt",
                                           s"      ${keyword} <= ${keyword}")))
+    }
+  }
+
+  they should "be allowed as names for side effecting statements" in {
+    import KeywordTests._
+    keywords.foreach { keyword =>
+      firrtl.Parser.parse {
+        prelude :+ s"""    assert($keyword, UInt(1), UInt(1), "") : $keyword"""
+      }
     }
   }
 
