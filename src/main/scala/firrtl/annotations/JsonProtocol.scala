@@ -4,13 +4,17 @@ package firrtl
 package annotations
 
 import firrtl.ir._
+import firrtl.stage.AllowUnrecognizedAnnotations
+import logger.LazyLogging
 
 import scala.util.{Failure, Success, Try}
-
 import org.json4s._
 import org.json4s.native.JsonMethods._
 import org.json4s.native.Serialization
 import org.json4s.native.Serialization.{read, write, writePretty}
+
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 trait HasSerializationHints {
   // For serialization of complicated constructor arguments, let the annotation
@@ -22,7 +26,7 @@ trait HasSerializationHints {
 /** Wrapper [[Annotation]] for Annotations that cannot be serialized */
 case class UnserializeableAnnotation(error: String, content: String) extends NoTargetAnnotation
 
-object JsonProtocol {
+object JsonProtocol extends LazyLogging {
   class TransformClassSerializer
       extends CustomSerializer[Class[_ <: Transform]](format =>
         (
@@ -206,6 +210,13 @@ object JsonProtocol {
           { case tpe: GroundType => JString(tpe.serialize) }
         )
       )
+  class UnrecognizedAnnotationSerializerSerializer
+      extends CustomSerializer[JObject](format =>
+        (
+          { case JObject(s) => JObject(s) },
+          { case UnrecognizedAnnotation(underlying) => underlying }
+        )
+      )
 
   /** Construct Json formatter for annotations */
   def jsonFormat(tags: Seq[Class[_]]) = {
@@ -217,7 +228,8 @@ object JsonProtocol {
       new LoadMemoryFileTypeSerializer + new IsModuleSerializer + new IsMemberSerializer +
       new CompleteTargetSerializer + new TypeSerializer + new ExpressionSerializer +
       new StatementSerializer + new PortSerializer + new DefModuleSerializer +
-      new CircuitSerializer + new InfoSerializer + new GroundTypeSerializer
+      new CircuitSerializer + new InfoSerializer + new GroundTypeSerializer +
+      new UnrecognizedAnnotationSerializerSerializer
   }
 
   /** Serialize annotations to a String for emission */
@@ -266,9 +278,14 @@ object JsonProtocol {
     writePretty(safeAnnos)
   }
 
+  /** Deserialize JSON input into a Seq[Annotation]
+    *
+    * @param in JsonInput, can be file or string
+    * @return
+    */
   def deserialize(in: JsonInput): Seq[Annotation] = deserializeTry(in).get
 
-  def deserializeTry(in: JsonInput): Try[Seq[Annotation]] = Try({
+  def deserializeTry(in: JsonInput): Try[Seq[Annotation]] = Try {
     val parsed = parse(in)
     val annos = parsed match {
       case JArray(objs) => objs
@@ -288,15 +305,63 @@ object JsonProtocol {
           throw new InvalidAnnotationJSONException(s"Expected field 'class' not found! $obj")
         case JObject(fields) => findTypeHints(fields.map(_._2))
         case JArray(arr)     => findTypeHints(arr)
-        case oJValue         => Seq()
+        case _               => Seq()
       })
       .distinct
 
+    // I don't much like this var here, but it has made it much simpler
+    // to maintain backward compatibility with the exception test structure
+    var classNotFoundBuildingLoaded = false
     val classes = findTypeHints(annos, true)
-    val loaded = classes.map(Class.forName(_))
+    val loaded = classes.map { x =>
+      val result =
+        try {
+          val result = Class.forName(x)
+          result
+        } catch {
+          case _: java.lang.ClassNotFoundException =>
+            classNotFoundBuildingLoaded = true // tells us which Exception to throw in recovery
+            // Found an annotation we don't recognize, So add UnrecognizedAnnotation to `loaded`
+            Class.forName("firrtl.annotations.UnrecognizedAnnotation")
+        }
+      result
+    }
     implicit val formats = jsonFormat(loaded)
-    read[List[Annotation]](in)
-  }).recoverWith {
+    try {
+      read[List[Annotation]](in)
+    } catch {
+      case e: org.json4s.MappingException =>
+        // If we get here, the build `read` failed to process an annotation
+        // So we will map the annos one a time, wrapping the JSON of the unrecognized annotations
+        var exceptionList = new ArrayBuffer[Exception]()
+        val firrtlAnnos = annos.map {
+          case jsonAnno =>
+            try {
+              jsonAnno.extract[Annotation]
+            } catch {
+              case mappingException: org.json4s.MappingException =>
+                exceptionList += mappingException
+                UnrecognizedAnnotation(jsonAnno)
+            }
+        }
+
+        if (firrtlAnnos.contains(AllowUnrecognizedAnnotations)) {
+          firrtlAnnos
+        } else {
+          logger.error(
+            "Annotation parsing found unrecognized annotations\n" +
+              "This error can be ignored with an AllowUnrecognizedAnnotationsAnnotation" +
+              " or command line flag --allow-unrecognized-annotations\n" +
+              exceptionList.mkString("\n")
+          )
+          if (classNotFoundBuildingLoaded) {
+            throw new AnnotationClassNotFoundException(e.getMessage)
+          } else {
+            throw e
+          } // throw the mapping exception
+        }
+    }
+  }.recoverWith {
     // Translate some generic errors to specific ones
     case e: java.lang.ClassNotFoundException =>
       Failure(new AnnotationClassNotFoundException(e.getMessage))
@@ -308,7 +373,8 @@ object JsonProtocol {
       in match {
         case FileInput(file) =>
           Failure(new InvalidAnnotationFileException(file, e))
-        case _ => Failure(e)
+        case _ =>
+          Failure(e)
       }
   }
 }
