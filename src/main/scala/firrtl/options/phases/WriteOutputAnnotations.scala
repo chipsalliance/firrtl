@@ -22,7 +22,7 @@ import scala.collection.mutable
 /** [[firrtl.options.Phase Phase]] that writes an [[AnnotationSeq]] to the filesystem,
   *  according to the following rules:
   *  1) Annotations which extend [[CustomFileEmission]] are written seperately to their prescribed
-  *     destinations and replaced per [[[CustomFileEmission.replacements]].
+  *     destinations and replaced per [[[CustomFileEmission.replacements replacements]].
   *  2) All remaining annotations are written to destination specified by
   *    [[StageOptions.annotationFileOut annotationFileOut]], iff the stage option is set, with the following exceptions:
   *    a) Annotations extending [[Unserializable]] are not written
