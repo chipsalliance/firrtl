@@ -14,7 +14,6 @@ import firrtl.ir.Circuit
 import firrtl.options.Dependency
 import firrtl.stage.{FirrtlCircuitAnnotation, InfoModeAnnotation, OutputFileAnnotation, TransformManager}
 import firrtl.stage.Forms.{VerilogMinimumOptimized, VerilogOptimized}
-import firrtl.stage.phases.WriteEmitted
 import firrtl.transforms.{InlineBooleanExpressions, ManipulateNames}
 import firrtl.util.BackendCompilationUtilities
 
@@ -43,7 +42,7 @@ object FirrtlEquivalenceTestUtils {
   }
 
   private def writeEmitted(state: CircuitState, outputFile: String): Unit = {
-    (new WriteEmitted).transform(state.annotations :+ OutputFileAnnotation(outputFile))
+    (new WriteOutputAnnotations).transform(state.annotations :+ OutputFileAnnotation(outputFile))
   }
 
   def firrtlEquivalenceTestPass(
