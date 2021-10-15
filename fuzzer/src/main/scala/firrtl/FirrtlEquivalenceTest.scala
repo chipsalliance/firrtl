@@ -12,6 +12,7 @@ import firrtl._
 import firrtl.annotations.{Annotation, CircuitTarget, ModuleTarget, Target}
 import firrtl.ir.Circuit
 import firrtl.options.Dependency
+import firrtl.options.phases.WriteOutputAnnotations
 import firrtl.stage.{FirrtlCircuitAnnotation, InfoModeAnnotation, OutputFileAnnotation, TransformManager}
 import firrtl.stage.Forms.{VerilogMinimumOptimized, VerilogOptimized}
 import firrtl.transforms.{InlineBooleanExpressions, ManipulateNames}
