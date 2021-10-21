@@ -29,9 +29,7 @@ case class NoDedupAnnotation(target: ModuleTarget) extends SingleTargetAnnotatio
 case class DedupDomainAnnotation(modules: Seq[Target]) extends MultiTargetAnnotation {
   override def targets = modules.map(module => Seq(module))
 
-  override def duplicate(n: Seq[Seq[Target]]): Annotation = DedupDomainAnnotation(n.collect {
-    case m: Seq[ModuleTarget] => m
-  }.flatten)
+  override def duplicate(n: Seq[Seq[Target]]): Annotation = DedupDomainAnnotation(n.flatten)
 }
 
 /** If this [[firrtl.annotations.Annotation Annotation]] exists in an [[firrtl.AnnotationSeq AnnotationSeq]],
