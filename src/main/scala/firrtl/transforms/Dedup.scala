@@ -104,12 +104,19 @@ class DedupModules extends Transform with DependencyAPIMigration {
       // Don't try deduping the main module of the circuit
       val noDedups = state.circuit.main +: state.annotations.collect { case NoDedupAnnotation(ModuleTarget(_, m)) => m }
       // Construct a map from each module target declared in a DedupDomainAnnotation to the corresponding deduplication domain
+      var modulesAlreadyVisited: Seq[String] = Seq.empty
       val dedupDomains: Map[String, Seq[String]] = state.annotations.collect {
         case DedupDomainAnnotation(modules) => modules.map {
           case _ @ ModuleTarget(_, m) => m
         }
-      }.flatMap (domain =>
-        domain.map(moduleName => (moduleName, domain))
+      }.flatMap(domain =>
+        domain.map(moduleName => {
+          if (modulesAlreadyVisited.contains(moduleName))
+            throw new FirrtlUserException(s"Module '$moduleName' was found in two or more deduplication domains, it must occur exactly once")
+
+          modulesAlreadyVisited = modulesAlreadyVisited :+ moduleName
+          (moduleName, domain)
+        })
       ).toMap[String, Seq[String]]
 
       val (remainingAnnotations, dupResults) = state.annotations.partition {
