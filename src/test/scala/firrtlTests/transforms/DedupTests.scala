@@ -965,23 +965,29 @@ class DedupModuleTests extends HighTransformSpec {
           """.stripMargin
 
     val singleDomainAnnos = Seq(
-      firrtl.transforms.DedupDomainAnnotation(Seq(
-        CircuitTarget("Top").module("A"),
-        CircuitTarget("Top").module("A_"),
-        CircuitTarget("Top").module("B"),
-        CircuitTarget("Top").module("B_")
-      ))
+      firrtl.transforms.DedupDomainAnnotation(
+        Seq(
+          CircuitTarget("Top").module("A"),
+          CircuitTarget("Top").module("A_"),
+          CircuitTarget("Top").module("B"),
+          CircuitTarget("Top").module("B_")
+        )
+      )
     )
 
     val multiDomainAnnos = Seq(
-      firrtl.transforms.DedupDomainAnnotation(Seq(
+      firrtl.transforms.DedupDomainAnnotation(
+        Seq(
           CircuitTarget("Top").module("A"),
-          CircuitTarget("Top").module("A_"),
-      )),
-      firrtl.transforms.DedupDomainAnnotation(Seq(
+          CircuitTarget("Top").module("A_")
+        )
+      ),
+      firrtl.transforms.DedupDomainAnnotation(
+        Seq(
           CircuitTarget("Top").module("B"),
-          CircuitTarget("Top").module("B_"),
-      )),
+          CircuitTarget("Top").module("B_")
+        )
+      )
     )
 
     execute(input, check, singleDomainAnnos)
@@ -1012,14 +1018,18 @@ class DedupModuleTests extends HighTransformSpec {
     val check = input
 
     val annos = Seq(
-      firrtl.transforms.DedupDomainAnnotation(Seq(
-        CircuitTarget("Top").module("A"),
-        CircuitTarget("Top").module("B")
-      )),
-      firrtl.transforms.DedupDomainAnnotation(Seq(
-        CircuitTarget("Top").module("A_"),
-        CircuitTarget("Top").module("B_")
-      ))
+      firrtl.transforms.DedupDomainAnnotation(
+        Seq(
+          CircuitTarget("Top").module("A"),
+          CircuitTarget("Top").module("B")
+        )
+      ),
+      firrtl.transforms.DedupDomainAnnotation(
+        Seq(
+          CircuitTarget("Top").module("A_"),
+          CircuitTarget("Top").module("B_")
+        )
+      )
     )
 
     execute(input, check, annos)
@@ -1048,15 +1058,19 @@ class DedupModuleTests extends HighTransformSpec {
           """.stripMargin
 
     val annos = Seq(
-      firrtl.transforms.DedupDomainAnnotation(Seq(
-        CircuitTarget("Top").module("A"),
-        CircuitTarget("Top").module("A_")
-      )),
-      firrtl.transforms.DedupDomainAnnotation(Seq(
-        CircuitTarget("Top").module("A"),
-        CircuitTarget("Top").module("B"),
-        CircuitTarget("Top").module("B_")
-      ))
+      firrtl.transforms.DedupDomainAnnotation(
+        Seq(
+          CircuitTarget("Top").module("A"),
+          CircuitTarget("Top").module("A_")
+        )
+      ),
+      firrtl.transforms.DedupDomainAnnotation(
+        Seq(
+          CircuitTarget("Top").module("A"),
+          CircuitTarget("Top").module("B"),
+          CircuitTarget("Top").module("B_")
+        )
+      )
     )
 
     {

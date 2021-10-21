@@ -29,7 +29,9 @@ case class NoDedupAnnotation(target: ModuleTarget) extends SingleTargetAnnotatio
 case class DedupDomainAnnotation(modules: Seq[Target]) extends MultiTargetAnnotation {
   override def targets = modules.map(module => Seq(module))
 
-  override def duplicate(n: Seq[Seq[Target]]): Annotation = DedupDomainAnnotation(n.collect { case m: Seq[ModuleTarget] => m}.flatten)
+  override def duplicate(n: Seq[Seq[Target]]): Annotation = DedupDomainAnnotation(n.collect {
+    case m: Seq[ModuleTarget] => m
+  }.flatten)
 }
 
 /** If this [[firrtl.annotations.Annotation Annotation]] exists in an [[firrtl.AnnotationSeq AnnotationSeq]],
@@ -106,13 +108,16 @@ class DedupModules extends Transform with DependencyAPIMigration {
       // Construct a map from each module target declared in a DedupDomainAnnotation to the corresponding deduplication domain
       var modulesAlreadyVisited: Seq[String] = Seq.empty
       val dedupDomains: Map[String, Seq[String]] = state.annotations.collect {
-        case DedupDomainAnnotation(modules) => modules.map {
-          case _ @ ModuleTarget(_, m) => m
-        }
+        case DedupDomainAnnotation(modules) =>
+          modules.map {
+            case _ @ModuleTarget(_, m) => m
+          }
       }.flatMap(domain =>
         domain.map(moduleName => {
           if (modulesAlreadyVisited.contains(moduleName))
-            throw new FirrtlUserException(s"Module '$moduleName' was found in two or more deduplication domains, it must occur exactly once")
+            throw new FirrtlUserException(
+              s"Module '$moduleName' was found in two or more deduplication domains, it must occur in exactly one"
+            )
 
           modulesAlreadyVisited = modulesAlreadyVisited :+ moduleName
           (moduleName, domain)
@@ -475,7 +480,7 @@ object DedupModules extends LazyLogging {
     top:                 CircuitTarget,
     moduleLinearization: Seq[DefModule],
     noDedups:            Set[String],
-    dedupDomains:        Map[String, Seq[String]],
+    dedupDomains:        Map[String, Seq[String]]
   ): (collection.Map[String, collection.Set[String]], RenameMap) = {
     // maps hash code to human readable tag
     val hashToTag = mutable.HashMap[ir.HashCode, String]()
