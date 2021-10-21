@@ -25,6 +25,13 @@ case class NoDedupAnnotation(target: ModuleTarget) extends SingleTargetAnnotatio
   def duplicate(n: ModuleTarget): NoDedupAnnotation = NoDedupAnnotation(n)
 }
 
+/** Defines a domain of modules which can only deduplicate to each other. */
+case class DedupDomainAnnotation(modules: Seq[Target]) extends MultiTargetAnnotation {
+  override def targets = modules.map(module => Seq(module))
+
+  override def duplicate(n: Seq[Seq[Target]]): Annotation = DedupDomainAnnotation(n.collect { case m: Seq[ModuleTarget] => m}.flatten)
+}
+
 /** If this [[firrtl.annotations.Annotation Annotation]] exists in an [[firrtl.AnnotationSeq AnnotationSeq]],
   * then the [[firrtl.transforms.DedupModules]] transform will *NOT* be run on the circuit.
   *  - set with '--no-dedup'
@@ -96,6 +103,15 @@ class DedupModules extends Transform with DependencyAPIMigration {
     } else {
       // Don't try deduping the main module of the circuit
       val noDedups = state.circuit.main +: state.annotations.collect { case NoDedupAnnotation(ModuleTarget(_, m)) => m }
+      // Construct a map from each module target declared in a DedupDomainAnnotation to the corresponding deduplication domain
+      val dedupDomains: Map[String, Seq[String]] = state.annotations.collect {
+        case DedupDomainAnnotation(modules) => modules.map {
+          case _ @ ModuleTarget(_, m) => m
+        }
+      }.flatMap (domain =>
+        domain.map(moduleName => (moduleName, domain))
+      ).toMap[String, Seq[String]]
+
       val (remainingAnnotations, dupResults) = state.annotations.partition {
         case _: DupedResult => false
         case _ => true
@@ -106,7 +122,7 @@ class DedupModules extends Transform with DependencyAPIMigration {
             case m: ModuleTarget => m.module -> original.module
           }
       }.toMap
-      val (newC, renameMap, newAnnos) = run(state.circuit, noDedups, previouslyDupedMap)
+      val (newC, renameMap, newAnnos) = run(state.circuit, noDedups, dedupDomains, previouslyDupedMap)
       state.copy(circuit = newC, renames = Some(renameMap), annotations = newAnnos ++ remainingAnnotations)
     }
   }
@@ -114,11 +130,13 @@ class DedupModules extends Transform with DependencyAPIMigration {
   /** Deduplicates a circuit, and records renaming
     * @param c Circuit to dedup
     * @param noDedups Modules not to dedup
+    * @param dedupDomains A map from module names to their corresponding deduplication domains
     * @return Deduped Circuit and corresponding RenameMap
     */
   def run(
     c:                  Circuit,
     noDedups:           Seq[String],
+    dedupDomains:       Map[String, Seq[String]],
     previouslyDupedMap: Map[String, String]
   ): (Circuit, RenameMap, AnnotationSeq) = {
 
@@ -127,7 +145,7 @@ class DedupModules extends Transform with DependencyAPIMigration {
     componentRenameMap.setCircuit(c.main)
 
     // Maps module name to corresponding dedup module
-    val dedupMap = DedupModules.deduplicate(c, noDedups.toSet, previouslyDupedMap, componentRenameMap)
+    val dedupMap = DedupModules.deduplicate(c, noDedups.toSet, dedupDomains, previouslyDupedMap, componentRenameMap)
     val dedupCliques = dedupMap
       .foldLeft(Map.empty[String, Set[String]]) {
         case (dedupCliqueMap, (orig: String, dupMod: DefModule)) =>
@@ -442,13 +460,15 @@ object DedupModules extends LazyLogging {
     * @param top CircuitTarget
     * @param moduleLinearization Sequence of modules from leaf to top
     * @param noDedups names of modules that should not be deduped
+    * @param dedupDomains A map from module names to their corresponding deduplication domains
     * @return A map from tag to names of modules with the same structure and
     *         a RenameMap which maps Module names to their Tag.
     */
   def buildRTLTags(
     top:                 CircuitTarget,
     moduleLinearization: Seq[DefModule],
-    noDedups:            Set[String]
+    noDedups:            Set[String],
+    dedupDomains:        Map[String, Seq[String]],
   ): (collection.Map[String, collection.Set[String]], RenameMap) = {
     // maps hash code to human readable tag
     val hashToTag = mutable.HashMap[ir.HashCode, String]()
@@ -462,22 +482,33 @@ object DedupModules extends LazyLogging {
     val dontAgnostifyPorts = modsToNotAgnostifyPorts(moduleLinearization)
 
     moduleLinearization.foreach { originalModule =>
-      val hash = if (noDedups.contains(originalModule.name)) {
+      val dedupDomain: Option[Seq[String]] = dedupDomains.get(originalModule.name)
+
+      val domainedModule = originalModule match {
+        // Hack: Create a dummy port in the module that corresponds to the deduplication domain.
+        case Module(info, name, ports, body) if dedupDomain.nonEmpty =>
+          Module(info, name, ports :+ Port(NoInfo, dedupDomain.get.hashCode.toString, Output, UnknownType), body)
+        // Ignore ExtModules and anything else
+        case _ => originalModule
+      }
+      val hasUniquePortNames = dontAgnostifyPorts(domainedModule.name) || dedupDomain.nonEmpty
+
+      val hash = if (noDedups.contains(domainedModule.name)) {
         // if we do not want to dedup we just hash the name of the module which is guaranteed to be unique
-        StructuralHash.sha256(originalModule.name)
-      } else if (dontAgnostifyPorts(originalModule.name)) {
-        StructuralHash.sha256WithSignificantPortNames(originalModule, moduleNameToTag)
+        StructuralHash.sha256(domainedModule.name)
+      } else if (hasUniquePortNames) {
+        StructuralHash.sha256WithSignificantPortNames(domainedModule, moduleNameToTag)
       } else {
-        StructuralHash.sha256(originalModule, moduleNameToTag)
+        StructuralHash.sha256(domainedModule, moduleNameToTag)
       }
 
       if (hashToTag.contains(hash)) {
-        hashToNames(hash) = hashToNames(hash) :+ originalModule.name
+        hashToNames(hash) = hashToNames(hash) :+ domainedModule.name
       } else {
-        hashToTag(hash) = "Dedup#" + originalModule.name
-        hashToNames(hash) = List(originalModule.name)
+        hashToTag(hash) = "Dedup#" + domainedModule.name
+        hashToNames(hash) = List(domainedModule.name)
       }
-      moduleNameToTag(originalModule.name) = hashToTag(hash)
+      moduleNameToTag(domainedModule.name) = hashToTag(hash)
     }
 
     val tag2all = hashToNames.map { case (hash, names) => hashToTag(hash) -> names.toSet }
@@ -489,12 +520,14 @@ object DedupModules extends LazyLogging {
   /** Deduplicate
     * @param circuit Circuit
     * @param noDedups list of modules to not dedup
+    * @param dedupDomains A map from module names to their corresponding deduplication domains
     * @param renameMap rename map to populate when deduping
     * @return Map of original Module name -> Deduped Module
     */
   def deduplicate(
     circuit:            Circuit,
     noDedups:           Set[String],
+    dedupDomains:       Map[String, Seq[String]],
     previousDupResults: Map[String, String],
     renameMap:          RenameMap
   ): Map[String, DefModule] = {
@@ -509,7 +542,7 @@ object DedupModules extends LazyLogging {
     // Maps a module name to its agnostic name
     // tagMap is a RenameMap containing ModuleTarget renames of original name to tag name
     // tag2all is a Map of tag to original names of all modules with that tag
-    val (tag2all, tagMap) = buildRTLTags(top, moduleLinearization, noDedups)
+    val (tag2all, tagMap) = buildRTLTags(top, moduleLinearization, noDedups, dedupDomains)
 
     // Set tag2name to be the best dedup module name
     val moduleIndex = circuit.modules.zipWithIndex.map { case (m, i) => m.name -> i }.toMap

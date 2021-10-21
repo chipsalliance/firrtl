@@ -928,4 +928,102 @@ class DedupModuleTests extends HighTransformSpec {
     csDeduped.annotations.toSeq should contain(expectedAnnA)
     csDeduped.annotations.toSeq should contain(expectedAnnB)
   }
+
+  "The module A and B" should "be deduped within the same deduplication domain" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    inst a1 of A
+        |    inst a2 of A_
+        |  module A :
+        |    output x: UInt<1>
+        |    inst b of B
+        |    x <= b.x
+        |  module A_ :
+        |    output x: UInt<1>
+        |    inst b of B_
+        |    x <= b.x
+        |  module B :
+        |    output x: UInt<1>
+        |    x <= UInt(1)
+        |  module B_ :
+        |    output x: UInt<1>
+        |    x <= UInt(1)
+          """.stripMargin
+    val check =
+      """circuit Top :
+        |  module Top :
+        |    inst a1 of A
+        |    inst a2 of A
+        |  module A :
+        |    output x: UInt<1>
+        |    inst b of B
+        |    x <= b.x
+        |  module B :
+        |    output x: UInt<1>
+        |    x <= UInt(1)
+          """.stripMargin
+
+    val singleDomainAnnos = Seq(
+      firrtl.transforms.DedupDomainAnnotation(Seq(
+        CircuitTarget("Top").module("A"),
+        CircuitTarget("Top").module("A_"),
+        CircuitTarget("Top").module("B"),
+        CircuitTarget("Top").module("B_")
+      ))
+    )
+
+    // Each duplicated pair is in its own domain, so deduplication between them should still occur
+    val multiDomainAnnos = Seq(
+      firrtl.transforms.DedupDomainAnnotation(Seq(
+          CircuitTarget("Top").module("A"),
+          CircuitTarget("Top").module("A_"),
+      )),
+      firrtl.transforms.DedupDomainAnnotation(Seq(
+          CircuitTarget("Top").module("B"),
+          CircuitTarget("Top").module("B_"),
+      )),
+    )
+
+    execute(input, check, singleDomainAnnos)
+    execute(input, check, multiDomainAnnos)
+  }
+
+  "The module A and B" should "not be deduped across different deduplication domains" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    inst a1 of A
+        |    inst a2 of A_
+        |  module A :
+        |    output x: UInt<1>
+        |    inst b of B
+        |    x <= b.x
+        |  module A_ :
+        |    output x: UInt<1>
+        |    inst b of B_
+        |    x <= b.x
+        |  module B :
+        |    output x: UInt<1>
+        |    x <= UInt(1)
+        |  module B_ :
+        |    output x: UInt<1>
+        |    x <= UInt(1)
+          """.stripMargin
+    // No deduplication should happen because the duplicated modules are in a separate domain
+    val check = input
+
+    val annos = Seq(
+      firrtl.transforms.DedupDomainAnnotation(Seq(
+        CircuitTarget("Top").module("A"),
+        CircuitTarget("Top").module("B")
+      )),
+      firrtl.transforms.DedupDomainAnnotation(Seq(
+        CircuitTarget("Top").module("A_"),
+        CircuitTarget("Top").module("B_")
+      ))
+    )
+
+    execute(input, check, annos)
+  }
 }
