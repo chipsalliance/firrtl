@@ -114,7 +114,7 @@ class DedupModules extends Transform with DependencyAPIMigration {
         domain.map(moduleName => {
           if (modulesAlreadyVisited.contains(moduleName))
             throw new FirrtlUserException(
-              s"Module '$moduleName' was found in two or more deduplication domains, it must occur in exactly one"
+              s"Module '${moduleName}' was found in two or more deduplication domains, it must occur in exactly one"
             )
 
           modulesAlreadyVisited = modulesAlreadyVisited :+ moduleName
