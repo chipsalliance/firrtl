@@ -108,7 +108,7 @@ class DedupModules extends Transform with DependencyAPIMigration {
       val dedupDomains: Map[String, Seq[String]] = state.annotations.collect {
         case DedupDomainAnnotation(modules) =>
           modules.map {
-            case _ @ModuleTarget(_, m) => m
+            case ModuleTarget(_, m) => m
           }
       }.flatMap(domain =>
         domain.map(moduleName => {
