@@ -104,7 +104,7 @@ class DedupModules extends Transform with DependencyAPIMigration {
       // Don't try deduping the main module of the circuit
       val noDedups = state.circuit.main +: state.annotations.collect { case NoDedupAnnotation(ModuleTarget(_, m)) => m }
       // Construct a map from each module target declared in a DedupDomainAnnotation to the corresponding deduplication domain
-      var modulesAlreadyVisited: Seq[String] = Seq.empty
+      val modulesAlreadyVisited: mutable.HashSet[String] = mutable.HashSet.empty
       val dedupDomains: Map[String, Seq[String]] = state.annotations.collect {
         case DedupDomainAnnotation(modules) =>
           modules.map {
