@@ -117,7 +117,7 @@ class DedupModules extends Transform with DependencyAPIMigration {
               s"Module '${moduleName}' was found in two or more deduplication domains, it must occur in exactly one"
             )
 
-          modulesAlreadyVisited = modulesAlreadyVisited :+ moduleName
+          modulesAlreadyVisited += moduleName
           (moduleName, domain)
         })
       ).toMap[String, Seq[String]]
@@ -132,7 +132,7 @@ class DedupModules extends Transform with DependencyAPIMigration {
             case m: ModuleTarget => m.module -> original.module
           }
       }.toMap
-      val (newC, renameMap, newAnnos) = run(state.circuit, noDedups, dedupDomains, previouslyDupedMap)
+      val (newC, renameMap, newAnnos) = run(state.circuit, noDedups, previouslyDupedMap, dedupDomains)
       state.copy(circuit = newC, renames = Some(renameMap), annotations = newAnnos ++ remainingAnnotations)
     }
   }
