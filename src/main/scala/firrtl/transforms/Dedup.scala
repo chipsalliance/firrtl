@@ -26,10 +26,10 @@ case class NoDedupAnnotation(target: ModuleTarget) extends SingleTargetAnnotatio
 }
 
 /** Defines a domain of modules which can only deduplicate to each other. */
-case class DedupDomainAnnotation(modules: Seq[Target]) extends MultiTargetAnnotation {
+case class DedupDomainAnnotation(modules: Seq[ModuleTarget]) extends MultiTargetAnnotation {
   override def targets = modules.map(module => Seq(module))
 
-  override def duplicate(n: Seq[Seq[Target]]): Annotation = DedupDomainAnnotation(n.flatten)
+  override def duplicate(n: Seq[Seq[Target]]): Annotation = DedupDomainAnnotation(n.flatten.collect {case m: ModuleTarget => m})
 }
 
 /** If this [[firrtl.annotations.Annotation Annotation]] exists in an [[firrtl.AnnotationSeq AnnotationSeq]],
