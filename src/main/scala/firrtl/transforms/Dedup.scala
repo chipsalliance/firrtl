@@ -146,8 +146,8 @@ class DedupModules extends Transform with DependencyAPIMigration {
   def run(
     c:                  Circuit,
     noDedups:           Seq[String],
-    dedupDomains:       Map[String, Seq[String]],
-    previouslyDupedMap: Map[String, String]
+    previouslyDupedMap: Map[String, String],
+    dedupDomains:       Map[String, Seq[String]] = Map.empty
   ): (Circuit, RenameMap, AnnotationSeq) = {
 
     // RenameMap
