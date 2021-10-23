@@ -17,11 +17,11 @@ import firrtl.stage.Forms
 import firrtl.transforms.DedupAnnotationsTransform
 
 /** Container of all annotations for a Firrtl compiler */
-class AnnotationSeq private (private[firrtl] val underlying: List[Annotation]) {
-  def toSeq: Seq[Annotation] = underlying.toSeq
+class AnnotationSeq private (underlying: Seq[Annotation]) {
+  def toSeq: Seq[Annotation] = underlying
 }
 object AnnotationSeq {
-  def apply(xs: Seq[Annotation]): AnnotationSeq = new AnnotationSeq(xs.toList)
+  def apply(xs: Seq[Annotation]): AnnotationSeq = new AnnotationSeq(xs)
 }
 
 /** Current State of the Circuit
