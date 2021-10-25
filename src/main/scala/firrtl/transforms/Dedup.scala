@@ -499,16 +499,15 @@ object DedupModules extends LazyLogging {
       val domainedModule = originalModule match {
         // Hack: Create a dummy port in the module that corresponds to the deduplication domain.
         case Module(info, name, ports, body) if dedupDomain.nonEmpty =>
-          Module(info, name, ports :+ Port(NoInfo, dedupDomain.get.hashCode.toString, Output, UnknownType), body)
+          Module(info, name, ports :+ Port(NoInfo, dedupDomain.get.hashCode.toString, Output, UIntType(firrtl.ir.IntWidth(dedupDomain.get.hashCode))), body)
         // Ignore ExtModules and anything else
         case _ => originalModule
       }
-      val hasUniquePortNames = dontAgnostifyPorts(domainedModule.name) || dedupDomain.nonEmpty
 
       val hash = if (noDedups.contains(domainedModule.name)) {
         // if we do not want to dedup we just hash the name of the module which is guaranteed to be unique
         StructuralHash.sha256(domainedModule.name)
-      } else if (hasUniquePortNames) {
+      } else if (dontAgnostifyPorts(domainedModule.name)) {
         StructuralHash.sha256WithSignificantPortNames(domainedModule, moduleNameToTag)
       } else {
         StructuralHash.sha256(domainedModule, moduleNameToTag)
