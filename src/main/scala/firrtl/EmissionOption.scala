@@ -11,12 +11,17 @@ import firrtl.annotations.MemoryLoadFileType
   */
 trait EmissionOption
 
+case class CustomDefaultRegisterEmission(override val useInitAsPreset: Boolean, override val disableRandomization: Boolean) extends RegisterEmissionOption
+
+case class CustomDefaultMemoryEmission(override val initValue: MemoryInitValue) extends MemoryEmissionOption
+
 /** Emission customization options for memories */
 trait MemoryEmissionOption extends EmissionOption {
   def initValue: MemoryInitValue = MemoryRandomInit
 }
 
 sealed trait MemoryInitValue
+case object MemoryNoInit extends MemoryInitValue
 case object MemoryRandomInit extends MemoryInitValue
 case class MemoryScalarInit(value: BigInt) extends MemoryInitValue
 case class MemoryArrayInit(values: Seq[BigInt]) extends MemoryInitValue
