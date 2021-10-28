@@ -26,13 +26,15 @@ case class NoDedupAnnotation(target: ModuleTarget) extends SingleTargetAnnotatio
 }
 
 /** Defines a domain of modules which can only deduplicate to each other. */
-case class DedupDomainAnnotation(modules: Seq[ModuleTarget]) extends MultiTargetAnnotation {
+case class DedupDomainAnnotation(modules: Seq[ModuleTarget], name: String = "") extends MultiTargetAnnotation {
   override def targets = modules.map(module => Seq(module))
 
   override def duplicate(n: Seq[Seq[Target]]): Annotation = DedupDomainAnnotation(n.flatten.collect {
     case m: ModuleTarget => m
   })
 }
+
+private[firrtl] case class DedupDomain(modules: Seq[String], name: String)
 
 /** If this [[firrtl.annotations.Annotation Annotation]] exists in an [[firrtl.AnnotationSeq AnnotationSeq]],
   * then the [[firrtl.transforms.DedupModules]] transform will *NOT* be run on the circuit.
@@ -107,22 +109,23 @@ class DedupModules extends Transform with DependencyAPIMigration {
       val noDedups = state.circuit.main +: state.annotations.collect { case NoDedupAnnotation(ModuleTarget(_, m)) => m }
       // Construct a map from each module target declared in a DedupDomainAnnotation to the corresponding deduplication domain
       val modulesAlreadyVisited: mutable.HashSet[String] = mutable.HashSet.empty
-      val dedupDomains: Map[String, Seq[String]] = state.annotations.collect {
-        case DedupDomainAnnotation(modules) =>
-          modules.map {
-            case ModuleTarget(_, m) => m
-          }
-      }.flatMap(domain =>
-        domain.map(moduleName => {
-          if (modulesAlreadyVisited.contains(moduleName))
-            throw new FirrtlUserException(
-              s"Module '${moduleName}' was found in two or more deduplication domains, it must occur in exactly one"
-            )
+      val dedupDomains: Map[String, DedupDomain] = state.annotations.collect {
+        case DedupDomainAnnotation(modules, name) =>
+          DedupDomain(modules.map { case ModuleTarget(_, m) => m }, name)
+      }.flatMap({
+        case domain @ DedupDomain(modules, domainName) =>
+          modules.map(moduleName => {
+            if (modulesAlreadyVisited.contains(moduleName)) {
+              val name = if (domainName.isEmpty) "a previous domain" else s"domain '${}'"
+              throw new FirrtlUserException(
+                s"Module '${moduleName}' was already declared in ${name}"
+              )
+            }
 
-          modulesAlreadyVisited += moduleName
-          (moduleName, domain)
-        })
-      ).toMap[String, Seq[String]]
+            modulesAlreadyVisited += moduleName
+            (moduleName, domain)
+          })
+      }).toMap[String, DedupDomain]
 
       val (remainingAnnotations, dupResults) = state.annotations.partition {
         case _: DupedResult => false
@@ -499,7 +502,17 @@ object DedupModules extends LazyLogging {
       val domainedModule = originalModule match {
         // Hack: Create a dummy port in the module that corresponds to the deduplication domain.
         case Module(info, name, ports, body) if dedupDomain.nonEmpty =>
-          Module(info, name, ports :+ Port(NoInfo, dedupDomain.get.hashCode.toString, Output, UIntType(firrtl.ir.IntWidth(dedupDomain.get.hashCode))), body)
+          Module(
+            info,
+            name,
+            ports :+ Port(
+              NoInfo,
+              dedupDomain.get.hashCode.toString,
+              Output,
+              UIntType(firrtl.ir.IntWidth(dedupDomain.get.hashCode))
+            ),
+            body
+          )
         // Ignore ExtModules and anything else
         case _ => originalModule
       }
