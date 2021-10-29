@@ -2,7 +2,7 @@
 
 package firrtl
 
-import firrtl.annotations.MemoryLoadFileType
+import firrtl.annotations.{MemoryLoadFileType, NoTargetAnnotation}
 
 /**
   * Base type for emission customization options
@@ -11,9 +11,9 @@ import firrtl.annotations.MemoryLoadFileType
   */
 trait EmissionOption
 
-case class CustomDefaultRegisterEmission(override val useInitAsPreset: Boolean, override val disableRandomization: Boolean) extends RegisterEmissionOption
+case class CustomDefaultRegisterEmission(override val useInitAsPreset: Boolean, override val disableRandomization: Boolean) extends RegisterEmissionOption with NoTargetAnnotation
 
-case class CustomDefaultMemoryEmission(override val initValue: MemoryInitValue) extends MemoryEmissionOption
+case class CustomDefaultMemoryEmission(override val initValue: MemoryInitValue) extends MemoryEmissionOption with NoTargetAnnotation
 
 /** Emission customization options for memories */
 trait MemoryEmissionOption extends EmissionOption {
