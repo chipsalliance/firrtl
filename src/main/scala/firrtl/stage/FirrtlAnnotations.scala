@@ -326,7 +326,7 @@ case object PrettyNoExprInlining extends NoTargetAnnotation with FirrtlOption wi
 
 case object AllowUnrecognizedAnnotations extends NoTargetAnnotation with FirrtlOption with HasShellOptions {
   val options = Seq(
-    new ShellOption[String](
+    new ShellOption[Unit](
       longOption = "allow-unrecognized-annotations",
       toAnnotationSeq = _ => Seq(this),
       helpText = "Allow annotation files to contain unrecognized annotations"
