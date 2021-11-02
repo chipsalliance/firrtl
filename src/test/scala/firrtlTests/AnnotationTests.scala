@@ -564,7 +564,7 @@ class JsonAnnotationTests extends AnnotationTests {
     val manager = setupManager(Some(anno))
 
     the[Exception] thrownBy Driver.execute(manager) should matchPattern {
-      case InvalidAnnotationFileException(_, _: AnnotationClassNotFoundException) =>
+      case InvalidAnnotationFileException(_, _: UnrecogizedAnnotationsException) =>
     }
   }
 
