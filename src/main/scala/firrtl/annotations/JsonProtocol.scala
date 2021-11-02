@@ -26,6 +26,8 @@ trait HasSerializationHints {
 case class UnserializeableAnnotation(error: String, content: String) extends NoTargetAnnotation
 
 object JsonProtocol extends LazyLogging {
+  val GetClassPattern = "[^']*'([^']+)'.*".r
+
   class TransformClassSerializer
       extends CustomSerializer[Class[_ <: Transform]](format =>
         (
@@ -401,11 +403,14 @@ object JsonProtocol extends LazyLogging {
   /** Deserialize JSON input into a Seq[Annotation]
     *
     * @param in JsonInput, can be file or string
+    * @param allowUnrecognizedAnnotations is set to true if command line contains flag to allow this behavior
     * @return
     */
-  def deserialize(in: JsonInput): Seq[Annotation] = deserializeTry(in).get
+  def deserialize(in: JsonInput, allowUnrecognizedAnnotations: Boolean = false): Seq[Annotation] = {
+    deserializeTry(in, allowUnrecognizedAnnotations).get
+  }
 
-  def deserializeTry(in: JsonInput): Try[Seq[Annotation]] = Try {
+  def deserializeTry(in: JsonInput, allowUnrecognizedAnnotations: Boolean = false): Try[Seq[Annotation]] = Try {
     val parsed = parse(in)
     val annos = parsed match {
       case JArray(objs) => objs
@@ -415,14 +420,14 @@ object JsonProtocol extends LazyLogging {
         )
     }
 
+    /* Tries to extract class name from the mapping exception */
     def getAnnotationNameFromMappingException(mappingException: MappingException): String = {
-      val GetClassPattern = "[^']*'([^']+)'.*".r
       try {
         val GetClassPattern(name) = mappingException.getMessage
         name
       } catch {
         case _: Exception =>
-          "Unknown"
+          mappingException.getMessage
       }
     }
 
@@ -473,7 +478,7 @@ object JsonProtocol extends LazyLogging {
           }
         }
 
-        if (firrtlAnnos.contains(AllowUnrecognizedAnnotations)) {
+        if (firrtlAnnos.contains(AllowUnrecognizedAnnotations) || allowUnrecognizedAnnotations) {
           firrtlAnnos
         } else {
           logger.error(

@@ -2,6 +2,7 @@
 
 package firrtlTests.annotationTests
 
+import firrtl.FileUtils
 import firrtl.annotations._
 import firrtl.passes.memlib.ReplSeqMemAnnotation
 import firrtl.stage.FirrtlMain
@@ -58,26 +59,68 @@ class UnrecognizedAnnotationSpec extends FirrtlFlatSpec {
     }
   }
 
-  case class TestFileNames(
-    allowUnrecognized: Boolean,
-    inputAnnotations:  String,
-    outputAnnotations: String,
-    firrtlSource:      String,
-    firrtlOutput:      String)
+  // Following test will operate on an annotation JSON file with two unrecognized annotations in it
+  //
 
-  def setupFiles(allowUnrecognized: Boolean): TestFileNames = {
-    val dirName = if (allowUnrecognized) {
-      s"test_run_dir/unrecognized_annotation_allowed"
-    } else {
-      s"test_run_dir/unrecognized_annotation_not_allowed"
+  it should "fail by default" in {
+    val fileNames = setupFiles(addAllowUnrecognizedFlag = false, addAllowUnrecognizedAnno = false)
+    val args = makeCommandLineArgs(fileNames)
+    val e = intercept[InvalidAnnotationFileException] {
+      FirrtlMain.main(args)
+    }
+
+    e.getMessage should include(fileNames.inputAnnotations)
+    e.getCause.getMessage should include("freechips.rocketchip.util.RegFieldDescMappingAnnotation")
+    e.getCause.getMessage should include("freechips.rocketchip.util.SRAMAnnotation")
+  }
+
+  it should "succeed when the AllowUnrecognized flag is passed on command line" in {
+    val fileNames = setupFiles(addAllowUnrecognizedFlag = false, addAllowUnrecognizedAnno = true)
+    shouldSucceed(fileNames)
+  }
+
+  it should "succeed when the AllowUnrecognizedAnnotation is in the annotation file" in {
+    val fileNames = setupFiles(addAllowUnrecognizedFlag = true, addAllowUnrecognizedAnno = false)
+    shouldSucceed(fileNames)
+  }
+
+  it should "succeed when both forms of the override are specified" in {
+    val fileNames = setupFiles(addAllowUnrecognizedFlag = true, addAllowUnrecognizedAnno = true)
+    shouldSucceed(fileNames)
+  }
+
+  def shouldSucceed(fileNames: TestFileNames): Unit = {
+    val args = makeCommandLineArgs(fileNames)
+    FirrtlMain.main(args)
+
+    val outputAnnotationText = FileUtils.getText(fileNames.outputAnnotationsFull)
+    outputAnnotationText should include("freechips.rocketchip.util.RegFieldDescMappingAnnotation")
+    outputAnnotationText should include("freechips.rocketchip.util.SRAMAnnotation")
+  }
+
+  case class TestFileNames(
+    allowUnrecognized:     Boolean,
+    inputAnnotations:      String,
+    outputAnnotations:     String,
+    outputAnnotationsFull: String,
+    firrtlSource:          String,
+    firrtlOutput:          String)
+
+  def setupFiles(addAllowUnrecognizedFlag: Boolean, addAllowUnrecognizedAnno: Boolean): TestFileNames = {
+    val dirName = (addAllowUnrecognizedFlag, addAllowUnrecognizedAnno) match {
+      case (false, false) => s"test_run_dir/unrecognized_annotation_fail"
+      case (true, false)  => s"test_run_dir/unrecognized_annotation_flag"
+      case (false, true)  => s"test_run_dir/unrecognized_annotation_anno"
+      case (true, true)   => s"test_run_dir/unrecognized_annotation_flag_and_anno"
     }
     val dir = new File(dirName)
     dir.mkdirs()
 
     val fileNames = TestFileNames(
-      allowUnrecognized = allowUnrecognized,
+      allowUnrecognized = addAllowUnrecognizedFlag,
       inputAnnotations = s"$dirName/input_annotations.json",
-      outputAnnotations = s"$dirName/output_annotations.json",
+      outputAnnotations = s"$dirName/output_annotations",
+      outputAnnotationsFull = s"$dirName/output_annotations.anno.json",
       firrtlSource = s"$dirName/trivial.fir",
       firrtlOutput = s"$dirName/trivial_out"
     )
@@ -90,7 +133,7 @@ class UnrecognizedAnnotationSpec extends FirrtlFlatSpec {
 
     writeText(
       fileNames.inputAnnotations,
-      UnrecognizedAnnotationTextGenerator.jsonText(includeAllowUnrecognizedAnnotations = allowUnrecognized)
+      UnrecognizedAnnotationTextGenerator.jsonText(includeAllowUnrecognizedAnnotations = addAllowUnrecognizedAnno)
     )
     writeText(
       fileNames.firrtlSource,
@@ -124,24 +167,6 @@ class UnrecognizedAnnotationSpec extends FirrtlFlatSpec {
         "--output-annotation-file",
         fileNames.outputAnnotations
       )
-  }
-
-  it should "fail when command line annotation file contains unrecognized annotations and they are not allowed" in {
-    val fileNames = setupFiles(allowUnrecognized = false)
-    val args = makeCommandLineArgs(fileNames)
-    val e = intercept[InvalidAnnotationFileException] {
-      FirrtlMain.main(args)
-    }
-
-    e.getMessage should include(fileNames.inputAnnotations)
-    e.getCause.getMessage should include("freechips.rocketchip.util.RegFieldDescMappingAnnotation")
-    e.getCause.getMessage should include("freechips.rocketchip.util.SRAMAnnotation")
-  }
-
-  it should "not fail when command line annotation file contains unrecognized annotations but AllowUnrecognized " in {
-    val fileNames = setupFiles(allowUnrecognized = true)
-    val args = makeCommandLineArgs(fileNames)
-    FirrtlMain.main(args)
   }
 }
 
