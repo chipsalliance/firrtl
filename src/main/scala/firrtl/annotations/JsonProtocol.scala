@@ -478,7 +478,7 @@ object JsonProtocol extends LazyLogging {
         } else {
           logger.error(
             "Annotation parsing found unrecognized annotations\n" +
-              "This error can be suppressed with an AllowUnrecognizedAnnotationsAnnotation" +
+              "This error can be ignored with an AllowUnrecognizedAnnotationsAnnotation" +
               " or command line flag --allow-unrecognized-annotations\n" +
               exceptionList.mkString("\n")
           )

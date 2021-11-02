@@ -37,7 +37,7 @@ class UnrecognizedAnnotationSpec extends FirrtlFlatSpec {
       val captor = new OutputCaptor
       Logger.setOutput(captor.printStream)
 
-      val parsingError = intercept[AnnotationClassNotFoundException] {
+      val parsingError = intercept[UnrecogizedAnnotationsException] {
         JsonProtocol.deserialize(
           UnrecognizedAnnotationTextGenerator.jsonText(includeAllowUnrecognizedAnnotations = false)
         )
@@ -50,10 +50,10 @@ class UnrecognizedAnnotationSpec extends FirrtlFlatSpec {
         "This error can be ignored with an AllowUnrecognizedAnnotationsAnnotation or command line flag --allow-unrecognized-annotations"
       )
       output should include(
-        "org.json4s.package$MappingException: Do not know how to deserialize 'freechips.rocketchip.util.RegFieldDescMappingAnnotation'"
+        "freechips.rocketchip.util.RegFieldDescMappingAnnotation"
       )
       output should include(
-        "org.json4s.package$MappingException: Do not know how to deserialize 'freechips.rocketchip.util.SRAMAnnotation'"
+        "freechips.rocketchip.util.SRAMAnnotation"
       )
     }
   }
