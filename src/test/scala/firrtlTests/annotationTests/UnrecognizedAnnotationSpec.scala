@@ -148,188 +148,172 @@ class UnrecognizedAnnotationSpec extends FirrtlFlatSpec {
 object UnrecognizedAnnotationTextGenerator {
 
   def jsonText(includeAllowUnrecognizedAnnotations: Boolean): String = {
-    val s = new StringBuilder()
-
-    s ++= """["""
-
-    if (includeAllowUnrecognizedAnnotations) {
-      s ++= """  {"""
-      s ++= """    "class":"firrtl.stage.AllowUnrecognizedAnnotations$""""
-      s ++= """  },"""
+    val serializedAllowUnrecognized = if (includeAllowUnrecognizedAnnotations) {
+      """
+        |  {
+        |    "class": "firrtl.stage.AllowUnrecognizedAnnotations$"
+        |  },""".stripMargin
+    } else {
+      ""
     }
-    s ++= """  {"""
-    s ++= """    "class":"firrtl.transforms.BlackBoxInlineAnno","""
-    s ++= """    "target":"TestHarness.plusarg_reader_27","""
-    s ++= """    "name":"plusarg_reader.v","""
-    s ++= """    "text":"// See LICENSE.SiFive for license details.\n\n//VCS coverage exclude_file\n\n// No default parameter values are intended, nor does IEEE 1800-2012 require them (clause A.2.4 param_assignment),\n// but Incisive demands them. These default values should never be used.\nmodule plusarg_reader #(\n   parameter FORMAT=\"borked=%d\",\n   parameter WIDTH=1,\n   parameter [WIDTH-1:0] DEFAULT=0\n) (\n   output [WIDTH-1:0] out\n);\n\n`ifdef SYNTHESIS\nassign out = DEFAULT;\n`else\nreg [WIDTH-1:0] myplus;\nassign out = myplus;\n\ninitial begin\n   if (!$value$plusargs(FORMAT, myplus)) myplus = DEFAULT;\nend\n`endif\n\nendmodule\n""""
-    s ++= """  },"""
-    s ++= """  {"""
-    s ++= """    "class":"freechips.rocketchip.util.RegFieldDescMappingAnnotation","""
-    s ++= """    "target":"TestHarness.PeripheryBus","""
-    s ++= """    "regMappingSer":{"""
-    s ++= """    "displayName":"PeripheryBus","""
-    s ++= """    "deviceName":"PeripheryBus","""
-    s ++= """    "baseAddress":16384,"""
-    s ++= """    "regFields":["""
-    s ++= """  {"""
-    s ++= """    "byteOffset":"0x0","""
-    s ++= """    "bitOffset":0,"""
-    s ++= """    "bitWidth":8,"""
-    s ++= """    "name":"unnamedRegField0_0","""
-    s ++= """    "resetValue":0,"""
-    s ++= """    "accessType":"None","""
-    s ++= """    "wrType":"None","""
-    s ++= """    "rdAction":"None","""
-    s ++= """    "desc":"None","""
-    s ++= """    "group":"None","""
-    s ++= """    "groupDesc":"None","""
-    s ++= """    "volatile":false,"""
-    s ++= """    "hasReset":false,"""
-    s ++= """    "enumerations":{"""
-    s ++= """"""
-    s ++= """  }"""
-    s ++= """  },"""
-    s ++= """  {"""
-    s ++= """    "byteOffset":"0x0","""
-    s ++= """    "bitOffset":8,"""
-    s ++= """    "bitWidth":8,"""
-    s ++= """    "name":"unnamedRegField0_8","""
-    s ++= """    "resetValue":0,"""
-    s ++= """    "accessType":"None","""
-    s ++= """    "wrType":"None","""
-    s ++= """    "rdAction":"None","""
-    s ++= """    "desc":"None","""
-    s ++= """    "group":"None","""
-    s ++= """    "groupDesc":"None","""
-    s ++= """    "volatile":false,"""
-    s ++= """    "hasReset":false,"""
-    s ++= """    "enumerations":{"""
-    s ++= """"""
-    s ++= """  }"""
-    s ++= """  },"""
-    s ++= """  {"""
-    s ++= """    "byteOffset":"0x0","""
-    s ++= """    "bitOffset":16,"""
-    s ++= """    "bitWidth":8,"""
-    s ++= """    "name":"unnamedRegField0_16","""
-    s ++= """    "resetValue":0,"""
-    s ++= """    "accessType":"None","""
-    s ++= """    "wrType":"None","""
-    s ++= """    "rdAction":"None","""
-    s ++= """    "desc":"None","""
-    s ++= """    "group":"None","""
-    s ++= """    "groupDesc":"None","""
-    s ++= """    "volatile":false,"""
-    s ++= """    "hasReset":false,"""
-    s ++= """    "enumerations":{"""
-    s ++= """"""
-    s ++= """  }"""
-    s ++= """  },"""
-    s ++= """  {"""
-    s ++= """    "byteOffset":"0x0","""
-    s ++= """    "bitOffset":24,"""
-    s ++= """    "bitWidth":8,"""
-    s ++= """    "name":"unnamedRegField0_24","""
-    s ++= """    "resetValue":0,"""
-    s ++= """    "accessType":"None","""
-    s ++= """    "wrType":"None","""
-    s ++= """    "rdAction":"None","""
-    s ++= """    "desc":"None","""
-    s ++= """    "group":"None","""
-    s ++= """    "groupDesc":"None","""
-    s ++= """    "volatile":false,"""
-    s ++= """    "hasReset":false,"""
-    s ++= """    "enumerations":{"""
-    s ++= """"""
-    s ++= """  }"""
-    s ++= """  },"""
-    s ++= """  {"""
-    s ++= """    "byteOffset":"0x0","""
-    s ++= """    "bitOffset":32,"""
-    s ++= """    "bitWidth":8,"""
-    s ++= """    "name":"unnamedRegField0_32","""
-    s ++= """    "resetValue":0,"""
-    s ++= """    "accessType":"None","""
-    s ++= """    "wrType":"None","""
-    s ++= """    "rdAction":"None","""
-    s ++= """    "desc":"None","""
-    s ++= """    "group":"None","""
-    s ++= """    "groupDesc":"None","""
-    s ++= """    "volatile":false,"""
-    s ++= """    "hasReset":false,"""
-    s ++= """    "enumerations":{"""
-    s ++= """"""
-    s ++= """  }"""
-    s ++= """  },"""
-    s ++= """  {"""
-    s ++= """    "byteOffset":"0x0","""
-    s ++= """    "bitOffset":40,"""
-    s ++= """    "bitWidth":8,"""
-    s ++= """    "name":"unnamedRegField0_40","""
-    s ++= """    "resetValue":0,"""
-    s ++= """    "accessType":"None","""
-    s ++= """    "wrType":"None","""
-    s ++= """    "rdAction":"None","""
-    s ++= """    "desc":"None","""
-    s ++= """    "group":"None","""
-    s ++= """    "groupDesc":"None","""
-    s ++= """    "volatile":false,"""
-    s ++= """    "hasReset":false,"""
-    s ++= """    "enumerations":{"""
-    s ++= """"""
-    s ++= """  }"""
-    s ++= """  },"""
-    s ++= """  {"""
-    s ++= """    "byteOffset":"0x0","""
-    s ++= """    "bitOffset":48,"""
-    s ++= """    "bitWidth":8,"""
-    s ++= """    "name":"unnamedRegField0_48","""
-    s ++= """    "resetValue":0,"""
-    s ++= """    "accessType":"None","""
-    s ++= """    "wrType":"None","""
-    s ++= """    "rdAction":"None","""
-    s ++= """    "desc":"None","""
-    s ++= """    "group":"None","""
-    s ++= """    "groupDesc":"None","""
-    s ++= """    "volatile":false,"""
-    s ++= """    "hasReset":false,"""
-    s ++= """    "enumerations":{"""
-    s ++= """"""
-    s ++= """  }"""
-    s ++= """  },"""
-    s ++= """  {"""
-    s ++= """    "byteOffset":"0x0","""
-    s ++= """    "bitOffset":56,"""
-    s ++= """    "bitWidth":8,"""
-    s ++= """    "name":"unnamedRegField0_56","""
-    s ++= """    "resetValue":0,"""
-    s ++= """    "accessType":"None","""
-    s ++= """    "wrType":"None","""
-    s ++= """    "rdAction":"None","""
-    s ++= """    "desc":"None","""
-    s ++= """    "group":"None","""
-    s ++= """    "groupDesc":"None","""
-    s ++= """    "volatile":false,"""
-    s ++= """    "hasReset":false,"""
-    s ++= """    "enumerations":{"""
-    s ++= """"""
-    s ++= """  }"""
-    s ++= """  }"""
-    s ++= """    ]"""
-    s ++= """  }"""
-    s ++= """  },"""
-    s ++= """  {"""
-    s ++= """    "class":"freechips.rocketchip.util.SRAMAnnotation","""
-    s ++= """    "target":"TestHarness.Directory.cc_dir","""
-    s ++= """    "address_width":10,"""
-    s ++= """    "name":"cc_dir","""
-    s ++= """    "data_width":136,"""
-    s ++= """    "depth":1024,"""
-    s ++= """    "description":"Directory RAM","""
-    s ++= """    "write_mask_granularity":17"""
-    s ++= """  }"""
-    s ++= """]"""
 
-    s.toString
+    s"""|[$serializedAllowUnrecognized
+       |  {
+       |    "class": "firrtl.transforms.BlackBoxInlineAnno",
+       |    "target": "TestHarness.plusarg_reader_27",
+       |    "name": "plusarg_reader.v",
+       |    "text": "License text"
+       |  },
+       |  {
+       |    "class": "freechips.rocketchip.util.RegFieldDescMappingAnnotation",
+       |    "target": "TestHarness.PeripheryBus",
+       |    "regMappingSer": {
+       |      "displayName": "PeripheryBus",
+       |      "deviceName": "PeripheryBus",
+       |      "baseAddress": 16384,
+       |      "regFields": [
+       |        {
+       |          "byteOffset": "0x0",
+       |          "bitOffset": 0,
+       |          "bitWidth": 8,
+       |          "name": "unnamedRegField0_0",
+       |          "resetValue": 0,
+       |          "accessType": "None",
+       |          "wrType": "None",
+       |          "rdAction": "None",
+       |          "desc": "None",
+       |          "group": "None",
+       |          "groupDesc": "None",
+       |          "volatile": false,
+       |          "hasReset": false,
+       |          "enumerations": {}
+       |        },
+       |        {
+       |          "byteOffset": "0x0",
+       |          "bitOffset": 8,
+       |          "bitWidth": 8,
+       |          "name": "unnamedRegField0_8",
+       |          "resetValue": 0,
+       |          "accessType": "None",
+       |          "wrType": "None",
+       |          "rdAction": "None",
+       |          "desc": "None",
+       |          "group": "None",
+       |          "groupDesc": "None",
+       |          "volatile": false,
+       |          "hasReset": false,
+       |          "enumerations": {}
+       |        },
+       |        {
+       |          "byteOffset": "0x0",
+       |          "bitOffset": 16,
+       |          "bitWidth": 8,
+       |          "name": "unnamedRegField0_16",
+       |          "resetValue": 0,
+       |          "accessType": "None",
+       |          "wrType": "None",
+       |          "rdAction": "None",
+       |          "desc": "None",
+       |          "group": "None",
+       |          "groupDesc": "None",
+       |          "volatile": false,
+       |          "hasReset": false,
+       |          "enumerations": {}
+       |        },
+       |        {
+       |          "byteOffset": "0x0",
+       |          "bitOffset": 24,
+       |          "bitWidth": 8,
+       |          "name": "unnamedRegField0_24",
+       |          "resetValue": 0,
+       |          "accessType": "None",
+       |          "wrType": "None",
+       |          "rdAction": "None",
+       |          "desc": "None",
+       |          "group": "None",
+       |          "groupDesc": "None",
+       |          "volatile": false,
+       |          "hasReset": false,
+       |          "enumerations": {}
+       |        },
+       |        {
+       |          "byteOffset": "0x0",
+       |          "bitOffset": 32,
+       |          "bitWidth": 8,
+       |          "name": "unnamedRegField0_32",
+       |          "resetValue": 0,
+       |          "accessType": "None",
+       |          "wrType": "None",
+       |          "rdAction": "None",
+       |          "desc": "None",
+       |          "group": "None",
+       |          "groupDesc": "None",
+       |          "volatile": false,
+       |          "hasReset": false,
+       |          "enumerations": {}
+       |        },
+       |        {
+       |          "byteOffset": "0x0",
+       |          "bitOffset": 40,
+       |          "bitWidth": 8,
+       |          "name": "unnamedRegField0_40",
+       |          "resetValue": 0,
+       |          "accessType": "None",
+       |          "wrType": "None",
+       |          "rdAction": "None",
+       |          "desc": "None",
+       |          "group": "None",
+       |          "groupDesc": "None",
+       |          "volatile": false,
+       |          "hasReset": false,
+       |          "enumerations": {}
+       |        },
+       |        {
+       |          "byteOffset": "0x0",
+       |          "bitOffset": 48,
+       |          "bitWidth": 8,
+       |          "name": "unnamedRegField0_48",
+       |          "resetValue": 0,
+       |          "accessType": "None",
+       |          "wrType": "None",
+       |          "rdAction": "None",
+       |          "desc": "None",
+       |          "group": "None",
+       |          "groupDesc": "None",
+       |          "volatile": false,
+       |          "hasReset": false,
+       |          "enumerations": {}
+       |        },
+       |        {
+       |          "byteOffset": "0x0",
+       |          "bitOffset": 56,
+       |          "bitWidth": 8,
+       |          "name": "unnamedRegField0_56",
+       |          "resetValue": 0,
+       |          "accessType": "None",
+       |          "wrType": "None",
+       |          "rdAction": "None",
+       |          "desc": "None",
+       |          "group": "None",
+       |          "groupDesc": "None",
+       |          "volatile": false,
+       |          "hasReset": false,
+       |          "enumerations": {}
+       |        }
+       |      ]
+       |    }
+       |  },
+       |  {
+       |    "class": "freechips.rocketchip.util.SRAMAnnotation",
+       |    "target": "TestHarness.Directory.cc_dir",
+       |    "address_width": 10,
+       |    "name": "cc_dir",
+       |    "data_width": 136,
+       |    "depth": 1024,
+       |    "description": "Directory RAM",
+       |    "write_mask_granularity": 17
+       |  }
+       |]
+       |""".stripMargin
   }
 }
