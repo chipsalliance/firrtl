@@ -24,12 +24,8 @@ case class ModuleNode(
   val subModuleNames: mutable.HashSet[String] = new mutable.HashSet[String]()
 
   val connections: mutable.HashMap[String, String] = new mutable.HashMap()
-  private val analogConnections = new mutable.HashMap[String, ArrayBuffer[String]]() {
-    override def default(key: String): ArrayBuffer[String] = {
-      this(key) = new ArrayBuffer[String]()
-      this(key)
-    }
-  }
+  private val analogConnections =
+    new mutable.HashMap[String, ArrayBuffer[String]]().withDefault(_ => new ArrayBuffer[String]())
   val localConnections: mutable.HashMap[String, String] = new mutable.HashMap()
 
   /**
