@@ -79,13 +79,6 @@ class MakeModule(targetDir: String) extends Transform with DependencyAPIMigratio
       }
     }
 
-    /**
-      * finds the specified module name in the circuit
-      *
-      * @param moduleName name to find
-      * @param circuit circuit being analyzed
-      * @return the circuit, exception occurs in not found
-      */
     def findModule(moduleName: String, circuit: Circuit): DefModule = {
       circuit.modules.find(module => module.name == moduleName) match {
         case Some(module: firrtl.ir.Module) =>
@@ -97,13 +90,6 @@ class MakeModule(targetDir: String) extends Transform with DependencyAPIMigratio
       }
     }
 
-    /**
-      * If rendering started, construct a graph inside moduleNode
-      * @param modulePrefix the path to this node
-      * @param myModule     the firrtl module currently being parsed
-      * @param moduleNode   a node to elk graph notation constructed from myModule
-      * @return
-      */
     def processModule(
       modulePrefix:   String,
       myModule:       DefModule,
@@ -112,16 +98,6 @@ class MakeModule(targetDir: String) extends Transform with DependencyAPIMigratio
       subModuleDepth: Int = 0
     ): ElkNode = {
 
-      /**
-        * Half the battle here is matching references between firrtl full name for an element and
-        * dot's reference to a connect-able module
-        * Following functions compute the two kinds of name
-        */
-
-      /** get firrtl's version, usually has dot's as separators
-        * @param name components name
-        * @return
-        */
       def getFirrtlName(name: String): String = {
         if (modulePrefix.isEmpty) name else modulePrefix + "." + name
       }
