@@ -44,6 +44,11 @@ object PassConfigUtil {
   }
 }
 
+case class SuggestSeqMemNameAnnotation(target: ReferenceTarget, desiredName: String)
+    extends SingleTargetAnnotation[ReferenceTarget] {
+  def duplicate(n: ReferenceTarget): SuggestSeqMemNameAnnotation = new SuggestSeqMemNameAnnotation(n, desiredName)
+}
+
 case class ReplSeqMemAnnotation(inputFileName: String, outputConfig: String) extends NoTargetAnnotation
 
 case class GenVerilogMemBehaviorModelAnno(genBlackBox: Boolean) extends NoTargetAnnotation

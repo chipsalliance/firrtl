@@ -222,19 +222,25 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
   private type NameMap = collection.mutable.HashMap[(String, String), (String, String)]
 
   /** Construct NameMap by assigning unique names for each memory blackbox */
-  private def constructNameMap(namespace: Namespace, nameMap: NameMap, mname: String)(s: Statement): Statement = {
+  private def constructNameMap(
+    namespace:      Namespace,
+    nameMap:        NameMap,
+    mname:          String,
+    suggestNameMap: Map[String, String]
+  )(s:              Statement
+  ): Statement = {
     s match {
       case m: DefAnnotatedMemory =>
         m.memRef match {
           case None =>
             val wrapperName = namespace.newName(m.name)
-            val blackboxName = namespace.newName(s"${wrapperName}_ext")
+            val blackboxName = namespace.newName(suggestNameMap.getOrElse(m.name, s"${wrapperName}_ext"))
             nameMap(mname -> m.name) = (wrapperName, blackboxName)
           case Some(_) =>
         }
       case _ =>
     }
-    s.map(constructNameMap(namespace, nameMap, mname))
+    s.map(constructNameMap(namespace, nameMap, mname, suggestNameMap))
   }
 
   private def updateMemStmts(
@@ -298,23 +304,26 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
     val namespace = Namespace(c)
     val memMods = new Modules
     val nameMap = new NameMap
-    c.modules.map(m => m.map(constructNameMap(namespace, nameMap, m.name)))
+    val suggestNameMap: Map[String, String] = state.annotations.collect {
+      case m @ SuggestSeqMemNameAnnotation(target, name) => target.ref -> name
+    }.toMap[String, String]
+    c.modules.map(m => m.map(constructNameMap(namespace, nameMap, m.name, suggestNameMap)))
     val renameMap = RenameMap()
     val modules = c.modules.map(updateMemMods(namespace, nameMap, memMods, annotatedMemoriesBuffer, renameMap, c.main))
+    val remainingAnnos: AnnotationSeq = state.annotations.filter(!_.isInstanceOf[SuggestSeqMemNameAnnotation]) ++
+      (state.annotations.collectFirst { case a: PinAnnotation => a } match {
+        case None => Nil
+        case Some(PinAnnotation(pins)) =>
+          pins.foldLeft(Seq[Annotation]()) { (seq, pin) =>
+            seq ++ memMods.collect {
+              case m: ExtModule => SinkAnnotation(ModuleName(m.name, CircuitName(c.main)), pin)
+            }
+          }
+      }) :+
+      AnnotatedMemoriesAnnotation(annotatedMemoriesBuffer.toList)
     state.copy(
       circuit = c.copy(modules = modules ++ memMods),
-      annotations =
-        state.annotations ++
-          (state.annotations.collectFirst { case a: PinAnnotation => a } match {
-            case None => Nil
-            case Some(PinAnnotation(pins)) =>
-              pins.foldLeft(Seq[Annotation]()) { (seq, pin) =>
-                seq ++ memMods.collect {
-                  case m: ExtModule => SinkAnnotation(ModuleName(m.name, CircuitName(c.main)), pin)
-                }
-              }
-          }) :+
-          AnnotatedMemoriesAnnotation(annotatedMemoriesBuffer.toList),
+      annotations = remainingAnnos,
       renames = Some(renameMap)
     )
   }
