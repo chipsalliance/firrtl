@@ -1,1 +1,2 @@
 firrtl.passes.memlib.MemLibOptions
+firrtl.elk.ElkOptions
