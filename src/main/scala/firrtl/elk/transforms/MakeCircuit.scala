@@ -5,7 +5,7 @@ package firrtl.elk.transforms
 import firrtl.elk.ElkTopModuleAnnotation
 import firrtl.options.{Dependency, TargetDirAnnotation}
 import firrtl.stage.Forms
-import firrtl.{CircuitState, DependencyAPIMigration, Transform, passes}
+import firrtl.{passes, CircuitState, DependencyAPIMigration, Transform}
 
 import java.io.File
 import scala.collection.mutable

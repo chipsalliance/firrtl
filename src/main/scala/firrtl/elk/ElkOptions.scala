@@ -7,10 +7,7 @@ import firrtl.elk.transforms.MakeCircuit
 import firrtl.options.{HasShellOptions, RegisteredLibrary, ShellOption, Unserializable}
 import firrtl.stage.RunFirrtlTransformAnnotation
 
-case class ElkTopModuleAnnotation(name: String)
-    extends Annotation
-    with NoTargetAnnotation
-    with Unserializable
+case class ElkTopModuleAnnotation(name: String) extends Annotation with NoTargetAnnotation with Unserializable
 
 object ElkTopModuleAnnotation extends HasShellOptions {
   val options = Seq(
@@ -22,10 +19,7 @@ object ElkTopModuleAnnotation extends HasShellOptions {
   )
 }
 
-case class ElkFlattenLevelAnnotation(depth: Int)
-  extends Annotation
-    with NoTargetAnnotation
-    with Unserializable
+case class ElkFlattenLevelAnnotation(depth: Int) extends Annotation with NoTargetAnnotation with Unserializable
 
 object ElkFlattenLevelAnnotation extends HasShellOptions {
   val options = Seq(
@@ -52,7 +46,7 @@ object ElkAnnotation extends HasShellOptions {
 class ElkOptions extends RegisteredLibrary {
   val name: String = "Elk Graph Options"
 
-  val options: Seq[ShellOption[_]] =   Seq(
+  val options: Seq[ShellOption[_]] = Seq(
     ElkAnnotation,
     ElkTopModuleAnnotation,
     ElkFlattenLevelAnnotation

@@ -12,17 +12,17 @@ object MuxNode {
 }
 
 case class MuxNode(
-                    name: String,
-                    parentOpt: Option[ElkNode],
-                    arg0ValueOpt: Option[String] = None,
-                    arg1ValueOpt: Option[String] = None)
-  extends ElkNode {
+  name:         String,
+  parentOpt:    Option[ElkNode],
+  arg0ValueOpt: Option[String] = None,
+  arg1ValueOpt: Option[String] = None)
+    extends ElkNode {
 
   override val absoluteName: String = s"${name}_${MuxNode.hash}"
-  val select: String = s"$absoluteName.select"
-  def in1: String = s"$absoluteName.in1"
-  def in2: String = s"$absoluteName.in2"
-  override val asRhs: String = s"$absoluteName.out"
+  val select:                String = s"$absoluteName.select"
+  def in1:                   String = s"$absoluteName.in1"
+  def in2:                   String = s"$absoluteName.in2"
+  override val asRhs:        String = s"$absoluteName.out"
 
   def render: String = {
     val s =

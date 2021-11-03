@@ -3,8 +3,8 @@
 package firrtl.elk.elknodes
 
 case class RegisterNode(name: String, parentOpt: Option[ElkNode]) extends ElkNode {
-  override val in: String = s"$absoluteName.in"
-  override val out: String = s"$absoluteName.out"
+  override val in:    String = s"$absoluteName.in"
+  override val out:   String = s"$absoluteName.out"
   override val asRhs: String = s"$absoluteName.out"
 
   def render: String = {

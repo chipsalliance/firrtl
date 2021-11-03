@@ -6,17 +6,17 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 case class ModuleNode(
-                       name:           String,
-                       parentOpt:      Option[ElkNode],
-                       var urlString: Option[String] = None,
-                       subModuleDepth: Int = 0)
+  name:           String,
+  parentOpt:      Option[ElkNode],
+  var urlString:  Option[String] = None,
+  subModuleDepth: Int = 0)
     extends ElkNode {
 
   val indentation: String = "    " * subModuleDepth
   val fixName: String = parentOpt match {
-      case Some(_) =>     s"submodule_${name.replace('_','0')}"
-      case _            => name
-    }
+    case Some(_) => s"submodule_${name.replace('_', '0')}"
+    case _       => name
+  }
 
   var renderWithRank: Boolean = false
 
@@ -47,7 +47,8 @@ case class ModuleNode(
                |    ${indentation}nodeSize.constraints: "PORTS PORT_LABELS NODE_LABELS"
                |    ${indentation}label "$name"
                |    $indentation${children.map(_.render).mkString("")}
-               |    ${connections.map { case (k, v) => s"${indentation}edge e${Edge.hash} : $v -> $k" }.mkString("\n    ")}
+               |    ${connections.map { case (k, v) => s"${indentation}edge e${Edge.hash} : $v -> $k" }
+      .mkString("\n    ")}
                |    ${analogConnections.map { case (k, v) => expandBiConnects(k, v) }.mkString("\n    ")}
                |$indentation}
                |""".stripMargin
@@ -64,7 +65,7 @@ case class ModuleNode(
   def graphUrl: String = {
     urlString match {
       case Some(url) => s"_$url"
-      case None  => ""
+      case None      => ""
     }
   }
 

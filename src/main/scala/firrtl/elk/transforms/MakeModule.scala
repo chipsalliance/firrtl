@@ -374,13 +374,13 @@ class MakeModule(targetDir: String) extends Transform with DependencyAPIMigratio
       }
 
       def removeTempWires(): Unit = {
-        for ( key <- moduleNode.connections.keys) {
+        for (key <- moduleNode.connections.keys) {
 //          val node = moduleNode.namedNodes.getOrElse(key,null)
           moduleNode.namedNodes.get(key) match {
             case Some(_: NodeNode) => {
               // must be once
               val value = moduleNode.connections(key)
-              for ((sink,source) <- moduleNode.connections) {
+              for ((sink, source) <- moduleNode.connections) {
                 if (source == key) {
                   // must be once
                   moduleNode.connections(sink) = value

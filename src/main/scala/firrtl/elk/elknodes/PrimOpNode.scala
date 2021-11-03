@@ -13,18 +13,18 @@ object PrimOpNode {
 }
 
 case class BinaryOpNode(
-                         name: String,
-                         parentOpt: Option[ElkNode],
-                         arg0ValueOpt: Option[String],
-                         arg1ValueOpt: Option[String])
-  extends ElkNode {
+  name:         String,
+  parentOpt:    Option[ElkNode],
+  arg0ValueOpt: Option[String],
+  arg1ValueOpt: Option[String])
+    extends ElkNode {
 
   def in1: String = s"$absoluteName.in1"
 
   def in2: String = s"$absoluteName.in2"
 
   override val absoluteName: String = s"${name}_${PrimOpNode.hash}"
-  override val asRhs: String = s"$absoluteName.out"
+  override val asRhs:        String = s"$absoluteName.out"
 
   def render: String = {
 
@@ -37,20 +37,16 @@ case class BinaryOpNode(
          |        portLabels.placement: "INSIDE"
          |        label "$name"
          |        port in2 {
-         |            ^port.side: "WEST"${
-        arg1ValueOpt match {
-          case Some(value) => "\n" + s"""            label "$value""""
-          case None => "\n" + s"""            label "in2""""
-        }
-      }
+         |            ^port.side: "WEST"${arg1ValueOpt match {
+        case Some(value) => "\n" + s"""            label "$value""""
+        case None        => "\n" + s"""            label "in2""""
+      }}
          |        }
          |        port in1 {
-         |            ^port.side: "WEST"${
-        arg0ValueOpt match {
-          case Some(value) => "\n" + s"""            label "$value""""
-          case None => "\n" + s"""            label "in1""""
-        }
-      }
+         |            ^port.side: "WEST"${arg0ValueOpt match {
+        case Some(value) => "\n" + s"""            label "$value""""
+        case None        => "\n" + s"""            label "in1""""
+      }}
          |        }
          |        port out {
          |            ^port.side: "EAST"
@@ -65,7 +61,7 @@ case class UnaryOpNode(name: String, parentOpt: Option[ElkNode]) extends ElkNode
   def in1: String = s"$absoluteName.in1"
 
   override val absoluteName: String = s"${name}_${PrimOpNode.hash}"
-  override val asRhs: String = s"$absoluteName.out"
+  override val asRhs:        String = s"$absoluteName.out"
 
   def render: String = {
     val s =
@@ -91,7 +87,7 @@ case class OneArgOneParamOpNode(name: String, parentOpt: Option[ElkNode], value:
   def in1: String = s"$absoluteName.in1"
 
   override val absoluteName: String = s"${name}_${PrimOpNode.hash}"
-  override val asRhs: String = s"$absoluteName.out"
+  override val asRhs:        String = s"$absoluteName.out"
 
   def render: String = {
     val s =
@@ -119,15 +115,15 @@ case class OneArgOneParamOpNode(name: String, parentOpt: Option[ElkNode], value:
 }
 
 case class OneArgTwoParamOpNode(
-                                 name: String,
-                                 parentOpt: Option[ElkNode],
-                                 value1: BigInt,
-                                 value2: BigInt)
-  extends ElkNode {
+  name:      String,
+  parentOpt: Option[ElkNode],
+  value1:    BigInt,
+  value2:    BigInt)
+    extends ElkNode {
   def in1: String = s"$absoluteName.in1"
 
   override val absoluteName: String = s"${name}_${PrimOpNode.hash}"
-  override val asRhs: String = s"$absoluteName.out"
+  override val asRhs:        String = s"$absoluteName.out"
 
   def render: String = {
     val s =

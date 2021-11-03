@@ -2,8 +2,7 @@
 
 package firrtl.elk.elknodes
 
-case class PortNode(name: String, parentOpt: Option[ElkNode], isInput: Boolean = false)
-    extends ElkNode {
+case class PortNode(name: String, parentOpt: Option[ElkNode], isInput: Boolean = false) extends ElkNode {
 
   def render: String = {
     val direction = if (isInput) "WEST" else "EAST"
