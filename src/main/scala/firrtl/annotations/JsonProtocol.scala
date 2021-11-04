@@ -488,8 +488,9 @@ object JsonProtocol extends LazyLogging {
               exceptionList.mkString("\n")
           )
           if (classNotFoundBuildingLoaded) {
-            val problems = exceptionList.distinct.take(10).mkString(", ")
-            val dots = if (exceptionList.length > 10) {
+            val distinctProblems = exceptionList.distinct
+            val problems = distinctProblems.take(10).mkString(", ")
+            val dots = if (distinctProblems.length > 10) {
               ", ..."
             } else {
               ""
