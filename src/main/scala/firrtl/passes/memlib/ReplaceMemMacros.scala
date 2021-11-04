@@ -305,7 +305,7 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
     val memMods = new Modules
     val nameMap = new NameMap
     val suggestNameMap: Map[String, String] = state.annotations.collect {
-      case m @ SuggestSeqMemNameAnnotation(target, name) => target.ref -> name
+      case SuggestSeqMemNameAnnotation(target, name) => target.ref -> name
     }.toMap[String, String]
     c.modules.map(m => m.map(constructNameMap(namespace, nameMap, m.name, suggestNameMap)))
     val renameMap = RenameMap()
