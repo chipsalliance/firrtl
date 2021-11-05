@@ -8,6 +8,7 @@ import firrtl.stage.AllowUnrecognizedAnnotations
 import logger.LazyLogging
 
 import scala.util.{Failure, Success, Try}
+
 import org.json4s._
 import org.json4s.native.JsonMethods._
 import org.json4s.native.Serialization
@@ -31,64 +32,39 @@ object JsonProtocol extends LazyLogging {
   class TransformClassSerializer
       extends CustomSerializer[Class[_ <: Transform]](format =>
         (
-          {
-            case JString(s) => Class.forName(s).asInstanceOf[Class[_ <: Transform]]
-          },
-          {
-            case x: Class[_] => JString(x.getName)
-          }
+          { case JString(s) => Class.forName(s).asInstanceOf[Class[_ <: Transform]] },
+          { case x: Class[_] => JString(x.getName) }
         )
       )
-
   // TODO Reduce boilerplate?
   class NamedSerializer
       extends CustomSerializer[Named](format =>
         (
-          {
-            case JString(s) => AnnotationUtils.toNamed(s)
-          },
-          {
-            case named: Named => JString(named.serialize)
-          }
+          { case JString(s) => AnnotationUtils.toNamed(s) },
+          { case named: Named => JString(named.serialize) }
         )
       )
-
   class CircuitNameSerializer
       extends CustomSerializer[CircuitName](format =>
         (
-          {
-            case JString(s) => AnnotationUtils.toNamed(s).asInstanceOf[CircuitName]
-          },
-          {
-            case named: CircuitName => JString(named.serialize)
-          }
+          { case JString(s) => AnnotationUtils.toNamed(s).asInstanceOf[CircuitName] },
+          { case named: CircuitName => JString(named.serialize) }
         )
       )
-
   class ModuleNameSerializer
       extends CustomSerializer[ModuleName](format =>
         (
-          {
-            case JString(s) => AnnotationUtils.toNamed(s).asInstanceOf[ModuleName]
-          },
-          {
-            case named: ModuleName => JString(named.serialize)
-          }
+          { case JString(s) => AnnotationUtils.toNamed(s).asInstanceOf[ModuleName] },
+          { case named: ModuleName => JString(named.serialize) }
         )
       )
-
   class ComponentNameSerializer
       extends CustomSerializer[ComponentName](format =>
         (
-          {
-            case JString(s) => AnnotationUtils.toNamed(s).asInstanceOf[ComponentName]
-          },
-          {
-            case named: ComponentName => JString(named.serialize)
-          }
+          { case JString(s) => AnnotationUtils.toNamed(s).asInstanceOf[ComponentName] },
+          { case named: ComponentName => JString(named.serialize) }
         )
       )
-
   class TransformSerializer
       extends CustomSerializer[Transform](format =>
         (
@@ -105,238 +81,143 @@ object JsonProtocol extends LazyLogging {
                 case t: Throwable => throw t
               }
           },
-          {
-            case x: Transform => JString(x.getClass.getName)
-          }
+          { case x: Transform => JString(x.getClass.getName) }
         )
       )
-
   class LoadMemoryFileTypeSerializer
       extends CustomSerializer[MemoryLoadFileType](format =>
         (
-          {
-            case JString(s) => MemoryLoadFileType.deserialize(s)
-          },
-          {
-            case named: MemoryLoadFileType => JString(named.serialize)
-          }
+          { case JString(s) => MemoryLoadFileType.deserialize(s) },
+          { case named: MemoryLoadFileType => JString(named.serialize) }
         )
       )
 
   class TargetSerializer
       extends CustomSerializer[Target](format =>
         (
-          {
-            case JString(s) => Target.deserialize(s)
-          },
-          {
-            case named: Target => JString(named.serialize)
-          }
+          { case JString(s) => Target.deserialize(s) },
+          { case named: Target => JString(named.serialize) }
         )
       )
-
   class GenericTargetSerializer
       extends CustomSerializer[GenericTarget](format =>
         (
-          {
-            case JString(s) => Target.deserialize(s).asInstanceOf[GenericTarget]
-          },
-          {
-            case named: GenericTarget => JString(named.serialize)
-          }
+          { case JString(s) => Target.deserialize(s).asInstanceOf[GenericTarget] },
+          { case named: GenericTarget => JString(named.serialize) }
         )
       )
-
   class CircuitTargetSerializer
       extends CustomSerializer[CircuitTarget](format =>
         (
-          {
-            case JString(s) => Target.deserialize(s).asInstanceOf[CircuitTarget]
-          },
-          {
-            case named: CircuitTarget => JString(named.serialize)
-          }
+          { case JString(s) => Target.deserialize(s).asInstanceOf[CircuitTarget] },
+          { case named: CircuitTarget => JString(named.serialize) }
         )
       )
-
   class ModuleTargetSerializer
       extends CustomSerializer[ModuleTarget](format =>
         (
-          {
-            case JString(s) => Target.deserialize(s).asInstanceOf[ModuleTarget]
-          },
-          {
-            case named: ModuleTarget => JString(named.serialize)
-          }
+          { case JString(s) => Target.deserialize(s).asInstanceOf[ModuleTarget] },
+          { case named: ModuleTarget => JString(named.serialize) }
         )
       )
-
   class InstanceTargetSerializer
       extends CustomSerializer[InstanceTarget](format =>
         (
-          {
-            case JString(s) => Target.deserialize(s).asInstanceOf[InstanceTarget]
-          },
-          {
-            case named: InstanceTarget => JString(named.serialize)
-          }
+          { case JString(s) => Target.deserialize(s).asInstanceOf[InstanceTarget] },
+          { case named: InstanceTarget => JString(named.serialize) }
         )
       )
-
   class ReferenceTargetSerializer
       extends CustomSerializer[ReferenceTarget](format =>
         (
-          {
-            case JString(s) => Target.deserialize(s).asInstanceOf[ReferenceTarget]
-          },
-          {
-            case named: ReferenceTarget => JString(named.serialize)
-          }
+          { case JString(s) => Target.deserialize(s).asInstanceOf[ReferenceTarget] },
+          { case named: ReferenceTarget => JString(named.serialize) }
         )
       )
-
   class IsModuleSerializer
       extends CustomSerializer[IsModule](format =>
         (
-          {
-            case JString(s) => Target.deserialize(s).asInstanceOf[IsModule]
-          },
-          {
-            case named: IsModule => JString(named.serialize)
-          }
+          { case JString(s) => Target.deserialize(s).asInstanceOf[IsModule] },
+          { case named: IsModule => JString(named.serialize) }
         )
       )
-
   class IsMemberSerializer
       extends CustomSerializer[IsMember](format =>
         (
-          {
-            case JString(s) => Target.deserialize(s).asInstanceOf[IsMember]
-          },
-          {
-            case named: IsMember => JString(named.serialize)
-          }
+          { case JString(s) => Target.deserialize(s).asInstanceOf[IsMember] },
+          { case named: IsMember => JString(named.serialize) }
         )
       )
-
   class CompleteTargetSerializer
       extends CustomSerializer[CompleteTarget](format =>
         (
-          {
-            case JString(s) => Target.deserialize(s).asInstanceOf[CompleteTarget]
-          },
-          {
-            case named: CompleteTarget => JString(named.serialize)
-          }
+          { case JString(s) => Target.deserialize(s).asInstanceOf[CompleteTarget] },
+          { case named: CompleteTarget => JString(named.serialize) }
         )
       )
-
   // FIRRTL Serializers
   class TypeSerializer
       extends CustomSerializer[Type](format =>
         (
-          {
-            case JString(s) => Parser.parseType(s)
-          },
-          {
-            case tpe: Type => JString(tpe.serialize)
-          }
+          { case JString(s) => Parser.parseType(s) },
+          { case tpe: Type => JString(tpe.serialize) }
         )
       )
-
   class ExpressionSerializer
       extends CustomSerializer[Expression](format =>
         (
-          {
-            case JString(s) => Parser.parseExpression(s)
-          },
-          {
-            case expr: Expression => JString(expr.serialize)
-          }
+          { case JString(s) => Parser.parseExpression(s) },
+          { case expr: Expression => JString(expr.serialize) }
         )
       )
-
   class StatementSerializer
       extends CustomSerializer[Statement](format =>
         (
-          {
-            case JString(s) => Parser.parseStatement(s)
-          },
-          {
-            case statement: Statement => JString(statement.serialize)
-          }
+          { case JString(s) => Parser.parseStatement(s) },
+          { case statement: Statement => JString(statement.serialize) }
         )
       )
-
   class PortSerializer
       extends CustomSerializer[Port](format =>
         (
-          {
-            case JString(s) => Parser.parsePort(s)
-          },
-          {
-            case port: Port => JString(port.serialize)
-          }
+          { case JString(s) => Parser.parsePort(s) },
+          { case port: Port => JString(port.serialize) }
         )
       )
-
   class DefModuleSerializer
       extends CustomSerializer[DefModule](format =>
         (
-          {
-            case JString(s) => Parser.parseDefModule(s)
-          },
-          {
-            case mod: DefModule => JString(mod.serialize)
-          }
+          { case JString(s) => Parser.parseDefModule(s) },
+          { case mod: DefModule => JString(mod.serialize) }
         )
       )
-
   class CircuitSerializer
       extends CustomSerializer[Circuit](format =>
         (
-          {
-            case JString(s) => Parser.parse(s)
-          },
-          {
-            case cir: Circuit => JString(cir.serialize)
-          }
+          { case JString(s) => Parser.parse(s) },
+          { case cir: Circuit => JString(cir.serialize) }
         )
       )
-
   class InfoSerializer
       extends CustomSerializer[Info](format =>
         (
-          {
-            case JString(s) => Parser.parseInfo(s)
-          },
-          {
-            case info: Info => JString(info.serialize)
-          }
+          { case JString(s) => Parser.parseInfo(s) },
+          { case info: Info => JString(info.serialize) }
         )
       )
-
   class GroundTypeSerializer
       extends CustomSerializer[GroundType](format =>
         (
-          {
-            case JString(s) => Parser.parseType(s).asInstanceOf[GroundType]
-          },
-          {
-            case tpe: GroundType => JString(tpe.serialize)
-          }
+          { case JString(s) => Parser.parseType(s).asInstanceOf[GroundType] },
+          { case tpe: GroundType => JString(tpe.serialize) }
         )
       )
 
-  class UnrecognizedAnnotationSerializerSerializer
+  class UnrecognizedAnnotationSerializer
       extends CustomSerializer[JObject](format =>
         (
-          {
-            case JObject(s) => JObject(s)
-          },
-          {
-            case UnrecognizedAnnotation(underlying) => underlying
-          }
+          { case JObject(s) => JObject(s) },
+          { case UnrecognizedAnnotation(underlying) => underlying }
         )
       )
 
@@ -351,7 +232,7 @@ object JsonProtocol extends LazyLogging {
       new CompleteTargetSerializer + new TypeSerializer + new ExpressionSerializer +
       new StatementSerializer + new PortSerializer + new DefModuleSerializer +
       new CircuitSerializer + new InfoSerializer + new GroundTypeSerializer +
-      new UnrecognizedAnnotationSerializerSerializer
+      new UnrecognizedAnnotationSerializer
   }
 
   /** Serialize annotations to a String for emission */
@@ -422,12 +303,9 @@ object JsonProtocol extends LazyLogging {
 
     /* Tries to extract class name from the mapping exception */
     def getAnnotationNameFromMappingException(mappingException: MappingException): String = {
-      try {
-        val GetClassPattern(name) = mappingException.getMessage
-        name
-      } catch {
-        case _: Exception =>
-          mappingException.getMessage
+      mappingException.getMessage match {
+        case GetClassPattern(name) => name
+        case other                 => other
       }
     }
 
@@ -467,7 +345,7 @@ object JsonProtocol extends LazyLogging {
       case e: org.json4s.MappingException =>
         // If we get here, the build `read` failed to process an annotation
         // So we will map the annos one a time, wrapping the JSON of the unrecognized annotations
-        var exceptionList = new mutable.ArrayBuffer[String]()
+        val exceptionList = new mutable.ArrayBuffer[String]()
         val firrtlAnnos = annos.map { jsonAnno =>
           try {
             jsonAnno.extract[Annotation]
@@ -520,8 +398,7 @@ object JsonProtocol extends LazyLogging {
       in match {
         case FileInput(file) =>
           Failure(InvalidAnnotationFileException(file, e))
-        case _ =>
-          Failure(e)
+        case _ => Failure(e)
       }
   }
 }
