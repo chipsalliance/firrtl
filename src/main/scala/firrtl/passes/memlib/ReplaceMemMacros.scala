@@ -305,22 +305,23 @@ class ReplaceMemMacros extends Transform with DependencyAPIMigration {
     val memMods = new Modules
     val nameMap = new NameMap
     val suggestNameMap: Map[String, String] = state.annotations.collect {
-      case m @ SuggestSeqMemNameAnnotation(target, name) => target.ref -> name
+      case SuggestSeqMemNameAnnotation(target, name) => target.ref -> name
     }.toMap[String, String]
     c.modules.map(m => m.map(constructNameMap(namespace, nameMap, m.name, suggestNameMap)))
     val renameMap = RenameMap()
     val modules = c.modules.map(updateMemMods(namespace, nameMap, memMods, annotatedMemoriesBuffer, renameMap, c.main))
-    val remainingAnnos: AnnotationSeq = state.annotations.filter(!_.isInstanceOf[SuggestSeqMemNameAnnotation]) ++
-      (state.annotations.collectFirst { case a: PinAnnotation => a } match {
-        case None => Nil
-        case Some(PinAnnotation(pins)) =>
-          pins.foldLeft(Seq[Annotation]()) { (seq, pin) =>
-            seq ++ memMods.collect {
-              case m: ExtModule => SinkAnnotation(ModuleName(m.name, CircuitName(c.main)), pin)
+    val remainingAnnos: AnnotationSeq =
+      state.annotations.filter(!_.isInstanceOf[SuggestSeqMemNameAnnotation]) ++
+        (state.annotations.collectFirst { case a: PinAnnotation => a } match {
+          case None => Nil
+          case Some(PinAnnotation(pins)) =>
+            pins.foldLeft(Seq[Annotation]()) { (seq, pin) =>
+              seq ++ memMods.collect {
+                case m: ExtModule => SinkAnnotation(ModuleName(m.name, CircuitName(c.main)), pin)
+              }
             }
-          }
-      }) :+
-      AnnotatedMemoriesAnnotation(annotatedMemoriesBuffer.toList)
+        }) :+
+        AnnotatedMemoriesAnnotation(annotatedMemoriesBuffer.toList)
     state.copy(
       circuit = c.copy(modules = modules ++ memMods),
       annotations = remainingAnnos,
