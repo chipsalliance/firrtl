@@ -725,5 +725,13 @@ circuit Top :
     )
     val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
     checkMemConf(res, mems)
+    (new java.io.File(confLoc)).delete()
+
+    // blackbox
+    res should containLine("extmodule renamed_mem :")
+    res should containLine("inst renamed_mem of renamed_mem")
+    // wrapper
+    res should containLine("module mem_0 :")
+    res should containLine("inst mem_0 of mem_0")
   }
 }
