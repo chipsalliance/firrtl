@@ -9,7 +9,6 @@ import firrtl.annotations._
 import firrtl.options.{CustomFileEmission, Dependency, HasShellOptions, ShellOption}
 import firrtl.passes.wiring._
 import firrtl.stage.{Forms, RunFirrtlTransformAnnotation}
-import firrtl.transforms.BlackBoxSourceHelper
 
 import java.io.{CharArrayWriter, PrintWriter}
 
@@ -69,7 +68,7 @@ case class MemLibOutConfigFileAnnotation(file: String, annotatedMemories: Seq[De
       m.readwriters.length,
       m.maskGran.map(_.toInt)
     ).toString
-  }.mkString("\n").getBytes
+  }.mkString.getBytes
 }
 
 private[memlib] case class AnnotatedMemoriesAnnotation(annotatedMemories: List[DefAnnotatedMemory])
@@ -153,7 +152,7 @@ class ReplSeqMem extends SeqTransform with HasShellOptions with DependencyAPIMig
 
   val transforms: Seq[Transform] =
     Seq(
-      new SimpleMidTransform(Legalize),
+      new SimpleMidTransform(LegalizeConnectsOnly),
       new SimpleMidTransform(ToMemIR),
       new SimpleMidTransform(ResolveMaskGranularity),
       new SimpleMidTransform(RenameAnnotatedMemoryPorts),
@@ -161,7 +160,6 @@ class ReplSeqMem extends SeqTransform with HasShellOptions with DependencyAPIMig
       new ResolveMemoryReference,
       new ReplaceMemMacros,
       new WiringTransform,
-      new DumpMemoryAnnotations,
-      new BlackBoxSourceHelper
+      new DumpMemoryAnnotations
     )
 }

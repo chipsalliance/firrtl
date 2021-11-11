@@ -4,14 +4,29 @@ package firrtl.options.phases
 
 import firrtl.AnnotationSeq
 import firrtl.annotations.{Annotation, DeletedAnnotation, JsonProtocol}
-import firrtl.options.{CustomFileEmission, Dependency, Phase, PhaseException, StageOptions, Unserializable, Viewer}
+import firrtl.options.{
+  BufferedCustomFileEmission,
+  CustomFileEmission,
+  Dependency,
+  Phase,
+  PhaseException,
+  StageOptions,
+  Unserializable,
+  Viewer
+}
 
 import java.io.{BufferedOutputStream, File, FileOutputStream, PrintWriter}
 
 import scala.collection.mutable
 
-/** [[firrtl.options.Phase Phase]] that writes an [[AnnotationSeq]] to a file. A file is written if and only if a
-  * [[StageOptions]] view has a non-empty [[StageOptions.annotationFileOut annotationFileOut]].
+/** [[firrtl.options.Phase Phase]] that writes an [[AnnotationSeq]] to the filesystem,
+  *  according to the following rules:
+  *  1) Annotations which extend [[CustomFileEmission]] are written seperately to their prescribed
+  *     destinations and replaced per [[[CustomFileEmission.replacements replacements]].
+  *  2) All remaining annotations are written to destination specified by
+  *    [[StageOptions.annotationFileOut annotationFileOut]], iff the stage option is set, with the following exceptions:
+  *    a) Annotations extending [[Unserializable]] are not written
+  *    b) Deleted annotations are not written unless [[StageOptions.writeDeleted writeDeleted]] is set
   */
 class WriteOutputAnnotations extends Phase {
 
@@ -38,9 +53,17 @@ class WriteOutputAnnotations extends Phase {
         filesWritten.get(canonical) match {
           case None =>
             val w = new BufferedOutputStream(new FileOutputStream(filename))
-            a.getBytes match {
-              case arr: mutable.WrappedArray[Byte] => w.write(arr.array.asInstanceOf[Array[Byte]])
-              case other => other.foreach(w.write(_))
+            a match {
+              // Further optimized emission
+              case buf: BufferedCustomFileEmission =>
+                val it = buf.getBytesBuffered
+                it.foreach(bytearr => w.write(bytearr))
+              // Regular emission
+              case _ =>
+                a.getBytes match {
+                  case arr: mutable.WrappedArray[Byte] => w.write(arr.array.asInstanceOf[Array[Byte]])
+                  case other => other.foreach(w.write(_))
+                }
             }
             w.close()
             filesWritten(canonical) = a

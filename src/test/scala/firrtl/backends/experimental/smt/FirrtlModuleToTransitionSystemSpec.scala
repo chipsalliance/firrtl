@@ -94,8 +94,7 @@ class FirrtlModuleToTransitionSystemSpec extends AnyFlatSpec {
     assert(sym.indexWidth == 5)
     assert(sym.dataWidth == 8)
     assert(m.init.isEmpty)
-    //assert(m.next.get.toString.contains("m[m.w.addr := m.w.data]"))
-    assert(m.next.get.toString == "m[m.w.addr := m.w.data]")
+    assert(m.next.get.toString.contains("m[m.w.addr := m.w.data]"))
   }
 
   it should "support scalar initialization of a memory to 0" in {
@@ -148,7 +147,7 @@ class FirrtlModuleToTransitionSystemSpec extends AnyFlatSpec {
         |    when en:
         |      o <= UInt<8>(0)
         |""".stripMargin
-    val sys = SMTBackendHelpers.toSys(src)
+    val sys = SMTBackendHelpers.toSys(src, modelUndef = true)
     assert(sys.inputs.length == 2)
     val invalids = sys.inputs.filter(_.name.contains("_invalid"))
     assert(invalids.length == 1)
@@ -170,7 +169,8 @@ class FirrtlModuleToTransitionSystemSpec extends AnyFlatSpec {
         |""".stripMargin
     val sys = SMTBackendHelpers.toSys(src)
     assert(sys.inputs.isEmpty, "Clock inputs should be ignored.")
-    assert(sys.outputs.isEmpty, "Clock outputs should be ignored.")
+    val outputs = sys.signals.filter(_.lbl == IsOutput)
+    assert(outputs.isEmpty, "Clock outputs should be ignored.")
     assert(sys.signals.isEmpty, "Connects of clock type should be ignored.")
   }
 
@@ -192,25 +192,19 @@ class FirrtlModuleToTransitionSystemSpec extends AnyFlatSpec {
     assert(err.getMessage.contains("clk, c.clk"))
   }
 
-  it should "throw an error on async reset" in {
+  it should "throw an error on async reset driving a register" in {
     val err = intercept[AsyncResetException] {
       SMTBackendHelpers.toSys(
         """circuit m:
           |  module m:
+          |    input clock : Clock
           |    input reset : AsyncReset
-          |""".stripMargin
-      )
-    }
-    assert(err.getMessage.contains("reset"))
-  }
-
-  it should "throw an error on casting to async reset" in {
-    val err = intercept[AssertionError] {
-      SMTBackendHelpers.toSys(
-        """circuit m:
-          |  module m:
-          |    input reset : UInt<1>
-          |    node async = asAsyncReset(reset)
+          |    input in : UInt<4>
+          |    output out : UInt<4>
+          |
+          |    reg r : UInt<4>, clock with : (reset => (reset, UInt<8>(0)))
+          |    r <= in
+          |    out <= r
           |""".stripMargin
       )
     }

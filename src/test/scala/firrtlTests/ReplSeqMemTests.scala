@@ -39,7 +39,8 @@ class ReplSeqMemSpec extends SimpleTransformSpec {
       def outputForm = LowForm
       def transforms =
         Seq(new ConstantPropagation, CommonSubexpressionElimination, new DeadCodeElimination, RemoveEmpty)
-    }
+    },
+    new BlackBoxSourceHelper
   )
 
   def checkMemConf(circuitState: CircuitState, mems: Set[MemConf]) {
@@ -49,6 +50,12 @@ class ReplSeqMemSpec extends SimpleTransformSpec {
     }.get
     // Verify that this does not throw an exception
     val fromConf = MemConf.fromString(text)
+    // Verify that the number of lines in the Conf file is equivalent to the number
+    // of entries (no missing or extra newlines)
+    require(
+      fromConf.size == text.count(_ == '\n'),
+      s"Unexpected newlines in mem.conf file containing ${fromConf.size} confs:\n${text}"
+    )
     // Verify the mems in the conf are the same as the expected ones
     require(
       Set(fromConf: _*) == mems,
@@ -664,5 +671,26 @@ circuit Top :
         .instOf("mem_0_ext", "mem_0_ext")
     )
     resAnnos should be(expected)
+  }
+
+  "ReplSeqMem" should "not crash if there are aggregate registers in the design that require padding (see #2379)" in {
+
+    val input =
+      """|circuit Foo:
+         |  module Foo:
+         |    input clock: Clock
+         |    input reset: UInt<1>
+         |    input a: UInt<1>[1]
+         |    output b: UInt<2>[1]
+         |
+         |    wire init: UInt<1>[1]
+         |    init <= a
+         |
+         |    reg r : UInt<2>[1], clock with :
+         |      reset => (reset, init)
+         |
+         |    b <= r
+         |""".stripMargin
+    compileAndEmit(CircuitState(parse(input), ChirrtlForm))
   }
 }
