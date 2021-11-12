@@ -27,7 +27,7 @@ trait HasSerializationHints {
 case class UnserializeableAnnotation(error: String, content: String) extends NoTargetAnnotation
 
 object JsonProtocol extends LazyLogging {
-  val GetClassPattern = "[^']*'([^']+)'.*".r
+  private val GetClassPattern = "[^']*'([^']+)'.*".r
 
   class TransformClassSerializer
       extends CustomSerializer[Class[_ <: Transform]](format =>
@@ -328,15 +328,14 @@ object JsonProtocol extends LazyLogging {
     // to maintain backward compatibility with the exception test structure
     var classNotFoundBuildingLoaded = false
     val classes = findTypeHints(annos, true)
-    val loaded = classes.map { x =>
-      try {
-        Class.forName(x)
+    val loaded = classes.flatMap { x =>
+      (try {
+        Some(Class.forName(x))
       } catch {
         case _: java.lang.ClassNotFoundException =>
-          classNotFoundBuildingLoaded = true // tells us which Exception to throw in recovery
-          // Found an annotation we don't recognize, So add UnrecognizedAnnotation to `loaded`
-          Class.forName("firrtl.annotations.UnrecognizedAnnotation")
-      }
+          classNotFoundBuildingLoaded = true
+          None
+      }): Option[Class[_]]
     }
     implicit val formats = jsonFormat(loaded)
     try {
