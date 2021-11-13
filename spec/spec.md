@@ -1997,51 +1997,45 @@ Notationally, the width of an argument e is represented as w~e~.
 
 ## Add Operation
 
-  ----- --------- ---- --------------- ------- --------------------
-
-
-   add   (e1,e2)   ()    (UInt,UInt)    UInt    max(w~e1~,w~e2~)+1
-                         (SInt,SInt)    SInt    max(w~e1~,w~e2~)+1
-                        (Fixed,Fixed)   Fixed
-  ----- --------- ---- --------------- ------- --------------------
+| Name | Arguments | Parmaeters | Arg Types     | Result Type | Result Width                   |
+|------|-----------|------------|---------------|-------------|--------------------------------|
+| add  | (e1,e2)   | ()         | (UInt,UInt)   | UInt        | max(w~e1~,w~e2~)+1             |
+|      |           |            | (SInt,SInt)   | SInt        | max(w~e1~,w~e2~)+1             |
+|      |           |            | (Fixed,Fixed) | Fixed       | see section [10](#fixed_rules) |
 
 The add operation result is the sum of e1 and e2 without loss of
 precision.
 
 ## Subtract Operation
 
-  ----- --------- ---- --------------- ------- --------------------
 
-
-   sub   (e1,e2)   ()    (UInt,UInt)    UInt    max(w~e1~,w~e2~)+1
-                         (SInt,SInt)    SInt    max(w~e1~,w~e2~)+1
-                        (Fixed,Fixed)   Fixed
-  ----- --------- ---- --------------- ------- --------------------
+| Name | Arguments | Parmaeters | Arg Types     | Result Type | Result Width                   |
+|------|-----------|------------|---------------|-------------|--------------------------------|
+| sub  | (e1,e2)   | ()         | (UInt,UInt)   | UInt        | max(w~e1~,w~e2~)+1             |
+|      |           |            | (SInt,SInt)   | SInt        | max(w~e1~,w~e2~)+1             |
+|      |           |            | (Fixed,Fixed) | Fixed       | see section [10](#fixed_rules) |
 
 The subtract operation result is e2 subtracted from e1, without loss of
 precision.
 
 ## Multiply Operation
 
-  ----- --------- ---- --------------- ------- -------------
-
-
-   mul   (e1,e2)   ()    (UInt,UInt)    UInt    w~e1~+w~e2~
-                         (SInt,SInt)    SInt    w~e1~+w~e2~
-                        (Fixed,Fixed)   Fixed
-  ----- --------- ---- --------------- ------- -------------
+| Name | Arguments | Parmaeters | Arg Types     | Result Type | Result Width                   |
+|------|-----------|------------|---------------|-------------|--------------------------------|
+| mul  | (e1,e2)   | ()         | (UInt,UInt)   | UInt        | w~e1~+w~e2~                    |
+|      |           |            | (SInt,SInt)   | SInt        | w~e1~+w~e2~                    |
+|      |           |            | (Fixed,Fixed) | Fixed       | see section [10](#fixed_rules) |
 
 The multiply operation result is the product of e1 and e2, without loss
 of precision.
 
 ## Divide Operation
 
-  ----- ----------- ---- ------------- ------ ----------
 
-
-   div   (num,den)   ()   (UInt,UInt)   UInt    w~num~
-                          (SInt,SInt)   SInt   w~num~+1
-  ----- ----------- ---- ------------- ------ ----------
+| Name | Arguments | Parmaeters | Arg Types   | Result Type | Result Width |
+|------|-----------|------------|-------------|-------------|--------------|
+| div  | (num,den) | ()         | (UInt,UInt) | UInt        | w~num~       |
+|      |           |            | (SInt,SInt) | SInt        | w~num~+1     |
 
 The divide operation divides num by den, truncating the fractional
 portion of the result. This is equivalent to rounding the result towards
@@ -2049,12 +2043,10 @@ zero. The result of a division where den is zero is undefined.
 
 ## Modulus Operation
 
-  ----- ----------- ---- ------------- ------ --------------------
-
-
-   rem   (num,den)   ()   (UInt,UInt)   UInt   min(w~num~,w~den~)
-                          (SInt,SInt)   SInt   min(w~num~,w~den~)
-  ----- ----------- ---- ------------- ------ --------------------
+| Name | Arguments | Parmaeters | Arg Types   | Result Type | Result Width       |
+|------|-----------|------------|-------------|-------------|--------------------|
+| rem  | (num,den) | ()         | (UInt,UInt) | UInt        | min(w~num~,w~den~) |
+|      |           |            | (SInt,SInt) | SInt        | min(w~num~,w~den~) |
 
 The modulus operation yields the remainder from dividing num by den,
 keeping the sign of the numerator. Together with the divide operator,
@@ -2064,13 +2056,11 @@ the modulus operator satisfies the relationship below:
 
 ## Comparison Operations
 
-  -------- --------- ---- --------------- ------ ---
-
-
-   lt,leq                   (UInt,UInt)    UInt   1
-   gt,geq   (e1,e2)   ()    (SInt,SInt)    UInt   1
-   eq,neq                  (Fixed,Fixed)   UInt   1
-  -------- --------- ---- --------------- ------ ---
+| Name   | Arguments | Parmaeters | Arg Types     | Result Type | Result Width |
+|--------|-----------|------------|---------------|-------------|--------------|
+| lt,leq |           |            | (UInt,UInt)   | UInt        | 1            |
+| gt,geq | (e1,e2)   | ()         | (SInt,SInt)   | UInt        | 1            |
+| eq,neq |           |            | (Fixed,Fixed) | UInt        | 1            |
 
 The comparison operations return an unsigned 1 bit signal with value one
 if e1 is less than (lt), less than or equal to (leq), greater than (gt),
@@ -2079,13 +2069,12 @@ The operation returns a value of zero otherwise.
 
 ## Padding Operations
 
-  ----- ------- ------- --------- ------- -------------
+| Name | Arguments | Parmaeters | Arg Types | Result Type | Result Width                   |
+|------|-----------|------------|-----------|-------------|--------------------------------|
+| pad  | \(e\)     | \(n\)      | (UInt)    | UInt        | max(w~e~,n)                    |
+|      |           |            | (SInt)    | SInt        | max(w~e~,n)                    |
+|      |           |            | (Fixed)   | Fixed       | see section [10](#fixed_rules) |
 
-
-   pad   \(e\)   \(n\)   (UInt)    UInt    max(w~e~,n)
-                         (SInt)    SInt    max(w~e~,n)
-                         (Fixed)   Fixed
-  ----- ------- ------- --------- ------- -------------
 
 If e's bit width is smaller than n, then the pad operation zero-extends
 or sign-extends e up to the given width n. Otherwise, the result is
@@ -2094,42 +2083,36 @@ is not affected by padding.
 
 ## Interpret As UInt
 
-  -------- ------- ---- --------- ------ ------
-
-
-   asUInt   \(e\)   ()   (UInt)    UInt   w~e~
-                         (SInt)    UInt   w~e~
-                         (Fixed)   UInt   w~e~
-                         (Clock)   UInt    1
-  -------- ------- ---- --------- ------ ------
+| Name   | Arguments | Parmaeters | Arg Types | Result Type | Result Width |
+|--------|-----------|------------|-----------|-------------|--------------|
+| asUInt | \(e\)     | ()         | (UInt)    | UInt        | w~e~         |
+|        |           |            | (SInt)    | UInt        | w~e~         |
+|        |           |            | (Fixed)   | UInt        | w~e~         |
+|        |           |            | (Clock)   | UInt        | 1            |
 
 The interpret as UInt operation reinterprets e's bits as an unsigned
 integer.
 
 ## Interpret As SInt
 
-  -------- ------- ---- --------- ------ ------
-
-
-   asSInt   \(e\)   ()   (UInt)    SInt   w~e~
-                         (SInt)    SInt   w~e~
-                         (Fixed)   SInt   w~e~
-                         (Clock)   SInt    1
-  -------- ------- ---- --------- ------ ------
+| Name   | Arguments | Parmaeters | Arg Types | Result Type | Result Width |
+|--------|-----------|------------|-----------|-------------|--------------|
+| asSInt | \(e\)     | ()         | (UInt)    | SInt        | w~e~         |
+|        |           |            | (SInt)    | SInt        | w~e~         |
+|        |           |            | (Fixed)   | SInt        | w~e~         |
+|        |           |            | (Clock)   | SInt        | 1            |
 
 The interpret as SInt operation reinterprets e's bits as a signed
 integer according to two's complement representation.
 
 ## Interpret As Fixed-Point Number
 
-  --------- ------- ------- --------- ------- ------ ---
-
-
-   asFixed   \(e\)   \(p\)   (UInt)    Fixed   w~e~   p
-                             (SInt)    Fixed   w~e~   p
-                             (Fixed)   Fixed   w~e~   p
-                             (Clock)   Fixed    1     p
-  --------- ------- ------- --------- ------- ------ ---
+| Name    | Arguments | Parmaeters | Arg Types | Result Type | Result Width | Result Binary Point |
+|---------|-----------|------------|-----------|-------------|--------------|---------------------|
+| asFixed | \(e\)     | \(p\)      | (UInt)    | Fixed       | w~e~         | p                   |
+|         |           |            | (SInt)    | Fixed       | w~e~         | p                   |
+|         |           |            | (Fixed)   | Fixed       | w~e~         | p                   |
+|         |           |            | (Clock)   | Fixed       | 1            | p                   |
 
 The interpret as fixed-point operation reinterprets e's bits as a
 fixed-point number of identical width. Since all fixed-point number in
@@ -2139,40 +2122,34 @@ binary point p, and the result type has binary point p.
 
 ## Interpret as Clock
 
-  --------- ------- ---- --------- ------- -----
-
-
-   asClock   \(e\)   ()   (UInt)    Clock   n/a
-                          (SInt)    Clock   n/a
-                          (Fixed)   Clock   n/a
-                          (Clock)   Clock   n/a
-  --------- ------- ---- --------- ------- -----
+| Name    | Arguments | Parmaeters | Arg Types | Result Type | Result Width |
+|---------|-----------|------------|-----------|-------------|--------------|
+| asClock | \(e\)     | ()         | (UInt)    | Clock       | n/a          |
+|         |           |            | (SInt)    | Clock       | n/a          |
+|         |           |            | (Fixed)   | Clock       | n/a          |
+|         |           |            | (Clock)   | Clock       | n/a          |
 
 The result of the interpret as clock operation is the Clock typed signal
 obtained from interpreting a single bit integer as a clock signal.
 
 ## Shift Left Operation
 
-  ----- ------- ------- --------- ------- --------
-
-
-   shl   \(e\)   \(n\)   (UInt)    UInt    w~e~+n
-                         (SInt)    SInt    w~e~+n
-                         (Fixed)   Fixed
-  ----- ------- ------- --------- ------- --------
+| Name | Arguments | Parmaeters | Arg Types | Result Type | Result Width                   |
+|------|-----------|------------|-----------|-------------|--------------------------------|
+| shl  | \(e\)     | \(n\)      | (UInt)    | UInt        | w~e~+n                         |
+|      |           |            | (SInt)    | SInt        | w~e~+n                         |
+|      |           |            | (Fixed)   | Fixed       | see section [10](#fixed_rules) |
 
 The shift left operation concatenates n zero bits to the least
 significant end of e. n must be non-negative.
 
 ## Shift Right Operation
 
-  ----- ------- ------- --------- ------- ----------------
-
-
-   shr   \(e\)   \(n\)   (UInt)    UInt    max(w~e~-n, 1)
-                         (SInt)    SInt    max(w~e~-n, 1)
-                         (Fixed)   Fixed
-  ----- ------- ------- --------- ------- ----------------
+| Name | Arguments | Parmaeters | Arg Types | Result Type | Result Width                   |
+|------|-----------|------------|-----------|-------------|--------------------------------|
+| shr  | \(e\)     | \(n\)      | (UInt)    | UInt        | max(w~e~-n, 1)                 |
+|      |           |            | (SInt)    | SInt        | max(w~e~-n, 1)                 |
+|      |           |            | (Fixed)   | Fixed       | see section [10](#fixed_rules) |
 
 The shift right operation truncates the least significant n bits from e.
 If n is greater than or equal to the bit-width of e, the resulting value
@@ -2181,13 +2158,11 @@ must be non-negative.
 
 ## Dynamic Shift Left Operation
 
-  ------ ---------- ---- --------------- ------- -----------------------
-
-
-   dshl   (e1, e2)   ()   (UInt, UInt)    UInt    w~e1~ + 2`^`w~e2~ - 1
-                          (SInt, UInt)    SInt    w~e1~ + 2`^`w~e2~ - 1
-                          (Fixed, UInt)   Fixed
-  ------ ---------- ---- --------------- ------- -----------------------
+| Name | Arguments | Parmaeters | Arg Types     | Result Type | Result Width                   |
+|------|-----------|------------|---------------|-------------|--------------------------------|
+| dshl | (e1, e2)  | ()         | (UInt, UInt)  | UInt        | w~e1~ + 2`^`w~e2~ - 1          |
+|      |           |            | (SInt, UInt)  | SInt        | w~e1~ + 2`^`w~e2~ - 1          |
+|      |           |            | (Fixed, UInt) | Fixed       | see section [10](#fixed_rules) |
 
 The dynamic shift left operation shifts the bits in e1 e2 places towards
 the most significant bit. e2 zeroes are shifted in to the least
@@ -2195,13 +2170,12 @@ significant bits.
 
 ## Dynamic Shift Right Operation
 
-  ------ ---------- ---- --------------- ------- -------
 
-
-   dshr   (e1, e2)   ()   (UInt, UInt)    UInt    w~e1~
-                          (SInt, UInt)    SInt    w~e1~
-                          (Fixed, UInt)   Fixed
-  ------ ---------- ---- --------------- ------- -------
+| Name | Arguments | Parmaeters | Arg Types     | Result Type | Result Width                   |
+|------|-----------|------------|---------------|-------------|--------------------------------|
+| dshr | (e1, e2)  | ()         | (UInt, UInt)  | UInt        | w~e1~                          |
+|      |           |            | (SInt, UInt)  | SInt        | w~e1~                          |
+|      |           |            | (Fixed, UInt) | Fixed       | see section [10](#fixed_rules) |
 
 The dynamic shift right operation shifts the bits in e1 e2 places
 towards the least significant bit. e2 signed or zeroed bits are shifted
@@ -2210,48 +2184,40 @@ truncated.
 
 ## Arithmetic Convert to Signed Operation
 
-  ----- ------- ---- -------- ------ --------
-
-
-   cvt   \(e\)   ()   (UInt)   SInt   w~e~+1
-                      (SInt)   SInt    w~e~
-  ----- ------- ---- -------- ------ --------
+| Name | Arguments | Parmaeters | Arg Types | Result Type | Result Width |
+|------|-----------|------------|-----------|-------------|--------------|
+| cvt  | \(e\)     | ()         | (UInt)    | SInt        | w~e~+1       |
+|      |           |            | (SInt)    | SInt        | w~e~         |
 
 The result of the arithmetic convert to signed operation is a signed
 integer representing the same numerical value as e.
 
 ## Negate Operation
 
-  ----- ------- ---- -------- ------ --------
-
-
-   neg   \(e\)   ()   (UInt)   SInt   w~e~+1
-                      (SInt)   SInt   w~e~+1
-  ----- ------- ---- -------- ------ --------
+| Name | Arguments | Parmaeters | Arg Types | Result Type | Result Width |
+|------|-----------|------------|-----------|-------------|--------------|
+| neg  | \(e\)     | ()         | (UInt)    | SInt        | w~e~+1       |
+|      |           |            | (SInt)    | SInt        | w~e~+1       |
 
 The result of the negate operation is a signed integer representing the
 negated numerical value of e.
 
 ## Bitwise Complement Operation
 
-  ----- ------- ---- -------- ------ ------
-
-
-   not   \(e\)   ()   (UInt)   UInt   w~e~
-                      (SInt)   UInt   w~e~
-  ----- ------- ---- -------- ------ ------
+| Name | Arguments | Parmaeters | Arg Types | Result Type | Result Width |
+|------|-----------|------------|-----------|-------------|--------------|
+| not  | \(e\)     | ()         | (UInt)    | UInt        | w~e~         |
+|      |           |            | (SInt)    | UInt        | w~e~         |
 
 The bitwise complement operation performs a logical not on each bit in
 e.
 
 ## Binary Bitwise Operations
 
-  ------------ ---------- ---- ------------- ------ ------------------
-
-
-   and,or,xor   (e1, e2)   ()   (UInt,UInt)   UInt   max(w~e1~,w~e2~)
-                                (SInt,SInt)   UInt   max(w~e1~,w~e2~)
-  ------------ ---------- ---- ------------- ------ ------------------
+| Name       | Arguments | Parmaeters | Arg Types   | Result Type | Result Width     |
+|------------|-----------|------------|-------------|-------------|------------------|
+| and,or,xor | (e1, e2)  | ()         | (UInt,UInt) | UInt        | max(w~e1~,w~e2~) |
+|            |           |            | (SInt,SInt) | UInt        | max(w~e1~,w~e2~) |
 
 The above bitwise operations perform a bitwise and, or, or exclusive or
 on e1 and e2. The result has the same width as its widest argument, and
@@ -2260,12 +2226,11 @@ to match the width of the result before performing the operation.
 
 ## Bitwise Reduction Operations
 
-  --------------- ------- ---- -------- ------ ---
 
-
-   andr,orr,xorr   \(e\)   ()   (UInt)   UInt   1
-                                (SInt)   UInt   1
-  --------------- ------- ---- -------- ------ ---
+| Name          | Arguments | Parmaeters | Arg Types | Result Type | Result Width |
+|---------------|-----------|------------|-----------|-------------|--------------|
+| andr,orr,xorr | \(e\)     | ()         | (UInt)    | UInt        | 1            |
+|               |           |            | (SInt)    | UInt        | 1            |
 
 The bitwise reduction operations correspond to a bitwise and, or, and
 exclusive or operation, reduced over every bit in e.
@@ -2280,26 +2245,22 @@ and xor-reductions of a zero-width expression both return zero.
 
 ## Concatenate Operation
 
-  ----- --------- ---- ---------------- ------ -------------
-
-
-   cat   (e1,e2)   ()    (UInt, UInt)    UInt   w~e1~+w~e2~
-                         (SInt, SInt)    UInt   w~e1~+w~e2~
-                        (Fixed, Fixed)   UInt   w~e1~+w~e2~
-  ----- --------- ---- ---------------- ------ -------------
+| Name | Arguments | Parmaeters | Arg Types      | Result Type | Result Width |
+|------|-----------|------------|----------------|-------------|--------------|
+| cat  | (e1,e2)   | ()         | (UInt, UInt)   | UInt        | w~e1~+w~e2~  |
+|      |           |            | (SInt, SInt)   | UInt        | w~e1~+w~e2~  |
+|      |           |            | (Fixed, Fixed) | UInt        | w~e1~+w~e2~  |
 
 The result of the concatenate operation is the bits of e1 concatenated
 to the most significant end of the bits of e2.
 
 ## Bit Extraction Operation
 
-  ------ ------- --------- --------- ------ ---------
-
-
-   bits   \(e\)   (hi,lo)   (UInt)    UInt   hi-lo+1
-                            (SInt)    UInt   hi-lo+1
-                            (Fixed)   UInt   hi-lo+1
-  ------ ------- --------- --------- ------ ---------
+| Name | Arguments | Parmaeters | Arg Types | Result Type | Result Width |
+|------|-----------|------------|-----------|-------------|--------------|
+| bits | \(e\)     | (hi,lo)    | (UInt)    | UInt        | hi-lo+1      |
+|      |           |            | (SInt)    | UInt        | hi-lo+1      |
+|      |           |            | (Fixed)   | UInt        | hi-lo+1      |
 
 The result of the bit extraction operation are the bits of e between lo
 (inclusive) and hi (inclusive). hi must be greater than or equal to lo.
@@ -2308,39 +2269,32 @@ of e.
 
 ## Head
 
-  ------ ------- ------- --------- ------ ---
-
-
-   head   \(e\)   \(n\)   (UInt)    UInt   n
-                          (SInt)    UInt   n
-                          (Fixed)   UInt   n
-  ------ ------- ------- --------- ------ ---
+| Name | Arguments | Parmaeters | Arg Types | Result Type | Result Width |
+|------|-----------|------------|-----------|-------------|--------------|
+| head | \(e\)     | \(n\)      | (UInt)    | UInt        | n            |
+|      |           |            | (SInt)    | UInt        | n            |
+|      |           |            | (Fixed)   | UInt        | n            |
 
 The result of the head operation are the n most significant bits of e. n
 must be non-negative and less than or equal to the bit width of e.
 
 ## Tail
 
-  ------ ------- ------- --------- ------ --------
-
-
-   tail   \(e\)   \(n\)   (UInt)    UInt   w~e~-n
-                          (SInt)    UInt   w~e~-n
-                          (Fixed)   UInt   w~e~-n
-  ------ ------- ------- --------- ------ --------
+| Name | Arguments | Parmaeters | Arg Types | Result Type | Result Width |
+|------|-----------|------------|-----------|-------------|--------------|
+| tail | \(e\)     | \(n\)      | (UInt)    | UInt        | w~e~-n       |
+|      |           |            | (SInt)    | UInt        | w~e~-n       |
+|      |           |            | (Fixed)   | UInt        | w~e~-n       |
 
 The tail operation truncates the n most significant bits from e. n must
 be non-negative and less than or equal to the bit width of e.
 
 ## Fixed-Point Precision Modification Operations
 
-  ------ ------- ------- --------- ------- --
+| Name             | Arguments | Parmaeters | Arg Types | Result Type | Result Width |
+|------------------|-----------|------------|-----------|-------------|--------------|
+| incp, decp, setp | \(e\)     | \(n\)      | (Fixed)   | Fixed       |              |
 
-
-   incp   \(e\)   \(n\)   (Fixed)   Fixed
-   decp
-   setp
-  ------ ------- ------- --------- ------- --
 
 The increase precision, decrease precision, and set precision operations
 are used to alter the number of bits that appear after the binary point
