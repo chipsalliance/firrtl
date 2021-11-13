@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<language name="FIRRTL" version="1" kateversion="2.4" section="Sources" extensions="*.firrtl;*.fir">
+  <highlighting>
+    <list name="structure">
+      <item>circuit</item>
+      <item>module</item>
+      <item>extmodule</item>
+    </list>
+    <list name="keywords">
+      <item>input</item>
+      <item>output</item>
+      <item>defname</item>
+      <item>parameter</item>
+    </list>
+    <list name="types">
+      <item>UInt</item>
+      <item>SInt</item>
+      <item>Clock</item>
+      <item>Reset</item>
+      <item>AsyncReset</item>
+      <item>Analog</item>
+    </list>
+    <list name="conditionals">
+      <item>when</item>
+      <item>else</item>
+    </list>
+    <list name="primops">
+      <item>add</item>
+      <item>sub</item>
+      <item>mul</item>
+      <item>div</item>
+      <item>rem</item>
+      <item>lt</item>
+      <item>leq</item>
+      <item>gt</item>
+      <item>geq</item>
+      <item>eq</item>
+      <item>neq</item>
+      <item>pad</item>
+      <item>asUInt</item>
+      <item>asSInt</item>
+      <item>asClock</item>
+      <item>shl</item>
+      <item>shr</item>
+      <item>dshl</item>
+      <item>dshr</item>
+      <item>cvt</item>
+      <item>neg</item>
+      <item>not</item>
+      <item>and</item>
+      <item>or</item>
+      <item>xor</item>
+      <item>andr</item>
+      <item>orr</item>
+      <item>xorr</item>
+      <item>cat</item>
+      <item>bits</item>
+      <item>head</item>
+      <item>tail</item>
+      <item>asFixedPoint</item>
+      <item>bpshl</item>
+      <item>bpshr</item>
+      <item>bpset</item>
+      <item>mux</item>
+      <item>validif</item>
+    </list>
+    <contexts>
+      <context attribute="Normal Text" lineEndContext="#pop" name="Normal Text" >
+        <keyword attribute="Keyword" context="#stay" String="keywords" />
+        <keyword attribute="Structure" context="#stay" String="structure" />
+        <keyword attribute="PrimOp" context="#stay" String="primops" />
+        <keyword attribute="Conditional" context="#stay" String="conditionals" />
+        <DetectChar attribute="String" context="string" char="&quot;" />
+      </context>
+      <context attribute="String" lineEndContext="#stay" name="string" >
+        <DetectChar attribute="String" context="#pop" char="&quot;" />
+      </context>
+    </contexts>
+    <itemDatas>
+      <itemData name="Normal Text" defStyleNum="dsNormal" />
+      <itemData name="Keyword" defStyleNum="dsKeyword" />
+      <itemData name="Structure" defStyleNum="dsFunction" />
+      <itemData name="PrimOp" defStyleNum="dsOperator" />
+      <itemData name="Conditional" defStyleNum="dsControlFlow" />
+      <itemData name="String" defStyleNum="dsString" />
+    </itemDatas>
+  </highlighting>
+  <general>
+    <comments>
+      <comment name="singleLine" start=";"/>
+    </comments>
+    <keywords casesensitive="1"/>
+    <folding indentationsensitive="0"/>
+    <emptyLines>
+      <emptyLine regexpr="\s+"/>
+      <emptyLine regexpr="\s*#.*"/>
+    </emptyLines>
+    <spellchecking>
+    </spellchecking>
+  </general>
+</language>
