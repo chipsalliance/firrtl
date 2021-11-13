@@ -1842,11 +1842,11 @@ Notationally, the width of an argument e is represented as w~e~.
 ## Add Operation
 
   ----- --------- ---- --------------- ------- --------------------
-                                               
-                                               
+
+
    add   (e1,e2)   ()    (UInt,UInt)    UInt    max(w~e1~,w~e2~)+1
                          (SInt,SInt)    SInt    max(w~e1~,w~e2~)+1
-                        (Fixed,Fixed)   Fixed  
+                        (Fixed,Fixed)   Fixed
   ----- --------- ---- --------------- ------- --------------------
 
 The add operation result is the sum of e1 and e2 without loss of
@@ -1855,11 +1855,11 @@ precision.
 ## Subtract Operation
 
   ----- --------- ---- --------------- ------- --------------------
-                                               
-                                               
+
+
    sub   (e1,e2)   ()    (UInt,UInt)    UInt    max(w~e1~,w~e2~)+1
                          (SInt,SInt)    SInt    max(w~e1~,w~e2~)+1
-                        (Fixed,Fixed)   Fixed  
+                        (Fixed,Fixed)   Fixed
   ----- --------- ---- --------------- ------- --------------------
 
 The subtract operation result is e2 subtracted from e1, without loss of
@@ -1868,11 +1868,11 @@ precision.
 ## Multiply Operation
 
   ----- --------- ---- --------------- ------- -------------
-                                               
-                                               
+
+
    mul   (e1,e2)   ()    (UInt,UInt)    UInt    w~e1~+w~e2~
                          (SInt,SInt)    SInt    w~e1~+w~e2~
-                        (Fixed,Fixed)   Fixed  
+                        (Fixed,Fixed)   Fixed
   ----- --------- ---- --------------- ------- -------------
 
 The multiply operation result is the product of e1 and e2, without loss
@@ -1881,8 +1881,8 @@ of precision.
 ## Divide Operation
 
   ----- ----------- ---- ------------- ------ ----------
-                                              
-                                              
+
+
    div   (num,den)   ()   (UInt,UInt)   UInt    w~num~
                           (SInt,SInt)   SInt   w~num~+1
   ----- ----------- ---- ------------- ------ ----------
@@ -1894,8 +1894,8 @@ zero. The result of a division where den is zero is undefined.
 ## Modulus Operation
 
   ----- ----------- ---- ------------- ------ --------------------
-                                              
-                                              
+
+
    rem   (num,den)   ()   (UInt,UInt)   UInt   min(w~num~,w~den~)
                           (SInt,SInt)   SInt   min(w~num~,w~den~)
   ----- ----------- ---- ------------- ------ --------------------
@@ -1909,8 +1909,8 @@ the modulus operator satisfies the relationship below:
 ## Comparison Operations
 
   -------- --------- ---- --------------- ------ ---
-                                                 
-                                                 
+
+
    lt,leq                   (UInt,UInt)    UInt   1
    gt,geq   (e1,e2)   ()    (SInt,SInt)    UInt   1
    eq,neq                  (Fixed,Fixed)   UInt   1
@@ -1924,11 +1924,11 @@ The operation returns a value of zero otherwise.
 ## Padding Operations
 
   ----- ------- ------- --------- ------- -------------
-                                          
-                                          
+
+
    pad   \(e\)   \(n\)   (UInt)    UInt    max(w~e~,n)
                          (SInt)    SInt    max(w~e~,n)
-                         (Fixed)   Fixed  
+                         (Fixed)   Fixed
   ----- ------- ------- --------- ------- -------------
 
 If e's bit width is smaller than n, then the pad operation zero-extends
@@ -1939,8 +1939,8 @@ is not affected by padding.
 ## Interpret As UInt
 
   -------- ------- ---- --------- ------ ------
-                                         
-                                         
+
+
    asUInt   \(e\)   ()   (UInt)    UInt   w~e~
                          (SInt)    UInt   w~e~
                          (Fixed)   UInt   w~e~
@@ -1953,8 +1953,8 @@ integer.
 ## Interpret As SInt
 
   -------- ------- ---- --------- ------ ------
-                                         
-                                         
+
+
    asSInt   \(e\)   ()   (UInt)    SInt   w~e~
                          (SInt)    SInt   w~e~
                          (Fixed)   SInt   w~e~
@@ -1967,8 +1967,8 @@ integer according to two's complement representation.
 ## Interpret As Fixed-Point Number
 
   --------- ------- ------- --------- ------- ------ ---
-                                                     
-                                                     
+
+
    asFixed   \(e\)   \(p\)   (UInt)    Fixed   w~e~   p
                              (SInt)    Fixed   w~e~   p
                              (Fixed)   Fixed   w~e~   p
@@ -1984,8 +1984,8 @@ binary point p, and the result type has binary point p.
 ## Interpret as Clock
 
   --------- ------- ---- --------- ------- -----
-                                           
-                                           
+
+
    asClock   \(e\)   ()   (UInt)    Clock   n/a
                           (SInt)    Clock   n/a
                           (Fixed)   Clock   n/a
@@ -1998,11 +1998,11 @@ obtained from interpreting a single bit integer as a clock signal.
 ## Shift Left Operation
 
   ----- ------- ------- --------- ------- --------
-                                          
-                                          
+
+
    shl   \(e\)   \(n\)   (UInt)    UInt    w~e~+n
                          (SInt)    SInt    w~e~+n
-                         (Fixed)   Fixed  
+                         (Fixed)   Fixed
   ----- ------- ------- --------- ------- --------
 
 The shift left operation concatenates n zero bits to the least
@@ -2011,11 +2011,11 @@ significant end of e. n must be non-negative.
 ## Shift Right Operation
 
   ----- ------- ------- --------- ------- ----------------
-                                          
-                                          
+
+
    shr   \(e\)   \(n\)   (UInt)    UInt    max(w~e~-n, 1)
                          (SInt)    SInt    max(w~e~-n, 1)
-                         (Fixed)   Fixed  
+                         (Fixed)   Fixed
   ----- ------- ------- --------- ------- ----------------
 
 The shift right operation truncates the least significant n bits from e.
@@ -2026,11 +2026,11 @@ must be non-negative.
 ## Dynamic Shift Left Operation
 
   ------ ---------- ---- --------------- ------- -----------------------
-                                                 
-                                                 
+
+
    dshl   (e1, e2)   ()   (UInt, UInt)    UInt    w~e1~ + 2`^`w~e2~ - 1
                           (SInt, UInt)    SInt    w~e1~ + 2`^`w~e2~ - 1
-                          (Fixed, UInt)   Fixed  
+                          (Fixed, UInt)   Fixed
   ------ ---------- ---- --------------- ------- -----------------------
 
 The dynamic shift left operation shifts the bits in e1 e2 places towards
@@ -2040,11 +2040,11 @@ significant bits.
 ## Dynamic Shift Right Operation
 
   ------ ---------- ---- --------------- ------- -------
-                                                 
-                                                 
+
+
    dshr   (e1, e2)   ()   (UInt, UInt)    UInt    w~e1~
                           (SInt, UInt)    SInt    w~e1~
-                          (Fixed, UInt)   Fixed  
+                          (Fixed, UInt)   Fixed
   ------ ---------- ---- --------------- ------- -------
 
 The dynamic shift right operation shifts the bits in e1 e2 places
@@ -2055,8 +2055,8 @@ truncated.
 ## Arithmetic Convert to Signed Operation
 
   ----- ------- ---- -------- ------ --------
-                                     
-                                     
+
+
    cvt   \(e\)   ()   (UInt)   SInt   w~e~+1
                       (SInt)   SInt    w~e~
   ----- ------- ---- -------- ------ --------
@@ -2067,8 +2067,8 @@ integer representing the same numerical value as e.
 ## Negate Operation
 
   ----- ------- ---- -------- ------ --------
-                                     
-                                     
+
+
    neg   \(e\)   ()   (UInt)   SInt   w~e~+1
                       (SInt)   SInt   w~e~+1
   ----- ------- ---- -------- ------ --------
@@ -2079,8 +2079,8 @@ negated numerical value of e.
 ## Bitwise Complement Operation
 
   ----- ------- ---- -------- ------ ------
-                                     
-                                     
+
+
    not   \(e\)   ()   (UInt)   UInt   w~e~
                       (SInt)   UInt   w~e~
   ----- ------- ---- -------- ------ ------
@@ -2091,8 +2091,8 @@ e.
 ## Binary Bitwise Operations
 
   ------------ ---------- ---- ------------- ------ ------------------
-                                                    
-                                                    
+
+
    and,or,xor   (e1, e2)   ()   (UInt,UInt)   UInt   max(w~e1~,w~e2~)
                                 (SInt,SInt)   UInt   max(w~e1~,w~e2~)
   ------------ ---------- ---- ------------- ------ ------------------
@@ -2105,8 +2105,8 @@ to match the width of the result before performing the operation.
 ## Bitwise Reduction Operations
 
   --------------- ------- ---- -------- ------ ---
-                                               
-                                               
+
+
    andr,orr,xorr   \(e\)   ()   (UInt)   UInt   1
                                 (SInt)   UInt   1
   --------------- ------- ---- -------- ------ ---
@@ -2125,8 +2125,8 @@ and xor-reductions of a zero-width expression both return zero.
 ## Concatenate Operation
 
   ----- --------- ---- ---------------- ------ -------------
-                                               
-                                               
+
+
    cat   (e1,e2)   ()    (UInt, UInt)    UInt   w~e1~+w~e2~
                          (SInt, SInt)    UInt   w~e1~+w~e2~
                         (Fixed, Fixed)   UInt   w~e1~+w~e2~
@@ -2138,8 +2138,8 @@ to the most significant end of the bits of e2.
 ## Bit Extraction Operation
 
   ------ ------- --------- --------- ------ ---------
-                                            
-                                            
+
+
    bits   \(e\)   (hi,lo)   (UInt)    UInt   hi-lo+1
                             (SInt)    UInt   hi-lo+1
                             (Fixed)   UInt   hi-lo+1
@@ -2153,8 +2153,8 @@ of e.
 ## Head
 
   ------ ------- ------- --------- ------ ---
-                                          
-                                          
+
+
    head   \(e\)   \(n\)   (UInt)    UInt   n
                           (SInt)    UInt   n
                           (Fixed)   UInt   n
@@ -2166,8 +2166,8 @@ must be non-negative and less than or equal to the bit width of e.
 ## Tail
 
   ------ ------- ------- --------- ------ --------
-                                          
-                                          
+
+
    tail   \(e\)   \(n\)   (UInt)    UInt   w~e~-n
                           (SInt)    UInt   w~e~-n
                           (Fixed)   UInt   w~e~-n
@@ -2179,11 +2179,11 @@ be non-negative and less than or equal to the bit width of e.
 ## Fixed-Point Precision Modification Operations
 
   ------ ------- ------- --------- ------- --
-                                           
-                                           
-   incp   \(e\)   \(n\)   (Fixed)   Fixed  
-   decp                                    
-   setp                                    
+
+
+   incp   \(e\)   \(n\)   (Fixed)   Fixed
+   decp
+   setp
   ------ ------- ------- --------- ------- --
 
 The increase precision, decrease precision, and set precision operations
@@ -2249,16 +2249,16 @@ respective sections.
 # Fixed-Point Math {#fixed_rules}
 
   ------------- ------------------------------------------------------- -------------------
-                                                                        
-                                                                        
+
+
    add(e1, e2)   max(w~e1~-p~e1~, w~e2~-p~e2~) + max(p~e1~, p~e2~) + 1   max(p~e1~, p~e2~)
    sub(e1, e2)   max(w~e1~-p~e1~, w~e2~-p~e2~) + max(p~e1~, p~e2~) + 1   max(p~e1~, p~e2~)
    mul(e1, e2)                        w~1~ + w~2~                           p~1~ + p~2~
   ------------- ------------------------------------------------------- -------------------
 
   ------------ ----------------------------- ----------
-                                             
-                                             
+
+
    pad(e, n)           max(w~e~, n)             p~e~
    shl(e, n)             w~e~ + n               p~e~
    shr(e, n)    max(w~e~ - n, max(1, p~e~))     p~e~
@@ -2268,8 +2268,8 @@ respective sections.
   ------------ ----------------------------- ----------
 
   -------------- ----------------------- ------
-                                         
-                                         
+
+
    dshl(e1, e1)   w~e1~ + 2`^`w~e2~ - 1   p~e~
    dshr(e1, e2)           w~e1~           p~e~
   -------------- ----------------------- ------
@@ -2539,90 +2539,90 @@ indicate that including is optional.
 ## Concrete Syntax Tree {#syntax_tree}
 
   -- --- ----------------------------------------------------------------------------------------------------- --
-       = circuit : $\llbracket$$\rrbracket_?$ ($\llbracket$$\rrbracket_{...}$)                                 
-       = module : $\llbracket$$\rrbracket_?$ ($\llbracket$$\rrbracket_{...}$                                   
-         extmodule : $\llbracket$$\rrbracket_?$ ($\llbracket$$\rrbracket_{...}$)                               
-       = : $\llbracket$$\rrbracket_?$                                                                          
-       = input                                                                                                 
-       = UInt$\llbracket$\<$\rrbracket_?$                                                                      
-         SInt$\llbracket$\<$\rrbracket_?$                                                                      
-         Fixed$\llbracket$\<$\rrbracket_?$$\llbracket$\<\<$\rrbracket_?$                                       
-         Clock                                                                                                 
-         Analog$\llbracket$\<$\rrbracket_?$                                                                    
-         `{`$\llbracket$$\rrbracket_{...}$`}`                                                                  
-                                                                                                               
-       = $\llbracket$flip$\rrbracket_?$ :                                                                      
-       = wire : $\llbracket$$\rrbracket_?$                                                                     
-         reg : $\llbracket$(with: {reset =\> (, $\rrbracket_?$ $\llbracket$$\rrbracket_?$                      
-         mem : $\llbracket$$\rrbracket_?$ (                                                                    
-         `       `data-type =\>                                                                                
-         `       `depth =\>                                                                                    
-         `       `read-latency =\>                                                                             
-         `       `write-latency =\>                                                                            
-         `       `read-under-write =\>                                                                         
-         `       `$\llbracket$reader =\> $\rrbracket_{...}$                                                    
-         `       `$\llbracket$writer =\> $\rrbracket_{...}$                                                    
-         `       `$\llbracket$readwriter =\> $\rrbracket_{...}$)                                               
-         inst of $\llbracket$$\rrbracket_?$                                                                    
-         node = $\llbracket$$\rrbracket_?$                                                                     
-         \<= $\llbracket$$\rrbracket_?$                                                                        
-         \<- $\llbracket$$\rrbracket_?$                                                                        
-         is invalid $\llbracket$$\rrbracket_?$                                                                 
-         attach($\llbracket$$\rrbracket_{...}$) $\llbracket$$\rrbracket_?$                                     
-         when : $\llbracket$$\rrbracket_?$ $\llbracket$else : $\rrbracket_?$                                   
-         stop(, , ) $\llbracket$:$\rrbracket_?$ $\llbracket$$\rrbracket_?$                                     
-         printf(, , , $\llbracket$$\rrbracket_{...}$) $\llbracket$:$\rrbracket_?$ $\llbracket$$\rrbracket_?$   
-         skip $\llbracket$$\rrbracket_?$                                                                       
-         ($\llbracket$$\rrbracket_{...}$)                                                                      
-       = old                                                                                                   
-       = @\[                                                                                                   
+       = circuit : $\llbracket$$\rrbracket_?$ ($\llbracket$$\rrbracket_{...}$)
+       = module : $\llbracket$$\rrbracket_?$ ($\llbracket$$\rrbracket_{...}$
+         extmodule : $\llbracket$$\rrbracket_?$ ($\llbracket$$\rrbracket_{...}$)
+       = : $\llbracket$$\rrbracket_?$
+       = input
+       = UInt$\llbracket$\<$\rrbracket_?$
+         SInt$\llbracket$\<$\rrbracket_?$
+         Fixed$\llbracket$\<$\rrbracket_?$$\llbracket$\<\<$\rrbracket_?$
+         Clock
+         Analog$\llbracket$\<$\rrbracket_?$
+         `{`$\llbracket$$\rrbracket_{...}$`}`
+
+       = $\llbracket$flip$\rrbracket_?$ :
+       = wire : $\llbracket$$\rrbracket_?$
+         reg : $\llbracket$(with: {reset =\> (, $\rrbracket_?$ $\llbracket$$\rrbracket_?$
+         mem : $\llbracket$$\rrbracket_?$ (
+         `       `data-type =\>
+         `       `depth =\>
+         `       `read-latency =\>
+         `       `write-latency =\>
+         `       `read-under-write =\>
+         `       `$\llbracket$reader =\> $\rrbracket_{...}$
+         `       `$\llbracket$writer =\> $\rrbracket_{...}$
+         `       `$\llbracket$readwriter =\> $\rrbracket_{...}$)
+         inst of $\llbracket$$\rrbracket_?$
+         node = $\llbracket$$\rrbracket_?$
+         \<= $\llbracket$$\rrbracket_?$
+         \<- $\llbracket$$\rrbracket_?$
+         is invalid $\llbracket$$\rrbracket_?$
+         attach($\llbracket$$\rrbracket_{...}$) $\llbracket$$\rrbracket_?$
+         when : $\llbracket$$\rrbracket_?$ $\llbracket$else : $\rrbracket_?$
+         stop(, , ) $\llbracket$:$\rrbracket_?$ $\llbracket$$\rrbracket_?$
+         printf(, , , $\llbracket$$\rrbracket_{...}$) $\llbracket$:$\rrbracket_?$ $\llbracket$$\rrbracket_?$
+         skip $\llbracket$$\rrbracket_?$
+         ($\llbracket$$\rrbracket_{...}$)
+       = old
+       = @\[
   -- --- ----------------------------------------------------------------------------------------------------- --
 
   -- --- ----------------------------------------------------------------- --
-       = UInt$\llbracket$\<$\rrbracket_?$(                                 
-         UInt$\llbracket$\<$\rrbracket_?$(                                 
-         SInt$\llbracket$\<$\rrbracket_?$(                                 
-         SInt$\llbracket$\<$\rrbracket_?$(                                 
-                                                                           
-                                                                           
-                                                                           
-                                                                           
-         mux(, ,                                                           
-         validif(,                                                         
-         $\llbracket$$\rrbracket_{...}$, $\llbracket$$\rrbracket_{...}$)   
+       = UInt$\llbracket$\<$\rrbracket_?$(
+         UInt$\llbracket$\<$\rrbracket_?$(
+         SInt$\llbracket$\<$\rrbracket_?$(
+         SInt$\llbracket$\<$\rrbracket_?$(
+
+
+
+
+         mux(, ,
+         validif(,
+         $\llbracket$$\rrbracket_{...}$, $\llbracket$$\rrbracket_{...}$)
   -- --- ----------------------------------------------------------------- --
 
   -- --- --------- --
-       = add       
-         sub       
-         mul       
-         div       
-         mod       
-         lt        
-         leq       
-         gt        
-         geq       
-         eq        
-         neq       
-         pad       
-         asUInt    
-         asSInt    
-         asClock   
-         shl       
-         shr       
-         dshl      
-         dshr      
-         cvt       
-         neg       
-         not       
-         and       
-         or        
-         xor       
-         andr      
-         orr       
-         xorr      
-         cat       
-         bits      
-         head      
-         tail      
+       = add
+         sub
+         mul
+         div
+         mod
+         lt
+         leq
+         gt
+         geq
+         eq
+         neq
+         pad
+         asUInt
+         asSInt
+         asClock
+         shl
+         shr
+         dshl
+         dshr
+         cvt
+         neg
+         not
+         and
+         or
+         xor
+         andr
+         orr
+         xorr
+         cat
+         bits
+         head
+         tail
   -- --- --------- --
