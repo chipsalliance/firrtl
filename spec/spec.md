@@ -193,13 +193,32 @@ the instance statement for details on how to instantiate a module
 
 ## Externally Defined Modules
 
-Externally defined modules consist of a given name, and a list of ports,
-whose types and names must match its external definition.
+Externally defined modules are modules whose implementation is not
+provided in the current circuit.  Only the ports and name of the
+externally defined module are specified in the circuit.  An externally
+defined module may include, in order, an optional _defname_ which
+sets the name of the external module in the resulting Verilog and zero
+or more name--value _parameter_ statements.  Each name--value
+parameter statement will result in a value being passed to the named
+parameter in the resulting Verilog.
+
+An example of an externally defined module is:
 
     extmodule MyExternalModule :
-       input foo: UInt
-       output bar: UInt
-       output baz: SInt
+       input foo: UInt<2>
+       output bar: UInt<4>
+       output baz: SInt<8>
+       defname = VerilogName
+       parameter x = "hello"
+       parameter y = 42
+
+The widths of all externally defined module ports must be specified.
+Width inference, described in section [9](#width_inference), is not
+supported for module ports.
+
+A common use of an externally defined module is to represent a Verilog
+module that will be written separately and provided together with
+FIRRTL-generated Verilog to downstream tools.
 
 # Types
 
@@ -216,7 +235,7 @@ analog type.
 ### Integer Types
 
 Both unsigned and signed integer types may optionally be given a known
-positive integer bit width.
+non-negative integer bit width.
 
     UInt<10>
     SInt<32>
@@ -1189,19 +1208,19 @@ read-under-write behavior is undefined.
 
 In the example above, the type of `mymem` is:
 
-    {flip r1: {flip data: {real:SInt<16>, imag:SInt<16>},
-               addr: UInt<8>,
+    {flip r1: {addr: UInt<8>,
                en: UInt<1>,
-               clk: Clock}
-     flip r2: {flip data: {real:SInt<16>, imag:SInt<16>},
-               addr: UInt<8>,
+               clk: Clock,
+               flip data: {real:SInt<16>, imag:SInt<16>}}
+     flip r2: {addr: UInt<8>,
                en: UInt<1>,
-               clk: Clock}
-     flip w: {data: {real:SInt<16>, imag:SInt<16>},
-              mask: {real:UInt<1>, imag:UInt<1>},
-              addr: UInt<8>,
+               clk: Clock,
+               flip data: {real:SInt<16>, imag:SInt<16>}}
+     flip w: {addr: UInt<8>,
               en: UInt<1>,
-              clk: Clock}}
+              clk: Clock,
+              data: {real:SInt<16>, imag:SInt<16>},
+              mask: {real:UInt<1>, imag:UInt<1>}}}
 
 The following sections describe how a memory's field types are
 calculated and the behavior of each type of memory port.
@@ -1211,7 +1230,7 @@ calculated and the behavior of each type of memory port.
 If a memory is declared with element type `T`, has a size less than or
 equal to $2^N$, then its read ports have type:
 
-    {flip data:T, addr:UInt<N>, en:UInt<1>, clk:Clock}
+    {addr:UInt<N>, en:UInt<1>, clk:Clock, flip data:T}
 
 If the `en` field is high, then the element value associated with the
 address in the `addr` field can be retrieved by reading from the `data`
@@ -1224,7 +1243,7 @@ undefined. The port is driven by the clock signal in the `clk` field.
 If a memory is declared with element type `T`, has a size less than or
 equal to $2^N$, then its write ports have type:
 
-    {data:T, mask:M, addr:UInt<N>, en:UInt<1>, clk:Clock}
+    {addr:UInt<N>, en:UInt<1>, clk:Clock, data:T, mask:M}
 
 where `M` is the mask type calculated from the element type `T`.
 Intuitively, the mask type mirrors the aggregate structure of the
@@ -1243,8 +1262,7 @@ driven by the clock signal in the `clk` field.
 
 Finally, the readwrite ports have type:
 
-    {wmode:UInt<1>, flip rdata:T, wdata:T, wmask:M,
-     addr:UInt<N>, en:UInt<1>, clk:Clock}
+    {addr:UInt<N>, en:UInt<1>, clk:Clock, flip rdata:T, wmode:UInt<1>, wdata:T, wmask:M}
 
 A readwrite port is a single port that, on a given cycle, can be used
 either as a read or a write port. If the readwrite port is not in write
@@ -1728,7 +1746,7 @@ dynamic indices are equal to all of the sub-element's static indices.
 ## Multiplexers
 
 A multiplexer outputs one of two input expressions depending on the
-value of an unsigned single bit selection signal.
+value of an unsigned selection signal.
 
 The following example connects to the `c` port the result of selecting
 between the `a` and `b` ports. The `a` port is selected when the `sel`
@@ -1743,11 +1761,17 @@ signal is high, otherwise the `b` port is selected.
 
 A multiplexer expression is legal only if the following holds.
 
-1.  The type of the selection signal is a single bit unsigned integer.
+1. The type of the selection signal is an unsigned integer.
 
-2.  The types of the two input expressions are equivalent.
+1 The width of the selection signal is any of:
 
-3.  The types of the two input expressions are passive (see section
+  1. One-bit
+
+  1. Unspecified, but will infer to one-bit
+
+1. The types of the two input expressions are
+
+1. The types of the two input expressions are passive (see section
     [4.4](#passive_types){reference-type="ref"
     reference="passive_types"}).
 
