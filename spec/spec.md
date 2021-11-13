@@ -163,11 +163,13 @@ All FIRRTL circuits consist of a list of modules, each representing a
 hardware block that can be instantiated. The circuit must specify the
 name of the top-level module.
 
-    circuit MyTop :
-       module MyTop :
-          ...
-       module MyModule :
-          ...
+``` firrtl
+circuit MyTop :
+   module MyTop :
+      ; ...
+   module MyModule :
+      ; ...
+```
 
 ## Modules
 
@@ -181,10 +183,12 @@ port, and one statement connecting the input port to the output port.
 See section [5.1](#connects)
 for details on the connect statement.
 
-    module MyModule :
-       input foo: UInt
-       output bar: UInt
-       bar <= foo
+``` firrtl
+module MyModule :
+   input foo: UInt
+   output bar: UInt
+   bar <= foo
+```
 
 Note that a module definition does *not* indicate that the module will
 be physically present in the final circuit. Refer to the description of
@@ -204,13 +208,15 @@ parameter in the resulting Verilog.
 
 An example of an externally defined module is:
 
-    extmodule MyExternalModule :
-       input foo: UInt<2>
-       output bar: UInt<4>
-       output baz: SInt<8>
-       defname = VerilogName
-       parameter x = "hello"
-       parameter y = 42
+``` firrtl
+extmodule MyExternalModule :
+   input foo: UInt<2>
+   output bar: UInt<4>
+   output baz: SInt<8>
+   defname = VerilogName
+   parameter x = "hello"
+   parameter y = 42
+```
 
 The widths of all externally defined module ports must be specified.
 Width inference, described in section [9](#width_inference), is not
@@ -237,15 +243,19 @@ analog type.
 Both unsigned and signed integer types may optionally be given a known
 non-negative integer bit width.
 
-    UInt<10>
-    SInt<32>
+``` firrtl
+UInt<10>
+SInt<32>
+```
 
 Alternatively, if the bit width is omitted, it will be automatically
 inferred by FIRRTL's width inferencer, as detailed in section
 [9](#width_inference).
 
-    UInt
-    SInt
+``` firrtl
+UInt
+SInt
+```
 
 ### Fixed-Point Number Type
 
@@ -288,10 +298,12 @@ inference depends on a set of rules outlined throughout this spec.
 Included below are examples of the syntax for all possible combinations
 of specified and inferred fixed-point type parameters.
 
-    Fixed<3><<2>>    ; 3-bit width, 2 bits after binary point
-    Fixed<10>        ; 10-bit width, inferred binary point
-    Fixed<<-4>>      ; Inferred width, binary point of -4
-    Fixed            ; Inferred width and binary point
+``` firrtl
+Fixed<3><<2>>    ; 3-bit width, 2 bits after binary point
+Fixed<10>        ; 10-bit width, inferred binary point
+Fixed<<-4>>      ; Inferred width, binary point of -4
+Fixed            ; Inferred width and binary point
+```
 
 ### Clock Type
 
@@ -303,7 +315,9 @@ the clock type.
 
 The clock type is specified as follows:
 
-    Clock
+``` firrtl
+Clock
+```
 
 ### Analog Type
 
@@ -334,9 +348,11 @@ inferred according to a highly restrictive width inference rule, which
 requires that the widths of all arguments to a given attach operation be
 identical.
 
-    Analog<1>  ; 1-bit analog type
-    Analog<32> ; 32-bit analog type
-    Analog     ; analog type with inferred width
+``` firrtl
+Analog<1>  ; 1-bit analog type
+Analog<32> ; 32-bit analog type
+Analog     ; analog type with inferred width
+```
 
 ## Vector Types
 
@@ -346,19 +362,25 @@ given type. The length of the sequence must be non-negative and known.
 The following example specifies a ten element vector of 16-bit unsigned
 integers.
 
-    UInt<16>[10]
+``` firrtl
+UInt<16>[10]
+```
 
 The next example specifies a ten element vector of unsigned integers of
 omitted but identical bit widths.
 
-    UInt[10]
+``` firrtl
+UInt[10]
+```
 
 Note that any type, including other aggregate types, may be used as the
 element type of the vector. The following example specifies a twenty
 element vector, each of which is a ten element vector of 16-bit unsigned
 integers.
 
-    UInt<16>[10][20]
+``` firrtl
+UInt<16>[10][20]
+```
 
 ## Bundle Types
 
@@ -369,12 +391,16 @@ The following is an example of a possible type for representing a
 complex number. It has two fields, `real`, and `imag`, both 10-bit
 signed integers.
 
-    {real:SInt<10>, imag:SInt<10>}
+``` firrtl
+{real:SInt<10>, imag:SInt<10>}
+```
 
 Additionally, a field may optionally be declared with a *flipped*
 orientation.
 
-    {word:UInt<32>, valid:UInt<1>, flip ready:UInt<1>}
+``` firrtl
+{word:UInt<32>, valid:UInt<1>, flip ready:UInt<1>}
+```
 
 In a connection between circuit components with bundle types, the data
 carried by the flipped fields flow in the opposite direction as the data
@@ -383,7 +409,9 @@ carried by the non-flipped fields.
 As an example, consider a module output port declared with the following
 type:
 
-    output a: {word:UInt<32>, valid:UInt<1>, flip ready:UInt<1>}
+``` firrtl
+output a: {word:UInt<32>, valid:UInt<1>, flip ready:UInt<1>}
+```
 
 In a connection to the `a` port, the data carried by the `word` and
 `valid` sub-fields will flow out of the module, while data carried by
@@ -394,15 +422,20 @@ section [5.1](#connects).
 As in the case of vector types, a bundle field may be declared with any
 type, including other aggregate types.
 
-    {real: {word:UInt<32>, valid:UInt<1>, flip ready:UInt<1>}
-     imag: {word:UInt<32>, valid:UInt<1>, flip ready:UInt<1>}}
+``` firrtl
+{real: {word:UInt<32>, valid:UInt<1>, flip ready:UInt<1>}
+ imag: {word:UInt<32>, valid:UInt<1>, flip ready:UInt<1>}}
+
+```
 
 When calculating the final direction of data flow, the orientation of a
 field is applied recursively to all nested types in the field. As an
 example, consider the following module port declared with a bundle type
 containing a nested bundle type.
 
-    output myport: {a: UInt, flip b: {c: UInt, flip d:UInt}}
+``` firrtl
+output myport: {a: UInt, flip b: {c: UInt, flip d:UInt}}
+```
 
 In a connection to `myport`, the `a` sub-field flows out of the module.
 The `c` sub-field contained in the `b` sub-field flows into the module,
@@ -522,10 +555,12 @@ between two circuit components.
 The following example demonstrates connecting a module's input port to
 its output port, where port `myinput` is connected to port `myoutput`.
 
-    module MyModule :
-       input myinput: UInt
-       output myoutput: UInt
-       myoutput <= myinput
+``` firrtl
+module MyModule :
+   input myinput: UInt
+   output myoutput: UInt
+   myoutput <= myinput
+```
 
 In order for a connection to be legal the following conditions must
 hold:
@@ -605,19 +640,23 @@ The following example demonstrates partially connecting a module's input
 port to its output port, where port `myinput` is connected to port
 `myoutput`.
 
-    module MyModule :
-       input myinput: {flip a:UInt, b:UInt[2]}
-       output myoutput: {flip a:UInt, b:UInt[3], c:UInt}
-       myoutput <- myinput
+``` firrtl
+module MyModule :
+   input myinput: {flip a:UInt, b:UInt[2]}
+   output myoutput: {flip a:UInt, b:UInt[3], c:UInt}
+   myoutput <- myinput
+```
 
 The above example is equivalent to the following:
 
-    module MyModule :
-       input myinput: {flip a:UInt, b:UInt[2]}
-       output myoutput: {flip a:UInt, b:UInt[3], c:UInt}
-       myinput.a <- myoutput.a
-       myoutput.b[0] <- myinput.b[0]
-       myoutput.b[1] <- myinput.b[1]
+``` firrtl
+module MyModule :
+   input myinput: {flip a:UInt, b:UInt[2]}
+   output myoutput: {flip a:UInt, b:UInt[3], c:UInt}
+   myinput.a <- myoutput.a
+   myoutput.b[0] <- myinput.b[0]
+   myoutput.b[1] <- myinput.b[1]
+```
 
 For details on the syntax and semantics of the sub-field expression,
 sub-index expression, and statement groups, see sections
@@ -657,14 +696,16 @@ An ordered sequence of one or more statements can be grouped into a
 single statement, called a statement group. The following example
 demonstrates a statement group composed of three connect statements.
 
-    module MyModule :
-       input a: UInt
-       input b: UInt
-       output myport1: UInt
-       output myport2: UInt
-       myport1 <= a
-       myport1 <= b
-       myport2 <= a
+``` firrtl
+module MyModule :
+   input a: UInt
+   input b: UInt
+   output myport1: UInt
+   output myport2: UInt
+   myport1 <= a
+   myport1 <= b
+   myport2 <= a
+```
 
 ### Last Connect Semantics {#last_connect}
 
@@ -689,40 +730,48 @@ the resultant circuit, the `c` sub-element of port `portx` will be
 connected to the `c` sub-element of `myport`, and port `porty` will be
 connected to the `b` sub-element of `myport`.
 
-    module MyModule :
-       input portx: {b:UInt, c:UInt}
-       input porty: UInt
-       output myport: {b:UInt, c:UInt}
-       myport <= portx
-       myport.b <= porty
+``` firrtl
+module MyModule :
+   input portx: {b:UInt, c:UInt}
+   input porty: UInt
+   output myport: {b:UInt, c:UInt}
+   myport <= portx
+   myport.b <= porty
+```
 
 The above circuit can be rewritten equivalently as follows.
 
-    module MyModule :
-       input portx: {b:UInt, c:UInt}
-       input porty: UInt
-       output myport: {b:UInt, c:UInt}
-       myport.b <= porty
-       myport.c <= portx.c
+``` firrtl
+module MyModule :
+   input portx: {b:UInt, c:UInt}
+   input porty: UInt
+   output myport: {b:UInt, c:UInt}
+   myport.b <= porty
+   myport.c <= portx.c
+```
 
 In the case where a connection to a sub-element of an aggregate circuit
 component is followed by a connection to the entire circuit component,
 the later connection overwrites the earlier connections completely.
 
-    module MyModule :
-       input portx: {b:UInt, c:UInt}
-       input porty: UInt
-       output myport: {b:UInt, c:UInt}
-       myport.b <= porty
-       myport <= portx
+``` firrtl
+module MyModule :
+   input portx: {b:UInt, c:UInt}
+   input porty: UInt
+   output myport: {b:UInt, c:UInt}
+   myport.b <= porty
+   myport <= portx
+```
 
 The above circuit can be rewritten equivalently as follows.
 
-    module MyModule :
-       input portx: {b:UInt, c:UInt}
-       input porty: UInt
-       output myport: {b:UInt, c:UInt}
-       myport <= portx
+``` firrtl
+module MyModule :
+   input portx: {b:UInt, c:UInt}
+   input porty: UInt
+   output myport: {b:UInt, c:UInt}
+   myport <= portx
+```
 
 See section [6.6](#subfields){reference-type="ref"
 reference="subfields"} for more details about sub-field expressions.
@@ -734,14 +783,18 @@ where a statement is expected. It is specified using the `skip` keyword.
 
 The following example:
 
-    a <= b
-    skip
-    c <= d
+``` firrtl
+a <= b
+skip
+c <= d
+```
 
 can be equivalently expressed as:
 
-    a <= b
-    c <= d
+``` firrtl
+a <= b
+c <= d
+```
 
 The empty statement is most often used as the `else` branch in a
 conditional statement, or as a convenient placeholder for removed
@@ -757,7 +810,9 @@ to and from using connect and partial connect statements.
 The following example demonstrates instantiating a wire with the given
 name `mywire` and type `UInt`.
 
-    wire mywire : UInt
+``` firrtl
+wire mywire : UInt
+```
 
 ## Registers
 
@@ -767,20 +822,24 @@ The following example demonstrates instantiating a register with the
 given name `myreg`, type `SInt`, and is driven by the clock signal
 `myclock`.
 
-    wire myclock: Clock
-    reg myreg: SInt, myclock
-    ...
+``` firrtl
+wire myclock: Clock
+reg myreg: SInt, myclock
+; ...
+```
 
 Optionally, for the purposes of circuit initialization, a register can
 be declared with a reset signal and value. In the following example,
 `myreg` is assigned the value `myinit` when the signal `myreset` is
 high.
 
-    wire myclock: Clock
-    wire myreset: UInt<1>
-    wire myinit: SInt
-    reg myreg: SInt, myclock with: (reset => (myreset, myinit))
-    ...
+``` firrtl
+wire myclock: Clock
+wire myreset: UInt<1>
+wire myinit: SInt
+reg myreg: SInt, myclock with: (reset => (myreset, myinit))
+; ...
+```
 
 Note that the clock signal for a register must be of type `clock`, the
 reset signal must be a single bit `UInt`, and the type of initialization
@@ -791,8 +850,10 @@ value must match the declared type of the register.
 An invalidate statement is used to indicate that a circuit component
 contains indeterminate values. It is specified as follows:
 
-    wire w:UInt
-    w is invalid
+``` firrtl
+wire w:UInt
+w is invalid
+```
 
 Invalidate statements can be applied to any circuit component of any
 type. However, if the circuit component cannot be connected to, then the
@@ -806,24 +867,28 @@ of circuit components with aggregate types. See section
 reference="invalidate_algorithm"} for details on the algorithm for
 determining what is invalidated.
 
-    module MyModule :
-       input in: {flip a:UInt, b:UInt}
-       output out: {flip a:UInt, b:UInt}
-       wire w: {flip a:UInt, b:UInt}
-       in is invalid
-       out is invalid
-       w is invalid
+``` firrtl
+module MyModule :
+   input in: {flip a:UInt, b:UInt}
+   output out: {flip a:UInt, b:UInt}
+   wire w: {flip a:UInt, b:UInt}
+   in is invalid
+   out is invalid
+   w is invalid
+```
 
 is equivalent to the following:
 
-    module MyModule :
-       input in: {flip a:UInt, b:UInt}
-       output out: {flip a:UInt, b:UInt}
-       wire w: {flip a:UInt, b:UInt}
-       in.a is invalid
-       out.b is invalid
-       w.a is invalid
-       w.b is invalid
+``` firrtl
+module MyModule :
+   input in: {flip a:UInt, b:UInt}
+   output out: {flip a:UInt, b:UInt}
+   wire w: {flip a:UInt, b:UInt}
+   in.a is invalid
+   out.b is invalid
+   w.a is invalid
+   w.b is invalid
+```
 
 For the purposes of simulation, invalidated components are initialized
 to random values, and operations involving indeterminate values produce
@@ -851,11 +916,13 @@ lacks the directionality of a regular connection. It can only be applied
 to signals with analog type, and each analog signal may be attached zero
 or more times.
 
-    wire x: Analog<2>
-    wire y: Analog<2>
-    wire z: Analog<2>
-    attach(x, y)      ; binary attach
-    attach(z, y, x)   ; attach all three signals
+``` firrtl
+wire x: Analog<2>
+wire y: Analog<2>
+wire z: Analog<2>
+attach(x, y)      ; binary attach
+attach(z, y, x)   ; attach all three signals
+```
 
 When signals of aggregate types that contain analog-typed fields are
 used as operators of a partial connection, corresponding fields of
@@ -872,11 +939,12 @@ The following example demonstrates instantiating a node with the given
 name `mynode` initialized with the output of a multiplexer (see section
 [6.9](#multiplexers)).
 
-    wire pred: UInt<1>
-    wire a: SInt
-    wire b: SInt
-    node mynode = mux(pred, a, b)
-    ...
+``` firrtl
+wire pred: UInt<1>
+wire a: SInt
+wire b: SInt
+node mynode = mux(pred, a, b)
+```
 
 ## Conditionals
 
@@ -888,15 +956,17 @@ In the following example, the wire `x` is connected to the input `a`
 only when the `en` signal is high. Otherwise, the wire `x` is connected
 to the input `b`.
 
-    module MyModule :
-       input a: UInt
-       input b: UInt
-       input en: UInt<1>
-       wire x: UInt
-       when en :
-          x <= a
-       else :
-          x <= b
+``` firrtl
+module MyModule :
+   input a: UInt
+   input b: UInt
+   input en: UInt<1>
+   wire x: UInt
+   when en :
+      x <= a
+   else :
+      x <= b
+```
 
 ### Syntactic Shorthands
 
@@ -906,25 +976,29 @@ statement.
 
 Thus the following example:
 
-    module MyModule :
-       input a: UInt
-       input b: UInt
-       input en: UInt<1>
-       wire x: UInt
-       when en :
-          x <= a
+``` firrtl
+module MyModule :
+   input a: UInt
+   input b: UInt
+   input en: UInt<1>
+   wire x: UInt
+   when en :
+      x <= a
+```
 
 can be equivalently expressed as:
 
-    module MyModule :
-       input a: UInt
-       input b: UInt
-       input en: UInt<1>
-       wire x: UInt
-       when en :
-          x <= a
-       else :
-          skip
+``` firrtl
+module MyModule :
+   input a: UInt
+   input b: UInt
+   input en: UInt<1>
+   wire x: UInt
+   when en :
+      x <= a
+   else :
+      skip
+```
 
 To aid readability of long chains of conditional statements, the colon
 following the `else` keyword may be omitted if the `else` branch
@@ -932,45 +1006,49 @@ consists of a single conditional statement.
 
 Thus the following example:
 
-    module MyModule :
-       input a: UInt
-       input b: UInt
-       input c: UInt
-       input d: UInt
-       input c1: UInt<1>
-       input c2: UInt<1>
-       input c3: UInt<1>
-       wire x: UInt
-       when c1 :
-          x <= a
-       else :
-          when c2 :
-             x <= b
-          else :
-             when c3 :
-                x <= c
-             else :
-                x <= d
+``` firrtl
+module MyModule :
+   input a: UInt
+   input b: UInt
+   input c: UInt
+   input d: UInt
+   input c1: UInt<1>
+   input c2: UInt<1>
+   input c3: UInt<1>
+   wire x: UInt
+   when c1 :
+      x <= a
+   else :
+      when c2 :
+         x <= b
+      else :
+         when c3 :
+            x <= c
+         else :
+            x <= d
+```
 
 can be equivalently written as:
 
-    module MyModule :
-       input a: UInt
-       input b: UInt
-       input c: UInt
-       input d: UInt
-       input c1: UInt<1>
-       input c2: UInt<1>
-       input c3: UInt<1>
-       wire x: UInt
-       when c1 :
-          x <= a
-       else when c2 :
-          x <= b
-       else when c3 :
-          x <= c
-       else :
-          x <= d
+``` firrtl
+module MyModule :
+   input a: UInt
+   input b: UInt
+   input c: UInt
+   input d: UInt
+   input c1: UInt<1>
+   input c2: UInt<1>
+   input c3: UInt<1>
+   wire x: UInt
+   when c1 :
+      x <= a
+   else when c2 :
+      x <= b
+   else when c3 :
+      x <= c
+   else :
+      x <= d
+```
 
 To additionally aid readability, a conditional statement where the
 contents of the `when` branch consist of a single line may be combined
@@ -979,20 +1057,26 @@ must be included on the same line.
 
 The following statement:
 
-    when c :
-       a <= b
-    else :
-       e <= f
+``` firrtl
+when c :
+   a <= b
+else :
+   e <= f
+```
 
 can have the `when` keyword, the `when` branch, and the `else` keyword
 expressed as a single line:
 
-    when c : a <= b else :
-      e <= f
+``` firrtl
+when c : a <= b else :
+  e <= f
+```
 
 The `else` branch may also be added to the single line:
 
-    when c : a <= b else : e <= f
+``` firrtl
+when c : a <= b else : e <= f
+```
 
 ### Nested Declarations
 
@@ -1001,17 +1085,19 @@ to the component are unaffected by the condition. In the following
 example, register `myreg1` is always connected to `a`, and register
 `myreg2` is always connected to `b`.
 
-    module MyModule :
-       input a: UInt
-       input b: UInt
-       input en: UInt<1>
-       input clk : Clock
-       when en :
-          reg myreg1 : UInt, clk
-          myreg1 <= a
-       else :
-          reg myreg2 : UInt, clk
-          myreg2 <= b
+``` firrtl
+module MyModule :
+   input a: UInt
+   input b: UInt
+   input en: UInt<1>
+   input clk : Clock
+   when en :
+      reg myreg1 : UInt, clk
+      myreg1 <= a
+   else :
+      reg myreg2 : UInt, clk
+      myreg2 <= b
+```
 
 Intuitively, a line can be drawn between a connection (or partial
 connection) to a component and that component's declaration. All
@@ -1028,12 +1114,14 @@ In the following example, the wire `a` is connected to the wire `w` when
 `en` is high, but it is not specified what is connected to `w` when `en`
 is low.
 
-    module MyModule :
-       input en: UInt<1>
-       input a: UInt
-       wire w: UInt
-       when en :
-          w <= a
+``` firrtl
+module MyModule :
+   input en: UInt<1>
+   input a: UInt
+   wire w: UInt
+   when en :
+      w <= a
+```
 
 This is an illegal FIRRTL circuit and an error will be thrown during
 compilation. All wires, memory ports, instance ports, and module ports
@@ -1064,23 +1152,25 @@ For details about the multiplexer, see section
 
 The following example:
 
-    wire a: UInt
-    wire b: UInt
-    wire c: UInt<1>
-    wire w: UInt
-    w <= a
-    when c :
-       w <= b
-    ...
+``` firrtl
+wire a: UInt
+wire b: UInt
+wire c: UInt<1>
+wire w: UInt
+w <= a
+when c :
+   w <= b
+```
 
 can be rewritten equivalently using a multiplexer as follows:
 
-    wire a: UInt
-    wire b: UInt
-    wire c: UInt<1>
-    wire w: UInt
-    w <= mux(c, b, a)
-    ...
+``` firrtl
+wire a: UInt
+wire b: UInt
+wire c: UInt<1>
+wire w: UInt
+w <= mux(c, b, a)
+```
 
 In the case where an invalid statement is followed by a conditional
 statement containing a connect to the invalidated component, the
@@ -1090,21 +1180,23 @@ conditionally valid expression. See section
 reference="conditionally_valids"} for more details about the
 conditionally valid expression.
 
-    wire a: UInt
-    wire c: UInt<1>
-    wire w: UInt
-    w is invalid
-    when c :
-       w <= a
-    ...
+``` firrtl
+wire a: UInt
+wire c: UInt<1>
+wire w: UInt
+w is invalid
+when c :
+   w <= a
+```
 
 can be rewritten equivalently as follows:
 
-    wire a: UInt
-    wire c: UInt<1>
-    wire w: UInt
-    w <= validif(c, a)
-    ...
+``` firrtl
+wire a: UInt
+wire c: UInt<1>
+wire w: UInt
+w <= validif(c, a)
+```
 
 The behaviour of conditional connections to circuit components with
 aggregate types can be modeled by first expanding each connect into
@@ -1118,24 +1210,26 @@ semantics.
 
 For example, the following snippet:
 
-    wire x: {a:UInt, b:UInt}
-    wire y: {a:UInt, b:UInt}
-    wire c: UInt<1>
-    wire w: {a:UInt, b:UInt}
-    w <= x
-    when c :
-       w <= y
-    ...
+``` firrtl
+wire x: {a:UInt, b:UInt}
+wire y: {a:UInt, b:UInt}
+wire c: UInt<1>
+wire w: {a:UInt, b:UInt}
+w <= x
+when c :
+   w <= y
+```
 
 can be rewritten equivalently as follows:
 
-    wire x: {a:UInt, b:UInt}
-    wire y: {a:UInt, b:UInt}
-    wire c: UInt<1>
-    wire w: {a:UInt, b:UInt}
-    w.a <= mux(c, y.a, x.a)
-    w.b <= mux(c, y.b, x.b)
-    ...
+``` firrtl
+wire x: {a:UInt, b:UInt}
+wire y: {a:UInt, b:UInt}
+wire c: UInt<1>
+wire w: {a:UInt, b:UInt}
+w.a <= mux(c, y.a, x.a)
+w.b <= mux(c, y.b, x.b)
+```
 
 Similar to the behavior of aggregate types under last connect semantics
 (see section [5.3.1](#last_connect){reference-type="ref"
@@ -1145,24 +1239,26 @@ that is overwritten.
 
 For example, the following snippet:
 
-    wire x: {a:UInt, b:UInt}
-    wire y: UInt
-    wire c: UInt<1>
-    wire w: {a:UInt, b:UInt}
-    w <= x
-    when c :
-       w.a <= y
-    ...
+``` firrtl
+wire x: {a:UInt, b:UInt}
+wire y: UInt
+wire c: UInt<1>
+wire w: {a:UInt, b:UInt}
+w <= x
+when c :
+   w.a <= y
+```
 
 can be rewritten equivalently as follows:
 
-    wire x: {a:UInt, b:UInt}
-    wire y: UInt
-    wire c: UInt<1>
-    wire w: {a:UInt, b:UInt}
-    w.a <= mux(c, y, x.a)
-    w.b <= x.b
-    ...
+``` firrtl
+wire x: {a:UInt, b:UInt}
+wire y: UInt
+wire c: UInt<1>
+wire w: {a:UInt, b:UInt}
+w.a <= mux(c, y, x.a)
+w.b <= x.b
+```
 
 ## Memories
 
@@ -1196,31 +1292,35 @@ write port, `w`. It is combinationally read (read latency is zero
 cycles) and has a write latency of one cycle. Finally, its
 read-under-write behavior is undefined.
 
-    mem mymem :
-      data-type => {real:SInt<16>, imag:SInt<16>}
-      depth => 256
-      reader => r1
-      reader => r2
-      writer => w
-      read-latency => 0
-      write-latency => 1
-      read-under-write => undefined
+``` firrtl
+mem mymem :
+  data-type => {real:SInt<16>, imag:SInt<16>}
+  depth => 256
+  reader => r1
+  reader => r2
+  writer => w
+  read-latency => 0
+  write-latency => 1
+  read-under-write => undefined
+```
 
 In the example above, the type of `mymem` is:
 
-    {flip r1: {addr: UInt<8>,
-               en: UInt<1>,
-               clk: Clock,
-               flip data: {real:SInt<16>, imag:SInt<16>}}
-     flip r2: {addr: UInt<8>,
-               en: UInt<1>,
-               clk: Clock,
-               flip data: {real:SInt<16>, imag:SInt<16>}}
-     flip w: {addr: UInt<8>,
-              en: UInt<1>,
-              clk: Clock,
-              data: {real:SInt<16>, imag:SInt<16>},
-              mask: {real:UInt<1>, imag:UInt<1>}}}
+``` firrtl
+{flip r1: {addr: UInt<8>,
+           en: UInt<1>,
+           clk: Clock,
+           flip data: {real:SInt<16>, imag:SInt<16>}}
+ flip r2: {addr: UInt<8>,
+           en: UInt<1>,
+           clk: Clock,
+           flip data: {real:SInt<16>, imag:SInt<16>}}
+ flip w: {addr: UInt<8>,
+          en: UInt<1>,
+          clk: Clock,
+          data: {real:SInt<16>, imag:SInt<16>},
+          mask: {real:UInt<1>, imag:UInt<1>}}}
+```
 
 The following sections describe how a memory's field types are
 calculated and the behavior of each type of memory port.
@@ -1230,7 +1330,9 @@ calculated and the behavior of each type of memory port.
 If a memory is declared with element type `T`, has a size less than or
 equal to $2^N$, then its read ports have type:
 
-    {addr:UInt<N>, en:UInt<1>, clk:Clock, flip data:T}
+``` firrtl
+{addr:UInt<N>, en:UInt<1>, clk:Clock, flip data:T}
+```
 
 If the `en` field is high, then the element value associated with the
 address in the `addr` field can be retrieved by reading from the `data`
@@ -1243,7 +1345,9 @@ undefined. The port is driven by the clock signal in the `clk` field.
 If a memory is declared with element type `T`, has a size less than or
 equal to $2^N$, then its write ports have type:
 
-    {addr:UInt<N>, en:UInt<1>, clk:Clock, data:T, mask:M}
+``` firrtl
+{addr:UInt<N>, en:UInt<1>, clk:Clock, data:T, mask:M}
+```
 
 where `M` is the mask type calculated from the element type `T`.
 Intuitively, the mask type mirrors the aggregate structure of the
@@ -1262,7 +1366,9 @@ driven by the clock signal in the `clk` field.
 
 Finally, the readwrite ports have type:
 
-    {addr:UInt<N>, en:UInt<1>, clk:Clock, flip rdata:T, wmode:UInt<1>, wdata:T, wmask:M}
+``` firrtl
+{addr:UInt<N>, en:UInt<1>, clk:Clock, flip rdata:T, wmode:UInt<1>, wdata:T, wmask:M}
+```
 
 A readwrite port is a single port that, on a given cycle, can be used
 either as a read or a write port. If the readwrite port is not in write
@@ -1327,13 +1433,15 @@ FIRRTL modules are instantiated with the instance statement. The
 following example demonstrates creating an instance named `myinstance`
 of the `MyModule` module within the top level module `Top`.
 
-    circuit Top :
-       module MyModule :
-          input a: UInt
-          output b: UInt
-          b <= a
-       module Top :
-          inst myinstance of MyModule
+``` firrtl
+circuit Top :
+   module MyModule :
+      input a: UInt
+      output b: UInt
+      b <= a
+   module Top :
+      inst myinstance of MyModule
+```
 
 The resulting instance has a bundle type. Each port of the instantiated
 module is represented by a field in the bundle with the same name and
@@ -1370,10 +1478,11 @@ attach metadata to the statement. The name is part of the module level
 namespace. However it can never be used in a reference since it is not
 of any valid type.
 
-    wire clk:Clock
-    wire halt:UInt<1>
-    stop(clk,halt,42) : optional_name
-    ...
+``` firrtl
+wire clk:Clock
+wire halt:UInt<1>
+stop(clk,halt,42) : optional_name
+```
 
 ## Formatted Prints
 
@@ -1396,12 +1505,13 @@ attach metadata to the statement. The name is part of the module level
 namespace. However it can never be used in a reference since it is not
 of any valid type.
 
-    wire clk:Clock
-    wire condition:UInt<1>
-    wire a:UInt
-    wire b:UInt
-    printf(clk, condition, "a in hex: %x, b in decimal:%d.\n", a, b) : optional_name
-    ...
+``` firrtl
+wire clk:Clock
+wire condition:UInt<1>
+wire a:UInt
+wire b:UInt
+printf(clk, condition, "a in hex: %x, b in decimal:%d.\n", a, b) : optional_name
+```
 
 On each positive clock edge, when the condition signal is high, the
 printf statement prints out the format string where its argument
@@ -1466,12 +1576,14 @@ The assert statement verifies that the predicate is true on the rising
 edge of any clock cycle when the enable is true. In other words, it
 verifies that enable implies predicate.
 
-    wire clk:Clock
-    wire pred:UInt<1>
-    wire en:UInt<1>
-    pred <= eq(X, Y)
-    en <= Z_valid
-    assert(clk, pred, en, "X equals Y when Z is valid") : optional_name
+``` firrtl
+wire clk:Clock
+wire pred:UInt<1>
+wire en:UInt<1>
+pred <= eq(X, Y)
+en <= Z_valid
+assert(clk, pred, en, "X equals Y when Z is valid") : optional_name
+```
 
 ### Assume
 
@@ -1481,12 +1593,14 @@ edge of the clock cycle. In other words, it reduces the states to be
 checked to only those where enable implies predicate is true by
 definition. In simulation, assume is treated as an assert.
 
-    wire clk:Clock
-    wire pred:UInt<1>
-    wire en:UInt<1>
-    pred <= eq(X, Y)
-    en <= Z_valid
-    assume(clk, pred, en, "X equals Y when Z is valid") : optional_name
+``` firrtl
+wire clk:Clock
+wire pred:UInt<1>
+wire en:UInt<1>
+pred <= eq(X, Y)
+en <= Z_valid
+assume(clk, pred, en, "X equals Y when Z is valid") : optional_name
+```
 
 ### Cover
 
@@ -1495,12 +1609,14 @@ edge of some clock cycle when the enable is true. In other words, it
 directs the model checker to find some way to make enable implies
 predicate true at some time step.
 
-    wire clk:Clock
-    wire pred:UInt<1>
-    wire en:UInt<1>
-    pred <= eq(X, Y)
-    en <= Z_valid
-    cover(clk, pred, en, "X equals Y when Z is valid") : optional_name
+``` firrtl
+wire clk:Clock
+wire pred:UInt<1>
+wire en:UInt<1>
+pred <= eq(X, Y)
+en <= Z_valid
+cover(clk, pred, en, "X equals Y when Z is valid") : optional_name
+```
 
 # Expressions
 
@@ -1516,13 +1632,17 @@ A literal unsigned integer can be created given a non-negative integer
 value and an optional positive bit width. The following example creates
 a 10-bit unsigned integer representing the number 42.
 
-    UInt<10>(42)
+``` firrtl
+UInt<10>(42)
+```
 
 Note that it is an error to supply a bit width that is not large enough
 to fit the given value. If the bit width is omitted, then the minimum
 number of bits necessary to fit the given value will be inferred.
 
-    UInt(42)
+``` firrtl
+UInt(42)
+```
 
 ## Unsigned Integers from Literal Bits
 
@@ -1541,8 +1661,10 @@ If a bit width is not given, the number of bits in the bit
 representation is directly represented by the string. The following
 examples create a 8-bit integer representing the number 13.
 
-    UInt("b00001101")
-    UInt("h0D")
+``` firrtl
+UInt("b00001101")
+UInt("h0D")
+```
 
 If the provided bit width is larger than the number of bits required to
 represent the string's value, then the resulting value is equivalent to
@@ -1554,9 +1676,11 @@ the provided bit width. All truncated bits must be zero.
 The following examples create a 7-bit integer representing the number
 13.
 
-    UInt<7>("b00001101")
-    UInt<7>("o015")
-    UInt<7>("hD")
+``` firrtl
+UInt<7>("b00001101")
+UInt<7>("o015")
+UInt<7>("hD")
+```
 
 ## Signed Integers
 
@@ -1564,14 +1688,18 @@ Similar to unsigned integers, a literal signed integer can be created
 given an integer value and an optional positive bit width. The following
 example creates a 10-bit unsigned integer representing the number -42.
 
-    SInt<10>(-42)
+``` firrtl
+SInt<10>(-42)
+```
 
 Note that it is an error to supply a bit width that is not large enough
 to fit the given value using two's complement representation. If the bit
 width is omitted, then the minimum number of bits necessary to fit the
 given value will be inferred.
 
-    SInt(-42)
+``` firrtl
+SInt(-42)
+```
 
 ## Signed Integers from Literal Bits
 
@@ -1590,8 +1718,10 @@ it were a unary negation; in other words, a negative literal produces
 the additive inverse of the unsigned interpretation of the digit
 pattern.
 
-    SInt("b-1101")
-    SInt("h-d")
+``` firrtl
+SInt("b-1101")
+SInt("h-d")
+```
 
 If the provided bit width is larger than the number of bits represented
 by the string, then the resulting value is unchanged. It is an error to
@@ -1608,10 +1738,12 @@ The following example connects a reference expression `in`, referring to
 the previously declared port `in`, to the reference expression `out`,
 referring to the previously declared port `out`.
 
-    module MyModule :
-       input in: UInt
-       output out: UInt
-       out <= in
+``` firrtl
+module MyModule :
+   input in: UInt
+   output out: UInt
+   out <= in
+```
 
 In the rest of the document, for brevity, the names of components will
 be used to refer to a reference expression to that component. Thus, the
@@ -1626,10 +1758,12 @@ bundle type.
 The following example connects the `in` port to the `a` sub-element of
 the `out` port.
 
-    module MyModule :
-       input in: UInt
-       output out: {a:UInt, b:UInt}
-       out.a <= in
+``` firrtl
+module MyModule :
+   input in: UInt
+   output out: {a:UInt, b:UInt}
+   out.a <= in
+```
 
 ## Sub-indices {#subindices}
 
@@ -1641,10 +1775,12 @@ indexes.
 The following example connects the `in` port to the fifth sub-element of
 the `out` port.
 
-    module MyModule :
-       input in: UInt
-       output out: UInt[10]
-       out[4] <= in
+``` firrtl
+module MyModule :
+   input in: UInt
+   output out: UInt[10]
+   out[4] <= in
+```
 
 ## Sub-accesses
 
@@ -1655,93 +1791,105 @@ expression with an unsigned integer type.
 The following example connects the n'th sub-element of the `in` port to
 the `out` port.
 
-    module MyModule :
-       input in: UInt[3]
-       input n: UInt<2>
-       output out: UInt
-       out <= in[n]
+``` firrtl
+module MyModule :
+   input in: UInt[3]
+   input n: UInt<2>
+   output out: UInt
+   out <= in[n]
+```
 
 A connection from a sub-access expression can be modeled by
 conditionally connecting from every sub-element in the vector, where the
 condition holds when the dynamic index is equal to the sub-element's
 static index.
 
-    module MyModule :
-       input in: UInt[3]
-       input n: UInt<2>
-       output out: UInt
-       when eq(n, UInt(0)) :
-          out <= in[0]
-       else when eq(n, UInt(1)) :
-          out <= in[1]
-       else when eq(n, UInt(2)) :
-          out <= in[2]
-       else :
-          out is invalid
+``` firrtl
+module MyModule :
+   input in: UInt[3]
+   input n: UInt<2>
+   output out: UInt
+   when eq(n, UInt(0)) :
+      out <= in[0]
+   else when eq(n, UInt(1)) :
+      out <= in[1]
+   else when eq(n, UInt(2)) :
+      out <= in[2]
+   else :
+      out is invalid
+```
 
 The following example connects the `in` port to the n'th sub-element of
 the `out` port. All other sub-elements of the `out` port are connected
 from the corresponding sub-elements of the `default` port.
 
-    module MyModule :
-       input in: UInt
-       input default: UInt[3]
-       input n: UInt<2>
-       output out: UInt[3]
-       out <= default
-       out[n] <= in
+``` firrtl
+module MyModule :
+   input in: UInt
+   input default: UInt[3]
+   input n: UInt<2>
+   output out: UInt[3]
+   out <= default
+   out[n] <= in
+```
 
 A connection to a sub-access expression can be modeled by conditionally
 connecting to every sub-element in the vector, where the condition holds
 when the dynamic index is equal to the sub-element's static index.
 
-    module MyModule :
-       input in: UInt
-       input default: UInt[3]
-       input n: UInt<2>
-       output out: UInt[3]
-       out <= default
-       when eq(n, UInt(0)) :
-          out[0] <= in
-       else when eq(n, UInt(1)) :
-          out[1] <= in
-       else when eq(n, UInt(2)) :
-          out[2] <= in
+``` firrtl
+module MyModule :
+   input in: UInt
+   input default: UInt[3]
+   input n: UInt<2>
+   output out: UInt[3]
+   out <= default
+   when eq(n, UInt(0)) :
+      out[0] <= in
+   else when eq(n, UInt(1)) :
+      out[1] <= in
+   else when eq(n, UInt(2)) :
+      out[2] <= in
+```
 
 The following example connects the `in` port to the m'th `UInt`
 sub-element of the n'th vector-typed sub-element of the `out` port. All
 other sub-elements of the `out` port are connected from the
 corresponding sub-elements of the `default` port.
 
-    module MyModule :
-       input in: UInt
-       input default: UInt[2][2]
-       input n: UInt<1>
-       input m: UInt<1>
-       output out: UInt[2][2]
-       out <= default
-       out[n][m] <= in
+``` firrtl
+module MyModule :
+   input in: UInt
+   input default: UInt[2][2]
+   input n: UInt<1>
+   input m: UInt<1>
+   output out: UInt[2][2]
+   out <= default
+   out[n][m] <= in
+```
 
 A connection to an expression containing multiple nested sub-access
 expressions can also be modeled by conditionally connecting to every
 sub-element in the expression. However the condition holds only when all
 dynamic indices are equal to all of the sub-element's static indices.
 
-    module MyModule :
-       input in: UInt
-       input default: UInt[2][2]
-       input n: UInt<1>
-       input m: UInt<1>
-       output out: UInt[2][2]
-       out <= default
-       when and(eq(n, UInt(0)), eq(m, UInt(0))) :
-          out[0][0] <= in
-       else when and(eq(n, UInt(0)), eq(m, UInt(1))) :
-          out[0][1] <= in
-       else when and(eq(n, UInt(1)), eq(m, UInt(0))) :
-          out[1][0] <= in
-       else when and(eq(n, UInt(1)), eq(m, UInt(1))) :
-          out[1][1] <= in
+``` firrtl
+module MyModule :
+   input in: UInt
+   input default: UInt[2][2]
+   input n: UInt<1>
+   input m: UInt<1>
+   output out: UInt[2][2]
+   out <= default
+   when and(eq(n, UInt(0)), eq(m, UInt(0))) :
+      out[0][0] <= in
+   else when and(eq(n, UInt(0)), eq(m, UInt(1))) :
+      out[0][1] <= in
+   else when and(eq(n, UInt(1)), eq(m, UInt(0))) :
+      out[1][0] <= in
+   else when and(eq(n, UInt(1)), eq(m, UInt(1))) :
+      out[1][1] <= in
+```
 
 ## Multiplexers
 
@@ -1752,12 +1900,14 @@ The following example connects to the `c` port the result of selecting
 between the `a` and `b` ports. The `a` port is selected when the `sel`
 signal is high, otherwise the `b` port is selected.
 
-    module MyModule :
-       input a: UInt
-       input b: UInt
-       input sel: UInt<1>
-       output c: UInt
-       c <= mux(sel, a, b)
+``` firrtl
+module MyModule :
+   input a: UInt
+   input b: UInt
+   input sel: UInt<1>
+   output c: UInt
+   c <= mux(sel, a, b)
+```
 
 A multiplexer expression is legal only if the following holds.
 
@@ -1786,11 +1936,13 @@ The following example connects the `a` port to the `c` port when the
 `valid` signal is high. Otherwise, the value of the `c` port is
 undefined.
 
-    module MyModule :
-       input a: UInt
-       input valid: UInt<1>
-       output c: UInt
-       c <= validif(valid, a)
+``` firrtl
+module MyModule :
+   input a: UInt
+   input valid: UInt<1>
+   output c: UInt
+   c <= validif(valid, a)
+```
 
 A conditionally valid expression is legal only if the following holds.
 
@@ -1814,7 +1966,9 @@ parameters.
 
 The general form of a primitive operation is expressed as follows:
 
-    op(arg0, arg1, ..., argn, int0, int1, ..., intm)
+``` firrtl
+op(arg0, arg1, ..., argn, int0, int1, ..., intm)
+```
 
 The following examples of primitive operations demonstrate adding two
 expressions, `a` and `b`, shifting expression `a` left by 3 bits,
@@ -1822,10 +1976,12 @@ selecting the fourth bit through and including the seventh bit in the
 `a` expression, and interpreting the expression `x` as a Clock typed
 signal.
 
-    add(a, b)
-    shl(a, 3)
-    bits(a, 7, 4)
-    asClock(x)
+``` firrtl
+add(a, b)
+shl(a, 3)
+bits(a, 7, 4)
+asClock(x)
+```
 
 Section [7](#primitives)
 will describe the format and semantics of each primitive operation.
@@ -2382,37 +2538,41 @@ can simply be lowered again.
 
 The following module:
 
-    module MyModule :
-       input in: {a:UInt<1>, b:UInt<2>[3]}
-       input clk: Clock
-       output out: UInt
-       wire c: UInt
-       c <= in.a
-       reg r: UInt[3], clk
-       r <= in.b
-       when c :
-          r[1] <= in.a
-       out <= r[0]
+``` firrtl
+module MyModule :
+   input in: {a:UInt<1>, b:UInt<2>[3]}
+   input clk: Clock
+   output out: UInt
+   wire c: UInt
+   c <= in.a
+   reg r: UInt[3], clk
+   r <= in.b
+   when c :
+      r[1] <= in.a
+   out <= r[0]
+```
 
 is rewritten as the following equivalent LoFIRRTL circuit by the
 lowering transform.
 
-    module MyModule :
-       input in$a: UInt<1>
-       input in$b$0: UInt<2>
-       input in$b$1: UInt<2>
-       input in$b$2: UInt<2>
-       input clk: Clock
-       output out: UInt<2>
-       wire c: UInt<1>
-       c <= in$a
-       reg r$0: UInt<2>, clk
-       reg r$1: UInt<2>, clk
-       reg r$2: UInt<2>, clk
-       r$0 <= in$b$0
-       r$1 <= mux(c, in$a, in$b$1)
-       r$2 <= in$b$2
-       out <= r$0
+``` firrtl
+module MyModule :
+   input in$a: UInt<1>
+   input in$b$0: UInt<2>
+   input in$b$1: UInt<2>
+   input in$b$2: UInt<2>
+   input clk: Clock
+   output out: UInt<2>
+   wire c: UInt<1>
+   c <= in$a
+   reg r$0: UInt<2>, clk
+   reg r$1: UInt<2>, clk
+   reg r$2: UInt<2>, clk
+   r$0 <= in$b$0
+   r$1 <= mux(c, in$a, in$b$1)
+   r$2 <= in$b$2
+   out <= r$0
+```
 
 # Details about Syntax
 
@@ -2491,16 +2651,18 @@ below:
 As an example illustrating some of these points, the following is a
 legal FIRRTL circuit:
 
-    circuit Foo :
-        module Foo :
-          skip
-        module Bar :
-         input a: UInt<1>
-         output b: UInt<1>
-         when a:
-             b <= a
-         else:
-           b <= not(a)
+``` firrtl
+circuit Foo :
+    module Foo :
+      skip
+    module Bar :
+     input a: UInt<1>
+     output b: UInt<1>
+     when a:
+         b <= a
+     else:
+       b <= not(a)
+```
 
 All circuits, modules, ports and statements can optionally be followed
 with the info token `@[fileinfo]` where fileinfo is a string containing
@@ -2510,18 +2672,20 @@ characters need to be escaped with a leading '`\`': '`\n`' (new line),
 
 The following example shows the info tokens included:
 
-    circuit Top : @[myfile.txt 14:8]
-       module Top : @[myfile.txt 15:2]
-         output out:UInt @[myfile.txt 16:3]
-         input b:UInt<32> @[myfile.txt 17:3]
-         input c:UInt<1> @[myfile.txt 18:3]
-         input d:UInt<16> @[myfile.txt 19:3]
-         wire a:UInt @[myfile.txt 21:8]
-         when c : @[myfile.txt 24:8]
-           a <= b @[myfile.txt 27:16]
-         else :
-           a <= d @[myfile.txt 29:17]
-         out <= add(a,a) @[myfile.txt 34:4]
+``` firrtl
+circuit Top : @[myfile.txt 14:8]
+   module Top : @[myfile.txt 15:2]
+     output out:UInt @[myfile.txt 16:3]
+     input b:UInt<32> @[myfile.txt 17:3]
+     input c:UInt<1> @[myfile.txt 18:3]
+     input d:UInt<16> @[myfile.txt 19:3]
+     wire a:UInt @[myfile.txt 21:8]
+     when c : @[myfile.txt 24:8]
+       a <= b @[myfile.txt 27:16]
+     else :
+       a <= d @[myfile.txt 29:17]
+     out <= add(a,a) @[myfile.txt 34:4]
+```
 
 # FIRRTL Language Definition
 
