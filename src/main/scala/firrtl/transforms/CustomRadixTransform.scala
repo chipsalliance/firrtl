@@ -124,6 +124,20 @@ case class GTKWaveCustomRadixScriptAnnotation(
   }.getBytes
 }
 
+/** Dumps Tcl script for Verdi on Custom Radix
+  *
+  * @param signals which alias contains which signals, the signals should be converted from [[ReferenceTarget]] to String
+  * @param filters sequence of [[CustomRadixDefAnnotation]], the name should match [[signals]].map(_._1)
+  */
+case class VerdiCustomRadixScriptAnnotation(
+  signals: Seq[(AliasName, Seq[String])],
+  filters: Seq[CustomRadixDefAnnotation])
+    extends CustomRadixScriptAnnotation {
+  def waveViewer: String = "verdi"
+  def suffix:     Option[String] = Some(".tcl")
+  def getBytes:   Iterable[Byte] = ???
+}
+
 /** A Transform that generate scripts or config file for Custom Radix */
 object CustomRadixTransform extends Transform with DependencyAPIMigration with HasShellOptions {
 
@@ -138,11 +152,12 @@ object CustomRadixTransform extends Transform with DependencyAPIMigration with H
           .split(',')
           .map {
             case "gtkwave"   => GTKWaveCustomRadixScriptAnnotation(Seq.empty, Seq.empty)
+            case "verdi"     => VerdiCustomRadixScriptAnnotation(Seq.empty, Seq.empty)
             case "json" | "" => CustomRadixConfigFileAnnotation(Seq.empty, Seq.empty)
           }
           .toSeq
       },
-      helpText = "<gtkwave|json>, you can combine them like 'gtkwave,json', pass empty string will generate json",
+      helpText = "<gtkwave|verdi|json>, you can combine them like 'gtkwave,json', pass empty string will generate json",
       shortOption = None
     )
   )
@@ -166,6 +181,7 @@ object CustomRadixTransform extends Transform with DependencyAPIMigration with H
     state.copy(annotations = annos.map {
       case _: CustomRadixConfigFileAnnotation    => CustomRadixConfigFileAnnotation(signals, filters)
       case _: GTKWaveCustomRadixScriptAnnotation => GTKWaveCustomRadixScriptAnnotation(signals, filters)
+      case _: VerdiCustomRadixScriptAnnotation   => VerdiCustomRadixScriptAnnotation(signals, filters)
       case a => a
     })
   }
