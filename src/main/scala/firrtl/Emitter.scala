@@ -194,14 +194,19 @@ object EmitAllModulesAnnotation extends HasShellOptions {
       shortOption = Some("p"),
       helpValueName = Some("<chirrtl|mhigh|high|middle|low|low-opt>")
     ),
-    new ShellOption[Unit](
-      longOption = "no-random-init",
-      toAnnotationSeq = _ =>
-        Seq(
-          CustomDefaultMemoryEmission(MemoryNoInit),
-          CustomDefaultRegisterEmission(useInitAsPreset = true, disableRandomization = true)
-        ),
-      helpText = "Disable random initialization for memory and registers"
+    new ShellOption[String](
+      longOption = "emission-options",
+      toAnnotationSeq = s =>
+        s.split(",")
+          .map {
+            case "disableMemRandomization" =>
+              CustomDefaultRegisterEmission(useInitAsPreset = true, disableRandomization = true)
+            case "disableRegisterRandomization" => CustomDefaultMemoryEmission(MemoryNoInit)
+            case a                              => throw new PhaseException(s"Unknown emission options '$a'! (Did you misspell it?)")
+          }
+          .toSeq,
+      helpText = "Options to disable random initialization for memory and registers",
+      helpValueName = Some("<disableMemRandomization,disableRegisterRandomization>")
     )
   )
 

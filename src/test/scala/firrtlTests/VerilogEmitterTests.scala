@@ -869,7 +869,7 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
       )
     )
     val result = (new VerilogEmitter).execute(state)
-    assert(!result.getEmittedCircuit.value.contains("RANDOMIZE"))
+    (result.getEmittedCircuit.value should not).include("RANDOMIZE")
   }
 
 }
