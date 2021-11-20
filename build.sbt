@@ -4,8 +4,8 @@ enablePlugins(SiteScaladocPlugin)
 
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
-  scalaVersion := "2.12.14",
-  crossScalaVersions := Seq("2.13.6", "2.12.14")
+  scalaVersion := "2.12.15",
+  crossScalaVersions := Seq("2.13.7", "2.12.15")
 )
 
 lazy val isAtLeastScala213 = Def.setting {
@@ -33,8 +33,8 @@ lazy val firrtlSettings = Seq(
     "org.scalatestplus" %% "scalacheck-1-14" % "3.1.3.0" % "test",
     "com.github.scopt" %% "scopt" % "3.7.1",
     "net.jcazevedo" %% "moultingyaml" % "0.4.2",
-    "org.json4s" %% "json4s-native" % "3.6.11",
-    "org.apache.commons" % "commons-text" % "1.8",
+    "org.json4s" %% "json4s-native" % "3.6.12",
+    "org.apache.commons" % "commons-text" % "1.9",
     "io.github.alexarchambault" %% "data-class" % "0.2.5",
     "com.lihaoyi" %% "os-lib" % "0.7.8"
   ),
