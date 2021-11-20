@@ -18,16 +18,16 @@ addSbtPlugin("com.eed3si9n" % "sbt-assembly" % "1.1.0")
 
 addSbtPlugin("com.simplytyped" % "sbt-antlr4" % "0.8.2")
 
-addSbtPlugin("com.github.sbt" % "sbt-protobuf" % "0.7.0")
+addSbtPlugin("com.github.sbt" % "sbt-protobuf" % "0.7.1")
 
 addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.9.32")
 
 addSbtPlugin("com.thoughtworks.sbt-api-mappings" % "sbt-api-mappings" % "3.0.0")
 
-addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.4.3")
+addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.4.4")
 
-addSbtPlugin("com.typesafe" % "sbt-mima-plugin" % "0.9.2")
+addSbtPlugin("com.typesafe" % "sbt-mima-plugin" % "1.0.1")
 
-addSbtPlugin("com.geirsson" % "sbt-ci-release" % "1.5.7")
+addSbtPlugin("com.github.sbt" % "sbt-ci-release" % "1.5.9")
 
 libraryDependencies += "com.github.os72" % "protoc-jar" % "3.11.4"

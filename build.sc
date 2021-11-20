@@ -55,7 +55,7 @@ class firrtlCrossModule(val crossScalaVersion: String)
       ivy"com.lihaoyi::os-lib:0.7.8"
     ) ++ {
       if (majorVersion == 13)
-        Agg(ivy"org.scala-lang.modules::scala-parallel-collections:1.0.3")
+        Agg(ivy"org.scala-lang.modules::scala-parallel-collections:1.0.4")
       else
         Agg()
     }
@@ -67,8 +67,8 @@ class firrtlCrossModule(val crossScalaVersion: String)
   object test extends Tests {
     override def ivyDeps = T {
       Agg(
-        ivy"org.scalatest::scalatest:3.2.9",
-        ivy"org.scalatestplus::scalacheck-1-14:3.1.3.0"
+        ivy"org.scalatest::scalatest:3.2.10",
+        ivy"org.scalatestplus::scalacheck-1-15:3.2.10.0"
       )
     }
 
