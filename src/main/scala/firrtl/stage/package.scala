@@ -4,7 +4,6 @@ package firrtl
 
 import firrtl.annotations.DeletedAnnotation
 import firrtl.options.OptionsView
-import firrtl.stage.phases.WriteEmitted
 import logger.LazyLogging
 
 /** The [[stage]] package provides an implementation of the FIRRTL compiler using the [[firrtl.options]] package. This
@@ -35,6 +34,7 @@ package object stage {
           case WarnNoScalaVersionDeprecation => c
           case PrettyNoExprInlining          => c
           case _: DisableFold => c
+          case AllowUnrecognizedAnnotations    => c
           case CurrentFirrtlStateAnnotation(a) => c
         }
       }
