@@ -15,16 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        scala: [2.13.6, 2.12.14]
-    container:
-      image: ucbbar/chisel3-tools
-      options: --user github --entrypoint /bin/bash
-    env:
-      CONTAINER_HOME: /home/github
+        scala: [2.13.7, 2.12.15]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - name: Install Tabby OSS Cad Suite (from YosysHQ)
+        uses: YosysHQ/setup-oss-cad-suite@v1
+        with:
+          osscadsuite-version: '2021-11-09'
       - name: Setup Scala
         uses: olafurpg/setup-scala@v10
         with:
@@ -51,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        scala: [2.13.6, 2.12.14]
+        scala: [2.13.7, 2.12.15]
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -71,15 +70,14 @@ jobs:
     strategy:
       matrix:
         design: [RocketCore, FPU, ICache, Ops, AddNot]
-    container:
-      image: ucbbar/chisel3-tools
-      options: --user github --entrypoint /bin/bash
-    env:
-      CONTAINER_HOME: /home/github
 
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+      - name: Install Tabby OSS Cad Suite (from YosysHQ)
+        uses: YosysHQ/setup-oss-cad-suite@v1
+        with:
+          osscadsuite-version: '2021-11-09'
       - name: Setup Scala
         uses: olafurpg/setup-scala@v10
         with:
