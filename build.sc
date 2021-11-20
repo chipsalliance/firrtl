@@ -48,14 +48,14 @@ class firrtlCrossModule(val crossScalaVersion: String)
       ivy"com.github.scopt::scopt:3.7.1",
       ivy"net.jcazevedo::moultingyaml:0.4.2",
       ivy"org.json4s::json4s-native:3.6.12",
-      ivy"org.apache.commons:commons-text:1.8",
+      ivy"org.apache.commons:commons-text:1.9",
       ivy"io.github.alexarchambault::data-class:0.2.5",
       ivy"org.antlr:antlr4-runtime:$antlr4Version",
       ivy"com.google.protobuf:protobuf-java:$protocVersion",
       ivy"com.lihaoyi::os-lib:0.7.8"
     ) ++ {
       if (majorVersion == 13)
-        Agg(ivy"org.scala-lang.modules::scala-parallel-collections:1.0.3")
+        Agg(ivy"org.scala-lang.modules::scala-parallel-collections:1.0.4")
       else
         Agg()
     }

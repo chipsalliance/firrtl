@@ -34,7 +34,7 @@ lazy val firrtlSettings = Seq(
     "com.github.scopt" %% "scopt" % "3.7.1",
     "net.jcazevedo" %% "moultingyaml" % "0.4.2",
     "org.json4s" %% "json4s-native" % "3.6.12",
-    "org.apache.commons" % "commons-text" % "1.8",
+    "org.apache.commons" % "commons-text" % "1.9",
     "io.github.alexarchambault" %% "data-class" % "0.2.5",
     "com.lihaoyi" %% "os-lib" % "0.7.8"
   ),
@@ -51,7 +51,7 @@ lazy val firrtlSettings = Seq(
   libraryDependencies ++= {
     CrossVersion.partialVersion(scalaVersion.value) match {
       case Some((2, major)) if major <= 12 => Seq()
-      case _                               => Seq("org.scala-lang.modules" %% "scala-parallel-collections" % "1.0.3")
+      case _                               => Seq("org.scala-lang.modules" %% "scala-parallel-collections" % "1.0.4")
     }
   },
   resolvers ++= Seq(
