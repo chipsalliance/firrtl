@@ -198,8 +198,11 @@ trait HasCommonOptions {
   * Derived from the fields of the execution options
   * @see [[FirrtlExecutionOptions.getOutputConfig]]
   */
+@deprecated("Use a FirrtlOptionsView or construct your own view of an AnnotationSeq", "FIRRTL 1.4")
 sealed abstract class OutputConfig
+@deprecated("Use a FirrtlOptionsView or construct your own view of an AnnotationSeq", "FIRRTL 1.4")
 final case class SingleFile(targetFile: String) extends OutputConfig
+@deprecated("Use a FirrtlOptionsView or construct your own view of an AnnotationSeq", "FIRRTL 1.4")
 final case class OneFilePerModule(targetDir: String) extends OutputConfig
 
 /**
