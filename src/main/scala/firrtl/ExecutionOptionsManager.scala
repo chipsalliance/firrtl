@@ -26,11 +26,6 @@ import firrtl.transforms.{DontCheckCombLoopsAnnotation, NoDCEAnnotation}
 
 import scala.collection.Seq
 
-/** Firrtl output configuration specified by [[FirrtlExecutionOptions]]
-  *
-  * Derived from the fields of the execution options
-  * @see [[FirrtlExecutionOptions.getOutputConfig]]
-  */
 sealed abstract class OutputConfig
 final case class SingleFile(targetFile: String) extends OutputConfig
 final case class OneFilePerModule(targetDir: String) extends OutputConfig
