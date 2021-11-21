@@ -3,7 +3,6 @@
 package firrtlTests
 
 import java.io.{File, FileWriter}
-
 import org.scalatest.freespec.AnyFreeSpec
 import org.scalatest.matchers.should.Matchers
 import firrtl.passes.InlineAnnotation
@@ -12,7 +11,7 @@ import firrtl.transforms.BlackBoxTargetDirAnno
 import firrtl._
 import firrtl.FileUtils
 import firrtl.annotations._
-import firrtl.util.BackendCompilationUtilities
+import firrtl.util.BackendCompilationUtilities._
 import firrtl.testutils.FirrtlFlatSpec
 
 import scala.util.Success
@@ -31,7 +30,7 @@ object ExceptingTransform {
 }
 
 //noinspection ScalaStyle
-class DriverSpec extends AnyFreeSpec with Matchers with BackendCompilationUtilities {
+class DriverSpec extends AnyFreeSpec with Matchers {
   val outputDir = createTestDirectory("DriverSpec")
   "CommonOptions are some simple options available across the chisel3 ecosystem" - {
     "CommonOption provide an scopt implementation of an OptionParser" - {

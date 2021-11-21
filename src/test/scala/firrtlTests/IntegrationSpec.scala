@@ -4,6 +4,7 @@ package firrtlTests
 
 import firrtl._
 import firrtl.testutils._
+import firrtl.util.BackendCompilationUtilities._
 
 import java.io.File
 

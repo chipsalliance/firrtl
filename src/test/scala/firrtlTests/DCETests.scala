@@ -8,6 +8,7 @@ import firrtl.transforms._
 import firrtl.annotations._
 import firrtl.passes.memlib.SimpleTransform
 import firrtl.testutils._
+import firrtl.util.BackendCompilationUtilities.createTestDirectory
 
 import java.io.File
 import java.nio.file.Paths
