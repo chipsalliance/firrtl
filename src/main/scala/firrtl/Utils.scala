@@ -264,10 +264,6 @@ object Utils extends LazyLogging {
 
   def isTemp(str: String): Boolean = str.head == '_'
 
-  /** Indent the results of [[ir.FirrtlNode.serialize]] */
-  @deprecated("Use ther new firrt.ir.Serializer instead.", "FIRRTL 1.4")
-  def indent(str: String) = str.replaceAllLiterally("\n", "\n  ")
-
   implicit def toWrappedExpression(x: Expression): WrappedExpression = new WrappedExpression(x)
   def getSIntWidth(s:                 BigInt):     Int = s.bitLength + 1
   def getUIntWidth(u:                 BigInt):     Int = u.bitLength
