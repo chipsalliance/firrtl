@@ -118,7 +118,7 @@ object Logger {
     * @tparam A return type of the code block
     * @return the original return of the code block
     */
-  def makeScope[A](options: AnnotationSeq)(codeBlock: => A): A = {
+  def makeScope[A](options: AnnotationSeq = Seq.empty)(codeBlock: => A): A = {
     val runState: LoggerState = {
       val newRunState = updatableLoggerState.value.getOrElse(new LoggerState)
       if (newRunState.fromInvoke) {
