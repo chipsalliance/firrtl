@@ -6,6 +6,7 @@ import firrtl._
 import firrtl.annotations._
 import firrtl.annotations.analysis.DuplicationHelper
 import firrtl.annotations.transforms.{NoSuchTargetException}
+import firrtl.stage.Forms
 import firrtl.transforms.{DedupedResult, DontTouchAnnotation}
 import firrtl.testutils.{FirrtlMatchers, FirrtlPropSpec}
 
@@ -15,8 +16,10 @@ object EliminateTargetPathsSpec {
     override def duplicate(n: Target): Annotation = DummyAnnotation(n)
   }
   class DummyTransform() extends Transform with ResolvedAnnotationPaths {
-    override def inputForm:  CircuitForm = LowForm
-    override def outputForm: CircuitForm = LowForm
+    override def prerequisites = Forms.LowForm
+    override def optionalPrerequisites = Forms.LowFormOptimized
+    override def optionalPrerequisiteOf = Forms.LowEmitters
+    override def invalidates(a: Transform) = false
 
     override val annotationClasses: Traversable[Class[_]] = Seq(classOf[DummyAnnotation])
 

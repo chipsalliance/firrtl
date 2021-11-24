@@ -600,9 +600,6 @@ class JsonAnnotationTests extends AnnotationTests {
   }
 
   object DoNothingTransform extends Transform {
-    override def inputForm:  CircuitForm = UnknownForm
-    override def outputForm: CircuitForm = UnknownForm
-
     def execute(state: CircuitState): CircuitState = state
   }
 

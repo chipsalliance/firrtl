@@ -27,8 +27,6 @@ trait WrappedTransform { this: Transform =>
 
   final override protected val logger = new Logger(trueUnderlying.getClass.getName)
 
-  override def inputForm = underlying.inputForm
-  override def outputForm = underlying.outputForm
   override def prerequisites = underlying.prerequisites
   @deprecated(
     "Due to confusion, 'dependents' is being renamed to 'optionalPrerequisiteOf'. Override the latter instead.",

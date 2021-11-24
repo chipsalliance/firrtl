@@ -153,8 +153,6 @@ object CompilerSpec {
     mutable.Queue.empty[Class[_ <: Transform]]
 
   class LoggingTransform extends Transform {
-    override def inputForm = UnknownForm
-    override def outputForm = UnknownForm
     override def prerequisites = Forms.HighForm
     override def invalidates(a: Transform) = false
     def execute(c: CircuitState): CircuitState = {
