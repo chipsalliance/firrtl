@@ -274,22 +274,6 @@ class LoggerSpec extends AnyFreeSpec with Matchers with OneInstancePerTest with 
           messagesLogged.contains("logger3") should be(true)
         }
       }
-      "Show logging can be set with command options" in {
-        val captor = new Logger.OutputCaptor
-
-        Logger.makeScope(Array("--class-log-level", "loggertests.LogsInfo3:info")) {
-          Logger.setOutput(captor.printStream)
-          val r2 = new LogsInfo2
-          val r3 = new LogsInfo3
-          r2.run()
-          r3.run()
-
-          val messagesLogged = captor.getOutputAsString
-
-          messagesLogged.contains("logger2") should be(false)
-          messagesLogged.contains("logger3") should be(true)
-        }
-      }
       "Show that printstream remains across makeScopes" in {
         Logger.makeScope() {
           val captor = new Logger.OutputCaptor
