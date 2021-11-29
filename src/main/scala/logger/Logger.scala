@@ -28,7 +28,10 @@ import scala.util.DynamicVariable
   * The supported log levels, what do they mean? Whatever you want them to.
   */
 object LogLevel extends Enumeration {
+  // None indicates "not set"
   val Error, Warn, Info, Debug, Trace, None = Value
+
+  def default = Warn
 
   def apply(s: String): LogLevel.Value = s.toLowerCase match {
     case "error" => LogLevel.Error
@@ -53,7 +56,7 @@ trait LazyLogging {
   * when used in multi-threaded environments
   */
 private class LoggerState {
-  var globalLevel = LogLevel.Warn
+  var globalLevel = LogLevel.None
   val classLevels = new scala.collection.mutable.HashMap[String, LogLevel.Value]
   val classToLevelCache = new scala.collection.mutable.HashMap[String, LogLevel.Value]
   var logClassNames = false
@@ -204,17 +207,16 @@ object Logger {
       case Some(true)  => logIt()
       case Some(false) =>
       case None =>
-        if (
-          (state.globalLevel == LogLevel.None && level == LogLevel.Error) ||
-          (state.globalLevel != LogLevel.None && state.globalLevel >= level)
-        ) {
+        if (getGlobalLevel >= level) {
           logIt()
         }
     }
   }
 
-  def getGlobalLevel: LogLevel.Value = {
-    state.globalLevel
+  def getGlobalLevel: LogLevel.Value = state.globalLevel match {
+    // None means "not set" so use default in that case
+    case LogLevel.None => LogLevel.default
+    case other         => other
   }
 
   /**
@@ -330,7 +332,6 @@ object Logger {
       case (x, LogLevel.None)             => x
       case (LogLevel.None, x)             => x
       case (_, x)                         => x
-      case _                              => LogLevel.Error
     }
     setClassLogLevels(lopts.classLogLevels)
 
