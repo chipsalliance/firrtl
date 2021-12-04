@@ -63,6 +63,67 @@ case class CustomRadixConfigFileAnnotation(
   }.getBytes
 }
 
+/** Dumps a Tcl script for GTKWave on Custom Radix, using GTKWave's `setCurrentTranslateEnums` and `installFileFilter`
+  * If you want to generate the script through [[AnnotationSeq]], use:
+  * {{{
+  *   Seq(
+  *     GTKWaveCustomRadixScriptAnnotation(Seq(), Seq()),
+  *     RunFirrtlTransformAnnotation(Dependency(CustomRadixTransform))
+  *   )
+  * }}}
+  *
+  * You can pass
+  * {{{
+  *   Array("--wave-viewer-script", "gtkwave")
+  * }}}
+  * to `args` for the sake of ease.
+  *
+  * @param signals which alias contains which signals, the signals should be converted from ReferenceTarget to String
+  * @param filters sequence of [[CustomRadixDefAnnotation]], the name should match [[signals]].map(_._1)
+  */
+case class GTKWaveCustomRadixScriptAnnotation(
+  signals: Seq[(AliasName, Seq[String])],
+  filters: Seq[CustomRadixDefAnnotation])
+    extends CustomRadixScriptAnnotation {
+  def waveViewer: String = "gtkwave"
+  def suffix:     Option[String] = Some(".tcl")
+
+  private def toStr(bigInt: BigInt, width: Int, base: Int) =
+    if (base == 2) String.format(s"%${width}s", bigInt.toString(2)).replace(' ', '0')
+    else s"%0${math.ceil(width / 4.0).toInt}x".format(bigInt)
+
+  def getBytes: Iterable[Byte] = {
+    val aliasWidth = filters.map(a => a.name -> a.width).toMap
+    val setTranslateFilters = filters.map { a =>
+      val values = a.filters.map {
+        case (bigInt, str) => s"${toStr(bigInt, a.width, 16)} $str ${toStr(bigInt, a.width, 2)} $str"
+      }.mkString(" ")
+      s"""set enum_${a.name} {$values}
+         |set file_${a.name} [ gtkwave::setCurrentTranslateEnums $${enum_${a.name}} ]
+         |""".stripMargin
+    }.mkString("\n\n")
+    val applyTranslateFilters = signals.map {
+      case (aliasName, sigNames) =>
+        val width = aliasWidth(aliasName)
+        val names = sigNames.map(n => n + (if (width == 1) "" else s"[${width - 1}:0]")).mkString(" ")
+        s"signalShowString {$names} $${file_$aliasName}"
+    }.mkString("\n\n")
+    val procSignalShowString =
+      """proc signalShowString {signals fileFilter} {
+        |    gtkwave::addSignalsFromList $signals
+        |    gtkwave::highlightSignalsFromList $signals
+        |    gtkwave::installFileFilter $fileFilter
+        |    gtkwave::unhighlightSignalsFromList $signals
+        |}
+        |""".stripMargin
+
+    s"""$procSignalShowString
+       |$setTranslateFilters
+       |$applyTranslateFilters
+       |""".stripMargin
+  }.getBytes
+}
+
 /** A Transform that generate scripts or config file for Custom Radix */
 object CustomRadixTransform extends Transform with DependencyAPIMigration with HasShellOptions {
 
@@ -76,11 +137,12 @@ object CustomRadixTransform extends Transform with DependencyAPIMigration with H
         RunFirrtlTransformAnnotation(Dependency(CustomRadixTransform)) +: str.toLowerCase
           .split(',')
           .map {
+            case "gtkwave"   => GTKWaveCustomRadixScriptAnnotation(Seq.empty, Seq.empty)
             case "json" | "" => CustomRadixConfigFileAnnotation(Seq.empty, Seq.empty)
           }
           .toSeq
       },
-      helpText = "<json>, you can combine them like 'json', pass empty string will generate json",
+      helpText = "<gtkwave|json>, you can combine them like 'gtkwave,json', pass empty string will generate json",
       shortOption = None
     )
   )
@@ -103,6 +165,7 @@ object CustomRadixTransform extends Transform with DependencyAPIMigration with H
 
     state.copy(annotations = annos.map {
       case _: CustomRadixConfigFileAnnotation    => CustomRadixConfigFileAnnotation(signals, filters)
+      case _: GTKWaveCustomRadixScriptAnnotation => GTKWaveCustomRadixScriptAnnotation(signals, filters)
       case a => a
     })
   }

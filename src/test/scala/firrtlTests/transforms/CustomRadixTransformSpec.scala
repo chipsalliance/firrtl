@@ -126,4 +126,22 @@ class CustomRadixTransformSpec extends FirrtlFlatSpec {
         |}]""".stripMargin
     assert(expected == os.read(testDir / "custom_radix_config.json"))
   }
+
+  it should "generate a GTKWave script file" in {
+    (new FirrtlStage).execute(Array("--wave-viewer-script", "gtkwave", "--target-dir", testDir.toString), annotations)
+    val expected =
+      """proc signalShowString {signals fileFilter} {
+        |    gtkwave::addSignalsFromList $signals
+        |    gtkwave::highlightSignalsFromList $signals
+        |    gtkwave::installFileFilter $fileFilter
+        |    gtkwave::unhighlightSignalsFromList $signals
+        |}
+        |
+        |set enum_EnumExample {00 e0 0000000 e0 01 e1 0000001 e1 02 e2 0000010 e2 64 e100 1100100 e100 65 e101 1100101 e101}
+        |set file_EnumExample [ gtkwave::setCurrentTranslateEnums ${enum_EnumExample} ]
+        |
+        |signalShowString {M2.m1.pt.io_i[6:0] M2.m1.pt.io_o[6:0] M2.in[6:0]} ${file_EnumExample}
+        |""".stripMargin
+    assert(expected == os.read(testDir / "custom_radix_gtkwave.tcl"))
+  }
 }
