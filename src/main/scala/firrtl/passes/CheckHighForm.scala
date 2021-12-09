@@ -117,32 +117,11 @@ trait CheckHighFormLike { this: Pass =>
       case a: AggregateType => a.mapType(stripWidth)
     }
 
-    val extmoduleCollidingPorts = c.modules.collect {
-      case a: ExtModule => a
-    }.groupBy(a => (a.defname, a.params.nonEmpty))
-      .map {
-        /* There are no parameters, so all ports must match exactly. */
-        case (k @ (_, false), a) =>
-          k -> a.map(_.copy(info = NoInfo)).map(_.ports.map(_.copy(info = NoInfo))).toSet
-        /* If there are parameters, then only port names must match because parameters could parameterize widths.
-         * This means that this check cannot produce false positives, but can have false negatives.
-         */
-        case (k @ (_, true), a) =>
-          k -> a.map(_.copy(info = NoInfo)).map(_.ports.map(_.copy(info = NoInfo).mapType(stripWidth))).toSet
-      }
-      .filter(_._2.size > 1)
-
     c.modules.collect {
       case a: ExtModule =>
         a match {
           case ExtModule(info, name, _, defname, _) if (intModuleNames.contains(defname)) =>
             errors.append(new DefnameConflictException(info, name, defname))
-          case _ =>
-        }
-        a match {
-          case ExtModule(info, name, _, defname, params)
-              if extmoduleCollidingPorts.contains((defname, params.nonEmpty)) =>
-            errors.append(new DefnameDifferentPortsException(info, name, defname))
           case _ =>
         }
     }
