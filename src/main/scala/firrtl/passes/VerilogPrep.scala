@@ -43,14 +43,22 @@ object VerilogPrep extends Pass {
 
   type AttachSourceMap = Map[WrappedExpression, Expression]
 
+  // Used to record and lookup instance ports that are connected directly to a reference
+  private type ConnectLookup = Expression => Option[Expression]
+
   // Finds attaches with only a single source (Port or Wire)
   //   - Creates a map of attached expressions to their source
   //   - Removes the Attach
-  private def collectAndRemoveAttach(m: DefModule): (DefModule, AttachSourceMap) = {
+  private def collectAndRemoveAttach(m: DefModule): (DefModule, AttachSourceMap, ConnectLookup) = {
     val sourceMap = mutable.HashMap.empty[WrappedExpression, Expression]
+    val connectMap = mutable.HashMap.empty[WrappedExpression, Expression]
     lazy val namespace = Namespace(m)
 
     def onStmt(stmt: Statement): Statement = stmt.map(onStmt) match {
+      case c @ Connect(_, lhs: RefLikeExpression, rhs: RefLikeExpression) =>
+        connectMap(lhs) = rhs
+        connectMap(rhs) = lhs
+        c
       case attach: Attach =>
         val wires = attach.exprs.groupBy(kind)
         val sources = wires.getOrElse(PortKind, Seq.empty) ++ wires.getOrElse(WireKind, Seq.empty)
@@ -75,7 +83,7 @@ object VerilogPrep extends Pass {
       case s => s
     }
 
-    (m.map(onStmt), sourceMap.toMap)
+    (m.map(onStmt), sourceMap.toMap, e => connectMap.get(e))
   }
 
   def run(c: Circuit): Circuit = {
@@ -85,12 +93,12 @@ object VerilogPrep extends Pass {
       case _ => e.map(lowerE)
     }
 
-    def lowerS(attachMap: AttachSourceMap)(s: Statement): Statement = s match {
+    def lowerS(attachMap: AttachSourceMap, connectLookup: ConnectLookup)(s: Statement): Statement = s match {
       case WDefInstance(info, name, module, tpe) =>
         val portRefs = create_exps(WRef(name, tpe, ExpKind, SourceFlow))
         val (portCons, wires) = portRefs.map { p =>
-          attachMap.get(p) match {
-            // If it has a source in attachMap use that
+          attachMap.get(p).orElse(connectLookup(p)) match {
+            // If it has a source in attachMap or connectLookup, use that
             case Some(ref) => (p -> ref, None)
             // If no source, create a wire corresponding to the port and connect it up
             case None =>
@@ -100,12 +108,12 @@ object VerilogPrep extends Pass {
         }.unzip
         val newInst = WDefInstanceConnector(info, name, module, tpe, portCons)
         Block(wires.flatten :+ newInst)
-      case other => other.map(lowerS(attachMap)).map(lowerE)
+      case other => other.map(lowerS(attachMap, connectLookup)).map(lowerE)
     }
 
     val modulesx = c.modules.map { mod =>
-      val (modx, attachMap) = collectAndRemoveAttach(mod)
-      modx.map(lowerS(attachMap))
+      val (modx, attachMap, connectLookup) = collectAndRemoveAttach(mod)
+      modx.map(lowerS(attachMap, connectLookup))
     }
     c.copy(modules = modulesx)
   }
