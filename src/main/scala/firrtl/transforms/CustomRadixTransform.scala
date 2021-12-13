@@ -7,7 +7,6 @@ import firrtl.annotations.{Annotation, NoTargetAnnotation, ReferenceTarget, Sing
 import firrtl.options.{CustomFileEmission, Dependency, HasShellOptions, ShellOption}
 import firrtl.stage.TransformManager.TransformDependency
 import firrtl.stage.{Forms, RunFirrtlTransformAnnotation}
-import firrtl.transforms.CustomRadixTransform.{AliasName, AliasValue}
 import firrtl.{AnnotationSeq, CircuitState, DependencyAPIMigration, Transform}
 
 /** Contains a static map from signal value(BigInt) to signal name(String)
@@ -17,22 +16,16 @@ import firrtl.{AnnotationSeq, CircuitState, DependencyAPIMigration, Transform}
   * @param filters a sequence of translation filter
   * @param width width of this alias
   */
-case class CustomRadixDefAnnotation(name: AliasName, filters: Seq[AliasValue], width: Int) extends NoTargetAnnotation
+case class CustomRadixDefAnnotation(name: String, filters: Seq[(BigInt, String)], width: Int) extends NoTargetAnnotation
 
 /** A annotation making a ReferenceTarget to be a specific [[CustomRadixDefAnnotation]].
   *
   * @param target the ReferenceTarget which the alias applied to
   * @param name the identifier for the alias
   */
-case class CustomRadixApplyAnnotation(target: ReferenceTarget, name: AliasName)
+case class CustomRadixApplyAnnotation(target: ReferenceTarget, name: String)
     extends SingleTargetAnnotation[ReferenceTarget] {
   override def duplicate(n: ReferenceTarget): Annotation = this.copy(n)
-}
-
-private[firrtl] trait CustomRadixScriptAnnotation extends NoTargetAnnotation with CustomFileEmission {
-  def waveViewer: String
-
-  final def baseFileName(annotations: AnnotationSeq): String = "custom_radix_" + waveViewer
 }
 
 /** Dumps a JSON config file for custom radix. Users can generate script using the emitted file.
@@ -41,10 +34,12 @@ private[firrtl] trait CustomRadixScriptAnnotation extends NoTargetAnnotation wit
   * @param filters sequence of [[CustomRadixDefAnnotation]], the name should match [[signals]].map(_._1)
   */
 case class CustomRadixConfigFileAnnotation(
-  signals: Seq[(AliasName, Seq[String])],
+  signals: Seq[(String, Seq[String])],
   filters: Seq[CustomRadixDefAnnotation])
-    extends CustomRadixScriptAnnotation {
+    extends NoTargetAnnotation
+    with CustomFileEmission {
   def waveViewer = "config"
+  def baseFileName(annotations: AnnotationSeq): String = "custom_radix"
   def suffix: Option[String] = Some(".json")
 
   def getBytes: Iterable[Byte] = {
@@ -53,11 +48,18 @@ case class CustomRadixConfigFileAnnotation(
     val aliasMap = signals.toMap
     pretty(
       render(
-        filters.map(a =>
-          a.name -> (("width" -> a.width) ~ ("values" -> a.filters.map {
-            case (int, str) => ("digit" -> int) ~ ("alias" -> str)
-          }) ~ ("signals" -> aliasMap(a.name)))
-        )
+        filters.map { a =>
+          val values = a.filters.map {
+            case (int, str) =>
+              ("digit" -> int) ~
+                ("alias" -> str)
+          }
+          a.name -> (
+            ("width" -> a.width) ~
+              ("values" -> values) ~
+              ("signals" -> aliasMap(a.name))
+          )
+        }
       )
     )
   }.getBytes
@@ -65,9 +67,6 @@ case class CustomRadixConfigFileAnnotation(
 
 /** A Transform that generate scripts or config file for Custom Radix */
 object CustomRadixTransform extends Transform with DependencyAPIMigration with HasShellOptions {
-
-  private[firrtl] type AliasName = String
-  private[firrtl] type AliasValue = (BigInt, String)
 
   val options = Seq(
     new ShellOption[String](
@@ -94,15 +93,22 @@ object CustomRadixTransform extends Transform with DependencyAPIMigration with H
     def toVerilogName(target: ReferenceTarget) =
       (target.circuit +: target.tokens.collect { case Instance(i) => i } :+ target.ref).mkString(".")
     // todo if scalaVersion >= 2.13: use groupMap
-    val signals = annos.collect { case CustomRadixApplyAnnotation(target, name) => name -> target }
+    val filters = annos.collect { case a: CustomRadixDefAnnotation => a }
+
+    val signals = annos.collect {
+      case CustomRadixApplyAnnotation(target, name) =>
+        assert(filters.exists(_.name == name), s"$name not found in CustomRadixDefAnnotation.")
+        name -> target
+    }
       .groupBy(_._1)
       .mapValues(_.map(t => toVerilogName(t._2)))
       .toSeq
       .sortBy(_._1)
-    val filters = annos.collect { case a: CustomRadixDefAnnotation => a }
+
+    assert(filters.groupBy(_.name).forall(_._2.length == 1), "name collision in CustomRadixDefAnnotation detected.")
 
     state.copy(annotations = annos.map {
-      case _: CustomRadixConfigFileAnnotation    => CustomRadixConfigFileAnnotation(signals, filters)
+      case _: CustomRadixConfigFileAnnotation => CustomRadixConfigFileAnnotation(signals, filters)
       case a => a
     })
   }

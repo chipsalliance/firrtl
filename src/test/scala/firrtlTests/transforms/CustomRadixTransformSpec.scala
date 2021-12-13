@@ -124,6 +124,6 @@ class CustomRadixTransformSpec extends FirrtlFlatSpec {
         |    "signals":["M2.m1.pt.io_i","M2.m1.pt.io_o","M2.in"]
         |  }
         |}]""".stripMargin
-    assert(expected == os.read(testDir / "custom_radix_config.json"))
+    assert(expected == os.read(testDir / "custom_radix.json"))
   }
 }
