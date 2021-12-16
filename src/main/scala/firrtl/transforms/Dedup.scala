@@ -152,7 +152,7 @@ class DedupModules extends Transform with DependencyAPIMigration {
     c:                  Circuit,
     noDedups:           Seq[String],
     previouslyDupedMap: Map[String, String],
-    dedupDomains:       Map[String, Seq[String]] = Map.empty
+    dedupDomains:       Map[String, DedupDomain] = Map.empty
   ): (Circuit, RenameMap, AnnotationSeq) = {
 
     // RenameMap
@@ -483,7 +483,7 @@ object DedupModules extends LazyLogging {
     top:                 CircuitTarget,
     moduleLinearization: Seq[DefModule],
     noDedups:            Set[String],
-    dedupDomains:        Map[String, Seq[String]]
+    dedupDomains:        Map[String, DedupDomain]
   ): (collection.Map[String, collection.Set[String]], RenameMap) = {
     // maps hash code to human readable tag
     val hashToTag = mutable.HashMap[ir.HashCode, String]()
@@ -497,7 +497,7 @@ object DedupModules extends LazyLogging {
     val dontAgnostifyPorts = modsToNotAgnostifyPorts(moduleLinearization)
 
     moduleLinearization.foreach { originalModule =>
-      val dedupDomain: Option[Seq[String]] = dedupDomains.get(originalModule.name)
+      val dedupDomain: Option[DedupDomain] = dedupDomains.get(originalModule.name)
 
       val domainedModule = originalModule match {
         // Hack: Create a dummy port in the module that corresponds to the deduplication domain.
@@ -507,9 +507,9 @@ object DedupModules extends LazyLogging {
             name,
             ports :+ Port(
               NoInfo,
-              dedupDomain.get.hashCode.toString,
+              dedupDomain.get.modules.hashCode.toString,
               Output,
-              UIntType(firrtl.ir.IntWidth(dedupDomain.get.hashCode))
+              UIntType(firrtl.ir.IntWidth(dedupDomain.get.modules.hashCode))
             ),
             body
           )
@@ -551,7 +551,7 @@ object DedupModules extends LazyLogging {
   def deduplicate(
     circuit:            Circuit,
     noDedups:           Set[String],
-    dedupDomains:       Map[String, Seq[String]],
+    dedupDomains:       Map[String, DedupDomain],
     previousDupResults: Map[String, String],
     renameMap:          RenameMap
   ): Map[String, DefModule] = {
