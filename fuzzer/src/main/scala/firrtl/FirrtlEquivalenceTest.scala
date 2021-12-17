@@ -13,6 +13,7 @@ import firrtl.annotations.{Annotation, CircuitTarget, ModuleTarget, Target}
 import firrtl.ir.Circuit
 import firrtl.options.Dependency
 import firrtl.options.phases.WriteOutputAnnotations
+import firrtl.renamemap.MutableRenameMap
 import firrtl.stage.{FirrtlCircuitAnnotation, InfoModeAnnotation, OutputFileAnnotation, TransformManager}
 import firrtl.stage.Forms.{VerilogMinimumOptimized, VerilogOptimized}
 import firrtl.transforms.{InlineBooleanExpressions, ManipulateNames}
@@ -36,7 +37,7 @@ object FirrtlEquivalenceTestUtils {
         case _: CircuitTarget => true
         case _: Target => false
       }
-      val renames = RenameMap()
+      val renames = MutableRenameMap()
       val circuitx = run(state.circuit, renames, block, allow)
       state.copy(circuit = circuitx, renames = Some(renames))
     }

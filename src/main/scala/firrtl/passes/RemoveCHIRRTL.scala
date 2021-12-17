@@ -9,6 +9,7 @@ import firrtl.ir._
 import firrtl.Utils._
 import firrtl.Mappers._
 import firrtl.options.Dependency
+import firrtl.renamemap.MutableRenameMap
 
 case class MPort(name: String, clk: Expression)
 case class MPorts(readers: ArrayBuffer[MPort], writers: ArrayBuffer[MPort], readwriters: ArrayBuffer[MPort])
@@ -84,7 +85,7 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
     types:   MPortTypeMap,
     refs:    DataRefMap,
     raddrs:  AddrMap,
-    renames: RenameMap
+    renames: MutableRenameMap
   )(s:       Statement
   ): Statement = s match {
     case sx: CDefMemory =>
@@ -285,7 +286,7 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
     }
   }
 
-  def remove_chirrtl_m(renames: RenameMap)(m: DefModule): DefModule = {
+  def remove_chirrtl_m(renames: MutableRenameMap)(m: DefModule): DefModule = {
     val mports = new MPortMap
     val smems = new SeqMemSet
     val types = new MPortTypeMap
@@ -299,7 +300,7 @@ object RemoveCHIRRTL extends Transform with DependencyAPIMigration {
 
   def execute(state: CircuitState): CircuitState = {
     val c = state.circuit
-    val renames = RenameMap()
+    val renames = MutableRenameMap()
     renames.setCircuit(c.main)
     val result = c.copy(modules = c.modules.map(remove_chirrtl_m(renames)))
     state.copy(circuit = result, renames = Some(renames))

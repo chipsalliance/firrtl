@@ -13,6 +13,7 @@ import firrtl.ir.Circuit
 import firrtl.Utils.throwInternalError
 import firrtl.annotations.transforms.{EliminateTargetPaths, ResolvePaths}
 import firrtl.options.{Dependency, DependencyAPI, StageUtils, TransformLike}
+import firrtl.renamemap.MutableRenameMap
 import firrtl.stage.Forms
 import firrtl.transforms.DedupAnnotationsTransform
 
@@ -249,7 +250,7 @@ private[firrtl] object Transform {
     }
 
     // For each annotation, rename all annotations.
-    val renames = renameOpt.getOrElse(RenameMap())
+    val renames = renameOpt.getOrElse(MutableRenameMap())
     val remapped2original = mutable.LinkedHashMap[Annotation, mutable.LinkedHashSet[Annotation]]()
     val keysOfNote = mutable.LinkedHashSet[Annotation]()
     val finalAnnotations = newAnnotations.flatMap { anno =>

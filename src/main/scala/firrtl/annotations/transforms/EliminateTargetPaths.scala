@@ -13,6 +13,7 @@ import firrtl.{AnnotationSeq, CircuitState, DependencyAPIMigration, FirrtlIntern
 import firrtl.stage.Forms
 import firrtl.transforms.DedupedResult
 import firrtl.transforms.DedupAnnotationsTransform
+import firrtl.renamemap.MutableRenameMap
 
 import scala.collection.mutable
 
@@ -45,7 +46,7 @@ case class NoSuchTargetException(message: String) extends FirrtlInternalExceptio
 
 object EliminateTargetPaths {
 
-  def renameModules(c: Circuit, toRename: Map[String, String], renameMap: RenameMap): Circuit = {
+  def renameModules(c: Circuit, toRename: Map[String, String], renameMap: MutableRenameMap): Circuit = {
     val ct = CircuitTarget(c.main)
     val cx = if (toRename.contains(c.main)) {
       renameMap.record(ct, CircuitTarget(toRename(c.main)))
@@ -128,7 +129,11 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration {
     * @param targets
     * @return
     */
-  def run(cir: Circuit, targets: Seq[IsMember], iGraph: InstanceKeyGraph): (Circuit, RenameMap, AnnotationSeq) = {
+  def run(
+    cir:     Circuit,
+    targets: Seq[IsMember],
+    iGraph:  InstanceKeyGraph
+  ): (Circuit, MutableRenameMap, AnnotationSeq) = {
 
     val dupMap = DuplicationHelper(cir.modules.map(_.name).toSet)
 
@@ -159,7 +164,7 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration {
     lazy val finalModuleSet = finalModuleList.map { case a: DefModule => a.name }.toSet
 
     // Records how targets have been renamed
-    val renameMap = RenameMap()
+    val renameMap = MutableRenameMap()
 
     /* Foreach target, calculate the pathless version and only rename targets that are instantiated. Additionally, rename
      * module targets
@@ -264,7 +269,7 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration {
       val cache = mutable.Map.empty[String, Boolean]
       mod => cache.getOrElseUpdate(mod, iGraph.findInstancesInHierarchy(mod).size == 1)
     }
-    val firstRenameMap = RenameMap()
+    val firstRenameMap = MutableRenameMap()
     val nonSingletonTargets = targets.foldRight(Seq.empty[IsMember]) {
       case (t: IsComponent, acc) if t.asPath.nonEmpty =>
         val origPath = t.asPath
@@ -298,7 +303,7 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration {
 
     val (newCircuit, nextRenameMap, newAnnos) = run(state.circuit, nonSingletonTargets, iGraph)
 
-    val renameMap =
+    val renameMap: MutableRenameMap =
       if (firstRenameMap.hasChanges) {
         firstRenameMap.andThen(nextRenameMap)
       } else {
@@ -319,7 +324,7 @@ class EliminateTargetPaths extends Transform with DependencyAPIMigration {
       newCircuit.copy(modules = modulesx)
     }
 
-    val renamedModuleMap = RenameMap()
+    val renamedModuleMap = MutableRenameMap()
 
     // If previous instance target mapped to a single previously deduped module, return original name
     // E.g. if previously ~Top|Top/foo:Foo was deduped to ~Top|Top/foo:Bar, then
