@@ -693,4 +693,45 @@ circuit Top :
          |""".stripMargin
     compileAndEmit(CircuitState(parse(input), ChirrtlForm))
   }
+
+  "ReplSeqMem" should "rename blackbox instances to suggested names" in {
+    val input =
+      """
+        |circuit CustomMemory :
+        |  module CustomMemory :
+        |    input clock : Clock
+        |    input reset : UInt<1>
+        |    output io : {flip rClk : Clock, flip rAddr : UInt<3>, dO : UInt<16>, flip wClk : Clock, flip wAddr : UInt<3>, flip wEn : UInt<1>, flip dI : UInt<16>}
+        |    io is invalid
+        |    smem mem_0 : UInt<16>[7]
+        |    read mport _T_17 = mem_0[io.rAddr], clock
+        |    io.dO <= _T_17
+        |    when io.wEn :
+        |      write mport _T_18 = mem_0[io.wAddr], clock
+        |      _T_18 <= io.dI
+        |""".stripMargin
+    val mems = Set(
+      MemConf("renamed_mem", 7, 16, Map(WritePort -> 1, ReadPort -> 1), None)
+    )
+    val confLoc = "ReplSeqMemTests.confTEMP"
+    val annos = Seq(
+      ReplSeqMemAnnotation.parse("-c:CustomMemory:-o:" + confLoc),
+      SuggestSeqMemNameAnnotation(
+        CircuitTarget("CustomMemory")
+          .module("CustomMemory")
+          .ref("mem_0"),
+        "renamed_mem"
+      )
+    )
+    val res = compileAndEmit(CircuitState(parse(input), ChirrtlForm, annos))
+    checkMemConf(res, mems)
+    (new java.io.File(confLoc)).delete()
+
+    // blackbox
+    res should containLine("extmodule renamed_mem :")
+    res should containLine("inst renamed_mem of renamed_mem")
+    // wrapper
+    res should containLine("module mem_0 :")
+    res should containLine("inst mem_0 of mem_0")
+  }
 }
