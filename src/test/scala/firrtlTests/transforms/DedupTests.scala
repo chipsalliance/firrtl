@@ -1075,6 +1075,6 @@ class DedupModuleTests extends HighTransformSpec {
 
     {
       the[FirrtlUserException] thrownBy execute(input, "", annos)
-    }.getMessage should startWith("Module 'A' was found in two or more deduplication domains")
+    }.getMessage should startWith("Module 'A' was already declared in")
   }
 }
