@@ -4,13 +4,14 @@ package firrtlTests
 package transforms
 
 import java.io._
-
 import firrtl._
 import firrtl.ir.{GroundType, IntWidth, Type}
 import firrtl.Parser
 import firrtl.annotations.{CircuitName, ComponentName, ModuleName, Target}
+import firrtl.stage.FirrtlStage
 import firrtl.transforms.TopWiring._
 import firrtl.testutils._
+import firrtl.util.BackendCompilationUtilities.createTestDirectory
 
 trait TopWiringTestsCommon extends FirrtlRunners {
 
@@ -604,18 +605,20 @@ class TopWiringTests extends MiddleTransformSpec with TopWiringTestsCommon {
       "firrtl.transforms.TopWiring.TopWiringTransform",
       "--input-file",
       inputFile,
-      "--top-name",
-      "Top",
       "--compiler",
       "low",
       "--info-mode",
       "ignore"
     )
-    firrtl.Driver.execute(args) match {
-      case FirrtlExecutionSuccess(_, emitted) =>
-        parse(emitted).serialize should be(parse(input).serialize)
-      case _ => fail
-    }
+    val emitted =
+      try {
+        (new FirrtlStage)
+          .execute(args, Seq())
+          .collectFirst { case EmittedFirrtlCircuitAnnotation(value) => value }
+          .get
+          .value
+      } catch { case _: Throwable => fail }
+    parse(emitted).serialize should be(parse(input).serialize)
   }
 
   "TopWiringTransform" should "remove TopWiringAnnotations" in {
@@ -634,6 +637,17 @@ class TopWiringTests extends MiddleTransformSpec with TopWiringTestsCommon {
 
     outputState.circuit.serialize should include("output bar_foo")
     outputState.annotations.toSeq should be(empty)
+  }
+
+  "Unnamed side-affecting statements" should s"not be included as potential sources" in {
+    val input =
+      """circuit Top :
+        |  module Top :
+        |    input clock : Clock
+        |    printf(clock, UInt<1>(1), "")
+        |    stop(clock, UInt<1>(1), 1)
+        |""".stripMargin
+    execute(input, input, Seq())
   }
 }
 

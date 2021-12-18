@@ -135,7 +135,7 @@ class BlackBoxSourceHelper extends Transform with DependencyAPIMigration {
     //  make[1]: *** No rule to make target `test_run_dir/examples.AccumBlackBox_PeekPokeTest_Verilator345491158/AccumBlackBox.v', needed by `.../chisel-testers/test_run_dir/examples.AccumBlackBox_PeekPokeTest_Verilator345491158/VAccumBlackBoxWrapper.h'.  Stop.
     //  or we end up including the same file multiple times.
     if (verilogSourcesOnly.nonEmpty) {
-      writeTextToFile(verilogSourcesOnly.map(_.getCanonicalPath).mkString("\n"), filelistFile)
+      writeTextToFile(verilogSourcesOnly.map(_.getCanonicalPath).mkString("\n") + "\n", filelistFile)
     }
 
     state
@@ -182,12 +182,6 @@ object BlackBoxSourceHelper {
   }
 
   val defaultFileListName = "firrtl_black_box_resource_files.f"
-
-  @deprecated(
-    "Renamed to defaultFileListName, as the file list name may now be changed with an annotation",
-    "FIRRTL 1.2"
-  )
-  def fileListName = defaultFileListName
 
   def writeTextToFile(text: String, file: File): Unit = {
     val out = new PrintWriter(file)

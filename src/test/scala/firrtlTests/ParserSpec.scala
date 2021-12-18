@@ -4,6 +4,7 @@ package firrtlTests
 
 import firrtl._
 import firrtl.ir._
+import firrtl.stage.{FirrtlCircuitAnnotation, FirrtlSourceAnnotation, FirrtlStage}
 import firrtl.testutils._
 import firrtl.testutils.FirrtlCheckers._
 import org.scalacheck.Gen
@@ -48,8 +49,11 @@ class ParserSpec extends FirrtlFlatSpec {
       "SInt",
       "Analog",
       "Fixed",
+      "Interval",
       "flip",
       "Clock",
+      "Reset",
+      "AsyncReset",
       "wire",
       "reg",
       "reset",
@@ -80,7 +84,11 @@ class ParserSpec extends FirrtlFlatSpec {
       "infer",
       "read",
       "write",
-      "rdwr"
+      "rdwr",
+      "attach",
+      "assert",
+      "assume",
+      "cover"
     ) ++ PrimOps.listing
   }
 
@@ -183,6 +191,15 @@ class ParserSpec extends FirrtlFlatSpec {
     }
   }
 
+  they should "be allowed as names for side effecting statements" in {
+    import KeywordTests._
+    keywords.foreach { keyword =>
+      firrtl.Parser.parse {
+        prelude :+ s"""    assert($keyword, UInt(1), UInt(1), "") : $keyword"""
+      }
+    }
+  }
+
   // ********** Digits as Fields **********
   "Digits" should "be legal fields in bundles and in subexpressions" in {
     val input = """
@@ -275,11 +292,8 @@ class ParserSpec extends FirrtlFlatSpec {
                    |  module Test :
 
                    |""".stripMargin
-    val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
-      firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input))
-    }
     a[SyntaxErrorsException] shouldBe thrownBy {
-      Driver.execute(manager)
+      (new FirrtlStage).execute(Array(), Seq(FirrtlSourceAnnotation(input)))
     }
   }
 
@@ -298,11 +312,8 @@ class ParserSpec extends FirrtlFlatSpec {
                    |    bar.a <- a
                    |    b <- bar.b
       """.stripMargin
-    val manager = new ExecutionOptionsManager("test") with HasFirrtlOptions {
-      firrtlOptions = FirrtlExecutionOptions(firrtlSource = Some(input))
-    }
     a[SyntaxErrorsException] shouldBe thrownBy {
-      Driver.execute(manager)
+      (new FirrtlStage).execute(Array(), Seq(FirrtlSourceAnnotation(input)))
     }
   }
 

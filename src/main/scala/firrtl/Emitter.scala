@@ -5,6 +5,7 @@ package firrtl
 import java.io.File
 import firrtl.annotations.NoTargetAnnotation
 import firrtl.backends.experimental.smt.{Btor2Emitter, SMTLibEmitter}
+import firrtl.backends.experimental.rtlil.RtlilEmitter
 import firrtl.backends.proto.{Emitter => ProtoEmitter}
 import firrtl.options.Viewer.view
 import firrtl.options.{CustomFileEmission, Dependency, HasShellOptions, PhaseException, ShellOption}
@@ -60,6 +61,8 @@ object EmitCircuitAnnotation extends HasShellOptions {
             Seq(RunFirrtlTransformAnnotation(Dependency(Btor2Emitter)), EmitCircuitAnnotation(Btor2Emitter.getClass))
           case "experimental-smt2" | "smt2" =>
             Seq(RunFirrtlTransformAnnotation(Dependency(SMTLibEmitter)), EmitCircuitAnnotation(SMTLibEmitter.getClass))
+          case "experimental-rtlil" =>
+            Seq(RunFirrtlTransformAnnotation(Dependency[RtlilEmitter]), EmitCircuitAnnotation(classOf[RtlilEmitter]))
           case _ => throw new PhaseException(s"Unknown emitter '$a'! (Did you misspell it?)")
         },
       helpText = "Run the specified circuit emitter (all modules in one file)",
@@ -146,6 +149,8 @@ object EmitAllModulesAnnotation extends HasShellOptions {
               RunFirrtlTransformAnnotation(new SystemVerilogEmitter),
               EmitAllModulesAnnotation(classOf[SystemVerilogEmitter])
             )
+          case "experimental-rtlil" =>
+            Seq(RunFirrtlTransformAnnotation(Dependency[RtlilEmitter]), EmitAllModulesAnnotation(classOf[RtlilEmitter]))
           case _ => throw new PhaseException(s"Unknown emitter '$a'! (Did you misspell it?)")
         },
       helpText = "Run the specified module emitter (one file per module)",
@@ -188,6 +193,20 @@ object EmitAllModulesAnnotation extends HasShellOptions {
       helpText = "Run the specified module emitter (one protobuf per module)",
       shortOption = Some("p"),
       helpValueName = Some("<chirrtl|mhigh|high|middle|low|low-opt>")
+    ),
+    new ShellOption[String](
+      longOption = "emission-options",
+      toAnnotationSeq = s =>
+        s.split(",")
+          .map {
+            case "disableMemRandomization" =>
+              CustomDefaultRegisterEmission(useInitAsPreset = true, disableRandomization = true)
+            case "disableRegisterRandomization" => CustomDefaultMemoryEmission(MemoryNoInit)
+            case a                              => throw new PhaseException(s"Unknown emission options '$a'! (Did you misspell it?)")
+          }
+          .toSeq,
+      helpText = "Options to disable random initialization for memory and registers",
+      helpValueName = Some("<disableMemRandomization,disableRegisterRandomization>")
     )
   )
 
