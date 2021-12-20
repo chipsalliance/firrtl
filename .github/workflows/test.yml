@@ -15,18 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        scala: [2.13.6, 2.12.14]
+        scala: [2.13.7, 2.12.15]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Install Tabby OSS Cad Suite (from YosysHQ)
-        run: |
-          cd /home/runner/work/
-          wget https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2021-09-23/oss-cad-suite-linux-x64-20210923.tgz
-          tar -xf oss-cad-suite-linux-x64-20210923.tgz
-          ls /home/runner/work/oss-cad-suite/bin
-          echo "/home/runner/work/oss-cad-suite/bin" >> $GITHUB_PATH
+        uses: YosysHQ/setup-oss-cad-suite@v1
+        with:
+          osscadsuite-version: '2021-11-09'
       - name: Setup Scala
         uses: olafurpg/setup-scala@v10
         with:
@@ -53,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        scala: [2.13.6, 2.12.14]
+        scala: [2.13.7, 2.12.15]
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -78,12 +75,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Install Tabby OSS Cad Suite (from YosysHQ)
-        run: |
-          cd /home/runner/work/
-          wget https://github.com/YosysHQ/oss-cad-suite-build/releases/download/2021-09-23/oss-cad-suite-linux-x64-20210923.tgz
-          tar -xf oss-cad-suite-linux-x64-20210923.tgz
-          ls /home/runner/work/oss-cad-suite/bin
-          echo "/home/runner/work/oss-cad-suite/bin" >> $GITHUB_PATH
+        uses: YosysHQ/setup-oss-cad-suite@v1
+        with:
+          osscadsuite-version: '2021-11-09'
       - name: Setup Scala
         uses: olafurpg/setup-scala@v10
         with:
@@ -96,7 +90,10 @@ jobs:
         # By having this "if" here, this job returns success so that all_tests_passed will succeed too
         if: github.event_name == 'pull_request' &&
             ! contains(github.event.pull_request.labels.*.name, 'Skip Formal CI')
-        run: ./.run_formal_checks.sh ${{ matrix.design }}
+        run: |
+          echo ${{ github.event_name }}
+          echo ${{ github.event.pull_request.labels }}
+          ./.run_formal_checks.sh ${{ matrix.design }}
 
   # Sentinel job to simplify how we specify which checks need to pass in branch
   # protection and in Mergify

@@ -10,9 +10,13 @@ import mill.contrib.buildinfo.BuildInfo
 
 import java.io.IOException
 
-object firrtl extends mill.Cross[firrtlCrossModule]("2.12.14", "2.13.6")
+object firrtl extends mill.Cross[firrtlCrossModule]("2.12.15", "2.13.7")
 
-class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule with ScalafmtModule with PublishModule with BuildInfo {
+class firrtlCrossModule(val crossScalaVersion: String)
+    extends CrossSbtModule
+    with ScalafmtModule
+    with PublishModule
+    with BuildInfo {
   override def millSourcePath = super.millSourcePath / os.up
 
   // 2.12.12 -> Array("2", "12", "12") -> "12" -> 12
@@ -43,27 +47,28 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
       ivy"${scalaOrganization()}:scala-reflect:${scalaVersion()}",
       ivy"com.github.scopt::scopt:3.7.1",
       ivy"net.jcazevedo::moultingyaml:0.4.2",
-      ivy"org.json4s::json4s-native:3.6.11",
-      ivy"org.apache.commons:commons-text:1.8",
+      ivy"org.json4s::json4s-native:3.6.12",
+      ivy"org.apache.commons:commons-text:1.9",
       ivy"io.github.alexarchambault::data-class:0.2.5",
       ivy"org.antlr:antlr4-runtime:$antlr4Version",
       ivy"com.google.protobuf:protobuf-java:$protocVersion",
-      ivy"com.lihaoyi::os-lib:0.7.8",
+      ivy"com.lihaoyi::os-lib:0.8.0"
     ) ++ {
       if (majorVersion == 13)
-        Agg(ivy"org.scala-lang.modules::scala-parallel-collections:1.0.3")
+        Agg(ivy"org.scala-lang.modules::scala-parallel-collections:1.0.4")
       else
         Agg()
     }
   }
 
-  override def scalacPluginIvyDeps = if (majorVersion == 12) Agg(ivy"org.scalamacros:::paradise:2.1.1") else super.scalacPluginIvyDeps
+  override def scalacPluginIvyDeps =
+    if (majorVersion == 12) Agg(ivy"org.scalamacros:::paradise:2.1.1") else super.scalacPluginIvyDeps
 
   object test extends Tests {
     override def ivyDeps = T {
       Agg(
-        ivy"org.scalatest::scalatest:3.2.9",
-        ivy"org.scalatestplus::scalacheck-1-14:3.1.3.0"
+        ivy"org.scalatest::scalatest:3.2.10",
+        ivy"org.scalatestplus::scalacheck-1-15:3.2.10.0"
       )
     }
 
@@ -87,7 +92,7 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
   }
 
   /* antlr4 */
-  def antlr4Version = "4.9.2"
+  def antlr4Version = "4.9.3"
 
   def antlrSource = T.source {
     millSourcePath / "src" / "main" / "antlr4" / "FIRRTL.g4"
@@ -124,20 +129,31 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
   def generatedAntlr4Source = T.sources {
     antlr4Path().path match {
       case f if f.last == "antlr4.jar" =>
-        os.proc("java",
-          "-jar", f.toString,
-          "-o", T.ctx.dest.toString,
-          "-lib", antlrSource().path.toString,
-          "-package", "firrtl.antlr",
-          "-no-listener", "-visitor",
+        os.proc(
+          "java",
+          "-jar",
+          f.toString,
+          "-o",
+          T.ctx.dest.toString,
+          "-lib",
+          antlrSource().path.toString,
+          "-package",
+          "firrtl.antlr",
+          "-listener",
+          "-visitor",
           antlrSource().path.toString
         ).call()
       case _ =>
-        os.proc(antlr4Path().path.toString,
-          "-o", T.ctx.dest.toString,
-          "-lib", antlrSource().path.toString,
-          "-package", "firrtl.antlr",
-          "-no-listener", "-visitor",
+        os.proc(
+          antlr4Path().path.toString,
+          "-o",
+          T.ctx.dest.toString,
+          "-lib",
+          antlrSource().path.toString,
+          "-package",
+          "firrtl.antlr",
+          "-listener",
+          "-visitor",
           antlrSource().path.toString
         ).call()
     }
@@ -214,10 +230,11 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
 
         val unpackPath = os.rel / "unpacked"
 
-        val bin = if (isWindows)
-          T.ctx.dest / unpackPath / "bin" / "protoc.exe"
-        else
-          T.ctx.dest / unpackPath / "bin" / "protoc"
+        val bin =
+          if (isWindows)
+            T.ctx.dest / unpackPath / "bin" / "protoc.exe"
+          else
+            T.ctx.dest / unpackPath / "bin" / "protoc"
 
         if (!os.exists(bin)) {
           Util.downloadUnpackZip(
@@ -234,7 +251,8 @@ class firrtlCrossModule(val crossScalaVersion: String) extends CrossSbtModule wi
   def generatedProtoSources = T.sources {
     os.proc(
       protocPath().path.toString,
-      "-I", protobufSource().path / os.up,
+      "-I",
+      protobufSource().path / os.up,
       s"--java_out=${T.ctx.dest.toString}",
       protobufSource().path.toString()
     ).call()

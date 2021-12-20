@@ -11,7 +11,7 @@ import firrtl.passes._
 import firrtl.transforms.{CombineCats, NoDCEAnnotation}
 import firrtl.testutils._
 import firrtl.testutils.FirrtlCheckers._
-import firrtl.util.BackendCompilationUtilities
+import firrtl.util.BackendCompilationUtilities._
 
 import scala.sys.process.{Process, ProcessLogger}
 
@@ -835,6 +835,43 @@ class VerilogEmitterSpec extends FirrtlFlatSpec {
     )
     result2 should containLine("assign z = ~(&x);")
   }
+
+  it should "remove random line with Memory and Register with some emission option" in {
+    val input =
+      s"""|circuit Foo:
+          |  module Foo:
+          |    input clock: Clock
+          |    input reset: UInt<1>
+          |    input in_0: UInt<1>
+          |    output out: UInt<1>
+          |    mem mem :
+          |      data-type => UInt<1>
+          |      depth => 1
+          |      read-latency => 1
+          |      write-latency => 1
+          |      reader => r
+          |      read-under-write => undefined
+          |    reg tmp : UInt<1>, clock
+          |    tmp <= in_0
+          |    mem.r.addr <= tmp
+          |    mem.r.en <= UInt<1>(0)
+          |    mem.r.clk <= clock
+          |    out <= mem.r.data
+          |""".stripMargin
+    val circuit = Seq(ToWorkingIR, ResolveKinds, InferTypes).foldLeft(parse(input)) { case (c, p) => p.run(c) }
+    val state = CircuitState(
+      circuit,
+      LowForm,
+      Seq(
+        EmitCircuitAnnotation(classOf[VerilogEmitter]),
+        CustomDefaultMemoryEmission(MemoryNoInit),
+        CustomDefaultRegisterEmission(useInitAsPreset = true, disableRandomization = true)
+      )
+    )
+    val result = (new VerilogEmitter).execute(state)
+    (result.getEmittedCircuit.value should not).include("RANDOMIZE")
+  }
+
 }
 
 class VerilogDescriptionEmitterSpec extends FirrtlFlatSpec {
@@ -1329,7 +1366,7 @@ class EmittedMacroSpec extends FirrtlPropSpec {
       "+define+FIRRTL_AFTER_INITIAL=initial begin $fwrite(32'h80000002, \"printing from FIRRTL_AFTER_INITIAL macro\\n\"); end"
     )
 
-    BackendCompilationUtilities.verilogToCpp(prefix, testDir, List.empty, harness, extraCmdLineArgs = cmdLineArgs) #&&
+    verilogToCpp(prefix, testDir, List.empty, harness, extraCmdLineArgs = cmdLineArgs) #&&
       cppToExe(prefix, testDir) !
       loggingProcessLogger
 
