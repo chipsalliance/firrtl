@@ -208,7 +208,6 @@ object CompilerAnnotation extends HasShellOptions {
 }
 
 /** Holds the unambiguous class name of a [[Transform]] to run
-  *  - will be append to [[FirrtlExecutionOptions.customTransforms]]
   *  - set with `-fct/--custom-transforms`
   * @param transform the full class name of the transform
   */
@@ -320,6 +319,16 @@ case object PrettyNoExprInlining extends NoTargetAnnotation with FirrtlOption wi
       longOption = longOption,
       toAnnotationSeq = { _ => Seq(this) },
       helpText = "Disable expression inlining"
+    )
+  )
+}
+
+case object AllowUnrecognizedAnnotations extends NoTargetAnnotation with FirrtlOption with HasShellOptions {
+  val options = Seq(
+    new ShellOption[Unit](
+      longOption = "allow-unrecognized-annotations",
+      toAnnotationSeq = _ => Seq(this),
+      helpText = "Allow annotation files to contain unrecognized annotations"
     )
   )
 }

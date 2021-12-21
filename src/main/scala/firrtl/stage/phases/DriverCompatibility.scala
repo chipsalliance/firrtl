@@ -4,7 +4,7 @@ package firrtl.stage.phases
 
 import firrtl.stage._
 
-import firrtl.{AnnotationSeq, EmitAllModulesAnnotation, EmitCircuitAnnotation, Emitter, FirrtlExecutionResult, Parser}
+import firrtl.{AnnotationSeq, EmitAllModulesAnnotation, EmitCircuitAnnotation, Emitter, Parser}
 import firrtl.annotations.NoTargetAnnotation
 import firrtl.FileUtils
 import firrtl.proto.FromProto
@@ -16,9 +16,9 @@ import scopt.OptionParser
 
 import java.io.File
 
-/** Provides compatibility methods to replicate deprecated [[Driver]] semantics.
+/** Provides compatibility methods to replicate deprecated `Driver` semantics.
   *
-  * At a high level, the [[Driver]] tries extremely hard to figure out what the user meant and to enable them to not be
+  * At a high level, the `Driver` tries extremely hard to figure out what the user meant and to enable them to not be
   * explicit with command line options. As an example, the `--top-name` option is not used for any FIRRTL top module
   * determination, but to find a FIRRTL file by that name and/or an annotation file by that name. This mode of file
   * discovery is only used if no explicit FIRRTL file/source/circuit and/or annotation file is given. Going further, the
@@ -26,7 +26,7 @@ import java.io.File
   * derive an annotation file. Summarily, the [[firrtl.options.Phase Phase]]s provided by this enable this type of
   * resolution.
   *
-  * '''Only use these methods if you are intending to replicate old [[Driver]] semantics for a good reason.'''
+  * '''Only use these methods if you are intending to replicate old `Driver` semantics for a good reason.'''
   * Otherwise, opt for more explicit specification by the user.
   */
 object DriverCompatibility {
@@ -35,14 +35,6 @@ object DriverCompatibility {
   private def optionRemoved(a: String): String =
     s"""|Option '$a' was removed as part of the FIRRTL Stage refactor. Use an explicit input/output options instead.
         |This error will be removed in 1.3.""".stripMargin
-
-  /** Convert an [[firrtl.AnnotationSeq AnnotationSeq]] to a ''deprecated'' [[firrtl.FirrtlExecutionResult
-    * FirrtlExecutionResult]].
-    * @param annotations a sequence of [[firrtl.annotations.Annotation Annotation]]
-    */
-  @deprecated("FirrtlExecutionResult is deprecated as part of the Stage/Phase refactor. Migrate to FirrtlStage.", "1.2")
-  def firrtlResultView(annotations: AnnotationSeq): FirrtlExecutionResult =
-    Viewer[FirrtlExecutionResult].view(annotations)
 
   /** Holds the name of the top (main) module in an input circuit
     * @param value top module name

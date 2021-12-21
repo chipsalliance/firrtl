@@ -3,14 +3,14 @@
 package firrtlTests
 
 import java.io.{File, FileWriter}
-
 import firrtl.annotations._
 import firrtl._
 import firrtl.FileUtils
-import firrtl.options.Dependency
+import firrtl.options.{Dependency, InputAnnotationFileAnnotation}
 import firrtl.transforms.OptimizableExtModuleAnnotation
 import firrtl.passes.InlineAnnotation
 import firrtl.passes.memlib.PinAnnotation
+import firrtl.stage.{FirrtlSourceAnnotation, FirrtlStage}
 import firrtl.util.BackendCompilationUtilities
 import firrtl.testutils._
 import org.scalatest.matchers.should.Matchers
@@ -45,7 +45,9 @@ abstract class AnnotationTests extends LowFirrtlTransformSpec with Matchers with
     r.annotations.toSeq should contain(ta)
   }
 
-  "Deleting annotations" should "create a DeletedAnnotation" in {
+  // This test is no longer true as of 1.5.0-RC2, see
+  // https://github.com/chipsalliance/firrtl/pull/2393
+  "Deleting annotations" should "create a DeletedAnnotation" ignore {
     val transform = Dependency[DeletingTransform]
     val compiler = makeVerilogCompiler(Seq(transform))
     val input =
@@ -519,7 +521,7 @@ class JsonAnnotationTests extends AnnotationTests {
     annos should be(readAnnos)
   }
 
-  private def setupManager(annoFileText: Option[String]) = {
+  private def setupManager(annoFileText: Option[String]): Driver.Arg = {
     val source = """
                    |circuit test :
                    |  module test :
@@ -536,13 +538,15 @@ class JsonAnnotationTests extends AnnotationTests {
       w.close()
     }
 
-    new ExecutionOptionsManager("annos") with HasFirrtlOptions {
-      commonOptions = CommonOptions(targetDirName = testDir.getPath)
-      firrtlOptions = FirrtlExecutionOptions(
-        firrtlSource = Some(source),
-        annotationFileNames = List(annoFile.getPath)
-      )
-    }
+    (
+      Array("--target-dir", testDir.getPath),
+      Seq(FirrtlSourceAnnotation(source), InputAnnotationFileAnnotation(annoFile.getPath))
+    )
+  }
+
+  private object Driver {
+    type Arg = (Array[String], AnnotationSeq)
+    def execute(args: Arg) = ((new FirrtlStage).execute _).tupled(args)
   }
 
   "Annotation file not found" should "give a reasonable error message" in {
@@ -564,7 +568,7 @@ class JsonAnnotationTests extends AnnotationTests {
     val manager = setupManager(Some(anno))
 
     the[Exception] thrownBy Driver.execute(manager) should matchPattern {
-      case InvalidAnnotationFileException(_, _: AnnotationClassNotFoundException) =>
+      case InvalidAnnotationFileException(_, _: UnrecogizedAnnotationsException) =>
     }
   }
 
@@ -614,4 +618,37 @@ class JsonAnnotationTests extends AnnotationTests {
     val cr = DoNothingTransform.runTransform(CircuitState(parse(input), ChirrtlForm, annos))
     cr.annotations.toSeq shouldEqual annos
   }
+
+  "fully qualified class name that is undeserializable" should "give an invalid json exception" in {
+    val anno = """
+                 |[
+                 |  {
+                 |    "class":"firrtlTests.MyUnserAnno",
+                 |    "box":"7"
+                 |  }
+                 |] """.stripMargin
+
+    val manager = setupManager(Some(anno))
+    the[Exception] thrownBy Driver.execute(manager) should matchPattern {
+      case InvalidAnnotationFileException(_, _: InvalidAnnotationJSONException) =>
+    }
+  }
+
+  "unqualified class name" should "give an unrecognized annotation exception" in {
+    val anno = """
+                 |[
+                 |  {
+                 |    "class":"MyUnserAnno"
+                 |    "box":"7"
+                 |  }
+                 |] """.stripMargin
+    val manager = setupManager(Some(anno))
+    the[Exception] thrownBy Driver.execute(manager) should matchPattern {
+      case InvalidAnnotationFileException(_, _: UnrecogizedAnnotationsException) =>
+    }
+  }
 }
+
+/* These are used by the last two tests. It is outside the main test to keep the qualified name simpler*/
+class UnserBox(val x: Int)
+case class MyUnserAnno(box: UnserBox) extends NoTargetAnnotation
