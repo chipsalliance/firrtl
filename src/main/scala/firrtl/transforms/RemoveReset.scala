@@ -89,6 +89,8 @@ object RemoveReset extends Transform with DependencyAPIMigration {
           Connect(infox, ref, Mux(reset.cond, reset.value, expr, muxType))
         case Connect(info, ref @ WRef(rname, _, RegKind, _), expr) if asyncResets.contains(rname) =>
           val reset = asyncResets(rname)
+          // The `muxType` for async always blocks is located in [[VerilogEmitter.VerilogRender.regUpdate]]:
+          // addUpdate(info, Mux(reset, tv, fv, mux_type_and_widths(tv, fv)), Seq.empty)
           val infox = MultiInfo(reset.info, reset.info, info)
           Connect(infox, ref, expr)
         case other => other.map(onStmt)
