@@ -16,32 +16,14 @@ import firrtl.backends.experimental.mlir._
 trait FIRRTLType extends Type
 
 class ClockType() extends FIRRTLType
-class IntType extends FIRRTLType
-/** -1 for unknown width */
-class SIntType(val width: BigInt) extends IntType
-/** -1 for unknown width */
-class UIntType(val width: BigInt) extends IntType
-class UInt1Type extends UIntType(1)
-/** -1 for unknown width */
+class SIntType(val width: BigInt) extends FIRRTLType
+class UIntType(val width: BigInt) extends FIRRTLType
 class AnalogType(val width: BigInt) extends FIRRTLType
-
 class BundleElement(val name: String, val isFlip: Boolean, val tpe: FIRRTLType)
-/** */
 class BundleType(val elements: Seq[BundleElement]) extends FIRRTLType
-class FVectorType(val elements: Seq[FIRRTLType]) extends FIRRTLType
+class FVectorType(val elementType: FIRRTLType, val numElements: unsigned) extends FIRRTLType
 class AsyncResetType extends FIRRTLType
 class ResetType extends FIRRTLType
-class PassiveType extends FIRRTLType
-
-// FIRRTL Types Predicates
-// Scala doesn't have dependent type
-// which make impossible to pattern match a UInt<1> like what MLIR does.
-object Predicates {
-  def OneBitType(tpe:         FIRRTLType): Boolean = false
-  def AnyResetType(tpe:       FIRRTLType): Boolean = false
-  def UIntSIntClockType(tpe:  FIRRTLType): Boolean = false
-  def OneBitCastableType(tpe: FIRRTLType): Boolean = false
-}
 
 object RUW_Undefined extends RUWAttr {
   def name = "Undefined"

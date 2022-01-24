@@ -5,103 +5,55 @@
 
 package firrtl.backends.experimental.mlir.ops
 
-import firrtl.backends.experimental.mlir._
-
-/**
-  * Variadic<AnalogType>:$operands
-  */
-case class AttachOp(operands: Variadic[AnalogType]) extends FIRRTLOp
-
-/**
-  * FIRRTLType:$dest
-  * FIRRTLType:$src
-  */
-case class ConnectOp(dest: FIRRTLType, src: FIRRTLType) extends FIRRTLOp
-
-/**
-  * FIRRTLType:$dest
-  * FIRRTLType:$src
-  */
-case class PartialConnectOp(dest: FIRRTLType, src: FIRRTLType) extends FIRRTLOp
-
-/** ClockType:$clock
-  * UInt1Type:$cond
-  * StrAttr:$formatString
-  * Variadic<FIRRTLType>:$operands
-  * StrAttr:$name
-  */
-case class PrintFOp(clock: ClockType, cond: UInt1Type, formatSting: StrAttr, operands: Variadic[FIRRTLType], name:StrAttr) extends FIRRTLOp
-/** */
+case class AttachOp(arguments: Seq[ValueAndType]) extends FIRRTLOp
+case class ConnectOp(dest: ValueAndType, src: ValueAndType) extends FIRRTLOp
+case class PartialConnectOp(dest: ValueAndType, src: ValueAndType) extends FIRRTLOp
+case class PrintFOp(
+  clock:       ValueAndType,
+  cond:        ValueAndType,
+  formatSting: String,
+  operands:    Seq[ValueAndType])
+    extends FIRRTLOp
 case class SkipOp() extends FIRRTLOp
-/** ClockType:$clock
-  * UInt1Type:$cond
-  * I32Attr:$exitCode
-  * StrAttr:$name
-  */
-case class StopOp(clock: ClockType, cond: UInt1Type, name: StrAttr) extends FIRRTLOp
+case class StopOp(clock: ValueAndType, cond: ValueAndType, exitCode: Int, name: String) extends FIRRTLOp
 
-case object AtPosEdge extends EventControlAttr{
-  def name: String = "posedge"
-  def value: Int = 0
-}
-case object AtNegEdge extends EventControlAttr {
-  def name: String = "negedge"
-  def value: Int = 1
+trait VerifOp {
+  val name:      String
+  val clock:     ValueAndType
+  val predicate: ValueAndType
+  val enable:    ValueAndType
+  val message:   String
+  val operands:  Seq[ValueAndType]
 }
 
-case object AtEdge extends EventControlAttr {
-  def name: String = "edge"
-  def value: Int = 2
+case class AssertOp(
+  clock:     ValueAndType,
+  predicate: ValueAndType,
+  enable:    ValueAndType,
+  message:   String,
+  operands:  Seq[ValueAndType])
+    extends VerifOp {
+  val name = "assert"
 }
-trait EventControlAttr extends Enum
 
-/** ClockType:$clock,
-  * UInt1Type:$predicate,
-  * UInt1Type:$enable,
-  * StrAttr:$message,
-  * Variadic<AnyType>:$operands,
-  * StrAttr:$name,
-  * DefaultValuedAttr<BoolAttr,"false">:$isConcurrent,
-  * DefaultValuedAttr<EventControlAttr,"EventControl::AtPosEdge">:$eventControl
-  */
-trait VerifOp
+case class AssumeOp(
+  clock:     ValueAndType,
+  predicate: ValueAndType,
+  enable:    ValueAndType,
+  message:   String,
+  operands:  Seq[ValueAndType])
+    extends VerifOp {
+  val name = "assume"
+}
 
-case class AssertOp(clock: ClockType,
-                    predicate: UInt1Type,
-                    enable: UInt1Type,
-                    message: StrAttr,
-                    operands: Variadic[AnyType],
-                    isConcurrent: DefaultValuedAttr[BoolAttr],
-                    eventControl: EventControlAttr) extends VerifOp
+case class CoverOp(
+  clock:     ValueAndType,
+  predicate: ValueAndType,
+  enable:    ValueAndType,
+  message:   String,
+  operands:  Seq[ValueAndType])
+    extends VerifOp {
+  val name = "cover"
+}
 
-case class AssumeOp(clock: ClockType,
-                    predicate: UInt1Type,
-                    enable: UInt1Type,
-                    message: StrAttr,
-                    operands: Variadic[AnyType],
-                    isConcurrent: DefaultValuedAttr[BoolAttr],
-                    eventControl: EventControlAttr) extends VerifOp
-
-case class CoverOp(clock: ClockType,
-                    predicate: UInt1Type,
-                    enable: UInt1Type,
-                    message: StrAttr,
-                    operands: Variadic[AnyType],
-                    isConcurrent: DefaultValuedAttr[BoolAttr],
-                    eventControl: EventControlAttr) extends VerifOp
-
-/** UInt1Type:$condition
-  *
-  * SizedRegion<1>:$thenRegion
-  * AnyRegion:$elseRegion
-  *
-  * @todo how to take care about region.
-  */
-case class WhenOp(thenRegion: Block, elseRegion: Seq[Block]) extends FIRRTLOp
-case class ForceOp(dest: FIRRTLType, src: FIRRTLType) extends FIRRTLOp
-/**
-  * SymbolNameAttr:$inner_sym
-  * Variadic<FIRRTLType>:$operands)
-  *
-  */
-case class ProbeOp(inner_sym: SymbolNameAttr, operands: Variadic[FIRRTLType]) extends FIRRTLOp
+case class WhenOp(thenRegion: Region, elseRegion: Region) extends FIRRTLOp

@@ -8,7 +8,7 @@
 package firrtl.backends.experimental.mlir
 
 package object ops {
-  type Block = Seq[Op]
+  type Region = Seq[Op]
 
   abstract class Node {
     def serialize: String = "todo"
@@ -18,17 +18,10 @@ package object ops {
 
   trait Op extends Node
 
-// defined in FIRRTLDialect.td
-  trait FIRRTLOp extends Op
+  type ValueAndType = (String, FIRRTLType)
+  type Value = String
 
-  /** [[PortInfo]] is defined in FIRRTLOpInferface.h file(not implemented with tablegen). */
-  case class PortInfo(
-    name:        StringAttr,
-    tpe:         FIRRTLType,
-    direction:   Direction,
-    sym:         StringAttr,
-    loc:         Location,
-    annotations: AnnotationSet)
+  case class PortInfo(name: String, tpe: FIRRTLType, direction: Direction)
 
   /** Defined in FIRRTLAttributes.h */
   case object In extends Direction {
@@ -40,4 +33,8 @@ package object ops {
     def value: Int = 1
   }
   trait Direction extends Enum
+
+// defined in FIRRTLDialect.td
+  trait FIRRTLOp extends Op
+
 }

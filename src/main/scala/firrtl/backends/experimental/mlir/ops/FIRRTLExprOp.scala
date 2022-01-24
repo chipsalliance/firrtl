@@ -5,84 +5,54 @@
 
 package firrtl.backends.experimental.mlir.ops
 
-import firrtl.backends.experimental.mlir._
 
 trait FIRRTLExprOp extends Op
 
-trait ConstantOp extends FIRRTLOp
-
-trait SpecialConstantOp extends FIRRTLOp
-
-trait InvalidValueOp extends FIRRTLOp
-
-/**
-  * BundleType:$input
-  * I32Attr:$fieldIndex
-  */
-case class SubfieldOp(input: BundleType, fieldIndex: I32Attr) extends FIRRTLExprOp
-
-// TODO
-trait IndexConstraint
-
-/**
-  * FIRRTLType:$input, I32Attr:$index
-  */
-case class SubindexOp(input: FIRRTLType, index: I32Attr) extends FIRRTLExprOp
-
-case class SubaccessOp(input: FIRRTLType, index: UIntType) extends FIRRTLExprOp
-
-// Primitive Operations
+case class ConstantOp(result: ValueAndType, value: BigInt) extends FIRRTLExprOp
+case class SpecialConstantOp(result: ValueAndType, value: BigInt) extends FIRRTLExprOp
+case class SubfieldOp(result: ValueAndType, input: ValueAndType, fieldIndex: BigInt) extends FIRRTLExprOp
+case class SubindexOp(result: ValueAndType, input: ValueAndType, index: BigInt) extends FIRRTLExprOp
+case class SubaccessOp(result: ValueAndType, input: ValueAndType, index: ValueAndType) extends FIRRTLExprOp
 
 trait PrimOp extends FIRRTLExprOp
-
-// Binary Operations
 trait BinaryPrimOp extends PrimOp
-
-trait IntBinaryPrimOp extends BinaryPrimOp
-
-trait MulPrimOp extends IntBinaryPrimOp
-trait DivPrimOp extends IntBinaryPrimOp
-trait RemPrimOp extends IntBinaryPrimOp
-trait AndPrimOp extends IntBinaryPrimOp
-trait OrPrimOp extends IntBinaryPrimOp
-trait XorPrimOp extends IntBinaryPrimOp
-trait LEQPrimOp extends IntBinaryPrimOp
-trait LTPrimOp extends IntBinaryPrimOp
-trait GEQPrimOp extends IntBinaryPrimOp
-trait GTPrimOp extends IntBinaryPrimOp
-trait EQPrimOp extends IntBinaryPrimOp
-trait NEQPrimOp extends IntBinaryPrimOp
-trait CatPrimOp extends IntBinaryPrimOp
-trait DshlPrimOp extends IntBinaryPrimOp
-trait DShlwPrimOp extends IntBinaryPrimOp
-trait DShrPrimOp extends IntBinaryPrimOp
+case class AddPrimOp(result: ValueAndType, lhs: ValueAndType, rhs: ValueAndType) extends BinaryPrimOp
+case class SubPrimOp(result: ValueAndType, lhs: ValueAndType, rhs: ValueAndType) extends BinaryPrimOp
+case class MulPrimOp(result: ValueAndType, lhs: ValueAndType, rhs: ValueAndType) extends BinaryPrimOp
+case class DivPrimOp(result: ValueAndType, lhs: ValueAndType, rhs: ValueAndType) extends BinaryPrimOp
+case class RemPrimOp(result: ValueAndType, lhs: ValueAndType, rhs: ValueAndType) extends BinaryPrimOp
+case class AndPrimOp(result: ValueAndType, lhs: ValueAndType, rhs: ValueAndType) extends BinaryPrimOp
+case class OrPrimOp(result: ValueAndType, lhs: ValueAndType, rhs: ValueAndType) extends BinaryPrimOp
+case class XorPrimOp(result: ValueAndType, lhs: ValueAndType, rhs: ValueAndType) extends BinaryPrimOp
+case class LEQPrimOp(result: ValueAndType, lhs: ValueAndType, rhs: ValueAndType) extends BinaryPrimOp
+case class LTPrimOp(result: ValueAndType, lhs: ValueAndType, rhs: ValueAndType) extends BinaryPrimOp
+case class GEQPrimOp(result: ValueAndType, lhs: ValueAndType, rhs: ValueAndType) extends BinaryPrimOp
+case class GTPrimOp(result: ValueAndType, lhs: ValueAndType, rhs: ValueAndType) extends BinaryPrimOp
+case class EQPrimOp(result: ValueAndType, lhs: ValueAndType, rhs: ValueAndType) extends BinaryPrimOp
+case class NEQPrimOp(result: ValueAndType, lhs: ValueAndType, rhs: ValueAndType) extends BinaryPrimOp
+case class CatPrimOp(result: ValueAndType, lhs: ValueAndType, rhs: ValueAndType) extends BinaryPrimOp
+case class DShlPrimOp(result: ValueAndType, lhs: ValueAndType, rhs: ValueAndType) extends BinaryPrimOp
+case class DShrPrimOp(result: ValueAndType, lhs: ValueAndType, rhs: ValueAndType) extends BinaryPrimOp
 
 trait UnaryPrimOp extends PrimOp
-trait AsSIntPrimOp extends UnaryPrimOp
-trait AsUIntPrimOp extends UnaryPrimOp
-trait AsAsyncResetPrimOp extends UnaryPrimOp
-trait AsClockPrimOp extends UnaryPrimOp
-trait CvtPrimOp extends UnaryPrimOp
-trait NegPrimOp extends UnaryPrimOp
-trait NotPrimOp extends UnaryPrimOp
-trait AndRPrimOp extends UnaryPrimOp
-trait OrRPrimOp extends UnaryPrimOp
-trait XorRPrimOp extends UnaryPrimOp
+case class AsSIntPrimOp(result: ValueAndType, input: ValueAndType) extends UnaryPrimOp
+case class AsUIntPrimOp(result: ValueAndType, input: ValueAndType) extends UnaryPrimOp
+case class AsAsyncResetPrimOp(result: ValueAndType, input: ValueAndType) extends UnaryPrimOp
+case class AsClockPrimOp(result: ValueAndType, input: ValueAndType) extends UnaryPrimOp
+case class CvtPrimOp(result: ValueAndType, input: ValueAndType) extends UnaryPrimOp
+case class NegPrimOp(result: ValueAndType, input: ValueAndType) extends UnaryPrimOp
+case class NotPrimOp(result: ValueAndType, input: ValueAndType) extends UnaryPrimOp
+case class AndRPrimOp(result: ValueAndType, input: ValueAndType) extends UnaryPrimOp
+case class OrRPrimOp(result: ValueAndType, input: ValueAndType) extends UnaryPrimOp
+case class XorRPrimOp(result: ValueAndType, input: ValueAndType) extends UnaryPrimOp
 
-trait BitsPrimOp extends PrimOp
-trait HeadPrimOp extends PrimOp
-trait MuxPrimOp extends PrimOp
-trait PadPrimOp extends PrimOp
-trait ShiftPrimOp extends PrimOp
-trait ShlPrimOp extends ShiftPrimOp
-trait ShrPrimOp extends ShiftPrimOp
-trait TailPrimOp extends PrimOp
+trait BinaryIntPrimOp extends PrimOp
+case class HeadPrimOp(result: ValueAndType, input: ValueAndType, amount: BigInt) extends BinaryPrimOp
+case class TailPrimOp(result: ValueAndType, input: ValueAndType, amount: BigInt) extends BinaryPrimOp
+case class ShlPrimOp(result: ValueAndType, input: ValueAndType, amount: BigInt) extends BinaryPrimOp
+case class ShrPrimOp(result: ValueAndType, input: ValueAndType, amount: BigInt) extends BinaryPrimOp
+case class PadPrimOp(result: ValueAndType, input: ValueAndType, amount: BigInt) extends BinaryPrimOp
 
-// TODO
-trait HasCustomSSAName
+case class BitsPrimOp(result: ValueAndType, input: ValueAndType, hi: BigInt, low: BigInt) extends PrimOp
+case class MuxPrimOp(result: ValueAndType, sel: ValueAndType, high: ValueAndType, low: ValueAndType) extends PrimOp
 
-trait VerbatimExprOp extends PrimOp
-trait VerbatimWireOp extends PrimOp
-
-trait HWStructCastOp extends FIRRTLOp
-trait BitCastOp extends FIRRTLOp

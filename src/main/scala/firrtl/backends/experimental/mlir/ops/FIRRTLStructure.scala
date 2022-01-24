@@ -5,29 +5,8 @@
 
 package firrtl.backends.experimental.mlir.ops
 
-import firrtl.backends.experimental.mlir._
+case class CircuitOp(name: String, body: Region) extends FIRRTLOp
 
-/** StrAttr:$name
-  * DefaultValuedAttr<AnnotationArrayAttr, "{}">:$annotations
-  *
-  * SizedRegion<1>:$body
-  */
-case class CircuitOp(name: StrAttr, annotations: DefaultValuedAttr[AnnotationArrayAttr], body: Block) extends FIRRTLOp
+case class FModuleOp(name: String, ports: Seq[PortInfo], body: Region) extends FIRRTLOp
 
-/** "StringAttr":$name
-  * "ArrayRef<PortInfo>":$ports
-  * CArg<"ArrayAttr","ArrayAttr()">:$annotations)
-  *
-  * SizedRegion<1>:$body
-  */
-case class FModuleOp(name: StringAttr, ports: ArrayRef[PortInfo], body: Block) extends FIRRTLOp
-/** OptionalAttr<StrAttr>:$defname
-  * ParamDeclArrayAttr:$parameters
-  * DefaultValuedAttr<AnnotationArrayAttr, "ArrayAttr()">:$annotations
-  */
-case class FExtModuleOp(defname: OptionalAttr[StrAttr], parameters: ParamDeclArrayAttr, annotations: DefaultValuedAttr[AnnotationArrayAttr], body: Block) extends FIRRTLOp
-/**
-  * SymbolNameAttr:$sym_name
-  * NameRefArrayAttr:$namepath
-  */
-case class NonLocalAnchor(sym_name: SymbolNameAttr, namepath: NameRefArrayAttr) extends FIRRTLOp
+case class FExtModuleOp(name: String, port: Seq[PortInfo]) extends FIRRTLOp
