@@ -781,11 +781,10 @@ class VerilogEmitter extends SeqTransform with Emitter {
           }
         case e => Seq(Seq(tabs, r, " <= ", e, ";", info))
       }
-      if (weq(init, r)) { // Synchronous Reset
+      if (reset.tpe != AsyncResetType) { // Synchronous Reset
         val InfoExpr(info, e) = netlist(r)
         noResetAlwaysBlocks.getOrElseUpdate(clk, ArrayBuffer[Seq[Any]]()) ++= addUpdate(info, e, Seq.empty)
       } else { // Asynchronous Reset
-        assert(reset.tpe == AsyncResetType, "Error! Synchronous reset should have been removed!")
         val tv = init
         val InfoExpr(info, fv) = netlist(r)
         asyncResetAlwaysBlocks += (

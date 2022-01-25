@@ -376,7 +376,7 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
         case e =>
           Seq(Seq(tabs, "assign ", regTempName, " ", SrcInfo(e, info).str_rep))
       }
-      if (weq(init, r)) { // Synchronous Reset
+      if (reset.tpe != AsyncResetType) { // Synchronous Reset
         val InfoExpr(info, e) = netlist(r)
         processes += Seq(info)
         processes += Seq("wire ", r.tpe, " ", regTempName)
@@ -387,7 +387,6 @@ private[firrtl] class RtlilEmitter extends SeqTransform with Emitter with Depend
         processes += Seq(tab, tab, "update ", SrcInfo(r).str_rep, " ", regTempName)
         processes += Seq("end")
       } else { // Asynchronous Reset
-        assert(reset.tpe == AsyncResetType, "Error! Synchronous reset should have been removed!")
         val tv = init
         val InfoExpr(finfo, fv) = netlist(r)
         processes += Seq(finfo)

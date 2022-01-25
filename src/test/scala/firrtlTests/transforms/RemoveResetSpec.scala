@@ -112,7 +112,7 @@ class RemoveResetSpec extends FirrtlFlatSpec with GivenWhenThen {
     outputState shouldNot containTree { case Connect(_, WRef("foo_b", _, _, _), Mux(_, _, _, _)) => true }
   }
 
-  it should "canvert a reset wired to UInt<0> to a canonical non-reset" in {
+  it should "convert a reset wired to UInt<0> to a canonical non-reset" in {
     Given("foo's reset is connected to zero")
     val input =
       """|circuit Example :
@@ -127,9 +127,7 @@ class RemoveResetSpec extends FirrtlFlatSpec with GivenWhenThen {
 
     val outputState = toLowFirrtl(input)
 
-    Then("foo has a canonical non-reset declaration after RemoveReset")
-    outputState should containTree { case DefRegister(_, "foo", _, _, firrtl.Utils.zero, WRef("foo", _, _, _)) => true }
-    And("foo is NOT connected to a reset mux")
+    Then("foo is NOT connected to a reset mux")
     outputState shouldNot containTree { case Connect(_, WRef("foo", _, _, _), Mux(_, _, _, _)) => true }
   }
 }
