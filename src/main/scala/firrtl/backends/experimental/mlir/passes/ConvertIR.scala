@@ -359,9 +359,12 @@ object ConvertIR extends Transform with DependencyAPIMigration {
         def visitStatement(statement: Statement): Unit = statement match {
           case s: Block => s.stmts.map(visitStatement)
           case s: DefNode => convertExpression(s.value)
-          case s: DefWire        =>
-
+          case s: DefWire =>
+            WireOp((s.name, convertType(s.tpe)))
           case s: DefRegister    =>
+            // DefRegister can express 3 different attributes of Registers
+
+            WireOp((s.name, convertType(s.tpe)))
           case s: CDefMPort      =>
           case s: CDefMPort      =>
           case s: Connect        =>
