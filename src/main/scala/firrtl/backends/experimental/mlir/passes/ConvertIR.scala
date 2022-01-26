@@ -151,7 +151,7 @@ object ConvertIR extends Transform with DependencyAPIMigration {
         FExtModuleOp(m.name, m.ports.map(convertPort))
       case m: Module =>
         // all type is maintained here, so we don't need InferType pass.
-        val typeMap = collection.mutable.Map[Value, Type]()
+        val typeMap = collection.mutable.Map[Value, FIRRTLType]()
         // have a constant type cache with (Value, Width) as key.
         val constantCache = collection.mutable.Map[(BigInt, BigInt, Boolean), Value]()
         val ns = Namespace(m)
@@ -164,13 +164,13 @@ object ConvertIR extends Transform with DependencyAPIMigration {
           case Port(_, name, _, tpe) => typeMap.update(name, convertType(tpe))
         }
 
-        def convertExpression(expression: Expression): Expression = expression match {
+        def convertExpression(expression: Expression): Reference = expression match {
           case e: Reference =>
             // do nothing if we visit a reference.
             e
           case e: SubField => {
             // recursive convert bundle expression, and finally get the Reference.
-            val bundle: Reference = convertExpression(e.expr).asInstanceOf[Reference]
+            val bundle: Reference = convertExpression(e.expr)
             // query type for field reference(which must be inferred previously).
             val bundleType: MBundleType = typeMap(bundle.name).asInstanceOf[MBundleType]
             // MLIR SubfieldOp use index to locate corresponding field.
@@ -191,7 +191,7 @@ object ConvertIR extends Transform with DependencyAPIMigration {
           }
           case e: SubIndex => {
             // recursive convert vector expression, and finally get the Reference.
-            val vector: Reference = convertExpression(e.expr).asInstanceOf[Reference]
+            val vector: Reference = convertExpression(e.expr)
             // query type for field reference(which must be inferred previously).
             val vectorType: MFVectorType = typeMap(vector.name).asInstanceOf[MFVectorType]
             // create a SSA Value for this SubIndex and its Type.
@@ -210,12 +210,12 @@ object ConvertIR extends Transform with DependencyAPIMigration {
           }
           case e: SubAccess => {
             // recursive convert vector expression, and finally get the Reference.
-            val vector: Reference = convertExpression(e.expr).asInstanceOf[Reference]
+            val vector: Reference = convertExpression(e.expr)
             // query type for field reference(which must be inferred previously).
             val vectorType: MFVectorType = typeMap(vector.name).asInstanceOf[MFVectorType]
 
             // recursive convert vector expression, and finally get the Reference.
-            val index: Reference = convertExpression(e.index).asInstanceOf[Reference]
+            val index: Reference = convertExpression(e.index)
             // query type for field reference(which must be inferred previously).
             val indexType: MFVectorType = typeMap(index.name).asInstanceOf[MFVectorType]
 
@@ -267,9 +267,9 @@ object ConvertIR extends Transform with DependencyAPIMigration {
                 val n:          String = ns.newTemp
                 val resultType: FIRRTLType = convertType(e.op.propagateType(e))
                 typeMap(n) = resultType
-                val lhs = convertExpression(e.args(0)).asInstanceOf[Reference]
-                val rhs = convertExpression(e.args(1)).asInstanceOf[Reference]
-                globalRegion += e.op match {
+                val lhs = convertExpression(e.args(0))
+                val rhs = convertExpression(e.args(1))
+                globalRegion += (e.op match {
                   case Add =>
                     AddPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
                   case Sub =>
@@ -304,14 +304,14 @@ object ConvertIR extends Transform with DependencyAPIMigration {
                     DShlPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
                   case Dshr =>
                     DShrPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
-                }
+                })
                 Reference(n)
               case _: UnaryPrimOp =>
                 val n:          String = ns.newTemp
                 val resultType: FIRRTLType = convertType(e.op.propagateType(e))
                 typeMap(n) = resultType
-                val input = convertExpression(e.args(0)).asInstanceOf[Reference]
-                globalRegion += e.op match {
+                val input = convertExpression(e.args(0))
+                globalRegion += (e.op match {
                   case AsSInt       => AsSIntPrimOp((n, resultType), (input.name, convertType(input.tpe)))
                   case AsUInt       => AsUIntPrimOp((n, resultType), (input.name, convertType(input.tpe)))
                   case AsAsyncReset => AsAsyncResetPrimOp((n, resultType), (input.name, convertType(input.tpe)))
@@ -322,27 +322,27 @@ object ConvertIR extends Transform with DependencyAPIMigration {
                   case Andr         => AndRPrimOp((n, resultType), (input.name, convertType(input.tpe)))
                   case Orr          => OrRPrimOp((n, resultType), (input.name, convertType(input.tpe)))
                   case Xorr         => XorRPrimOp((n, resultType), (input.name, convertType(input.tpe)))
-                }
+                })
                 Reference(n)
               case _: BinaryIntPrimOp =>
                 val n:          String = ns.newTemp
                 val resultType: FIRRTLType = convertType(e.op.propagateType(e))
                 typeMap(n) = resultType
-                val input = convertExpression(e.args(0)).asInstanceOf[Reference]
-                globalRegion += e.op match {
+                val input = convertExpression(e.args(0))
+                globalRegion += (e.op match {
                   case Head => HeadPrimOp((n, resultType), (input.name, convertType(input.tpe)), e.consts(0))
                   case Tail => TailPrimOp((n, resultType), (input.name, convertType(input.tpe)), e.consts(0))
                   case Shl  => ShlPrimOp((n, resultType), (input.name, convertType(input.tpe)), e.consts(0))
                   case Shr  => ShrPrimOp((n, resultType), (input.name, convertType(input.tpe)), e.consts(0))
                   case Pad  => PadPrimOp((n, resultType), (input.name, convertType(input.tpe)), e.consts(0))
-                }
+                })
                 Reference(n)
 
               case Bits =>
                 val n:          String = ns.newTemp
                 val resultType: FIRRTLType = convertType(e.op.propagateType(e))
                 typeMap(n) = resultType
-                val input = convertExpression(e.args(0)).asInstanceOf[Reference]
+                val input = convertExpression(e.args(0))
                 globalRegion += BitsPrimOp(
                   (n, resultType),
                   (input.name, convertType(input.tpe)),
@@ -361,21 +361,46 @@ object ConvertIR extends Transform with DependencyAPIMigration {
           case s: DefNode => convertExpression(s.value)
           case s: DefWire =>
             WireOp((s.name, convertType(s.tpe)))
-          case s: DefRegister    =>
-            // DefRegister can express 3 different attributes of Registers
-
-            WireOp((s.name, convertType(s.tpe)))
-          case s: CDefMPort      =>
-          case s: CDefMPort      =>
-          case s: Connect        =>
+          case s: DefRegister =>
+            val n = s.name
+            val tpe = convertType(s.tpe)
+            val clk = convertExpression(s.clock).name
+            val clkTpe = typeMap(clk)
+            typeMap.update(n, tpe)
+            s.init match {
+              case firrtl.Utils.zero => RegOp((n, tpe), (clk, clkTpe))
+              case _ =>
+                val reset = convertExpression(s.reset).name
+                val resetTpe = typeMap(reset)
+                val init = convertExpression(s.init).name
+                val initTpe = typeMap(init)
+                RegResetOp((n, tpe), (clk, clkTpe), (reset, resetTpe), (init, initTpe))
+            }
+          case s: Connect =>
+            val n = convertExpression(s.loc).name
+            val Tpe = typeMap(n)
+            val expr = convertExpression(s.expr).name
+            val exprTpe = typeMap(expr)
+            ConnectOp((n, Tpe), (expr, exprTpe))
           case s: PartialConnect =>
-          case s: Attach         =>
-          case s: IsInvalid      =>
-          case s: DefInstance    =>
-          case s: Print          =>
-          case s: Verification   =>
+            val n = convertExpression(s.loc).name
+            val Tpe = typeMap(n)
+            val expr = convertExpression(s.expr).name
+            val exprTpe = typeMap(expr)
+            PartialConnectOp((n, Tpe), (expr, exprTpe))
+          case s: Attach =>
+            AttachOp(s.exprs.map { e =>
+              val expr = convertExpression(e).name
+              val exprTpe = typeMap(expr)
+              (expr, exprTpe)
+            })
+          case s: IsInvalid    =>
+          case s: DefInstance  =>
+          case s: Print        =>
+          case s: Verification =>
           // we support CHIRRTL since MFC already supported.
           case s: CDefMemory =>
+          case s: CDefMPort  =>
           // we support `when` block since MFC
           case s: Conditionally =>
 
