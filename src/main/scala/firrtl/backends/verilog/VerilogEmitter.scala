@@ -896,21 +896,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
             case MemoryLoadFileType.Binary => "$readmemb"
             case MemoryLoadFileType.Hex    => "$readmemh"
           }
-<<<<<<< HEAD
-          if (emissionOptions.emitMemoryInitAsNoSynth) {
-            memoryInitials += Seq(s"""$readmem("$filename", ${s.name});""")
-          } else {
-            val inlineLoad = s"""initial begin
-                                |    $readmem("$filename", ${s.name});
-                                |  end""".stripMargin
-            memoryInitials += Seq(inlineLoad)
-          }
-=======
           memoryInitials += Seq(s"""$readmem("$filename", ${s.name});""")
 
-        case MemoryNoInit =>
-        // do nothing
->>>>>>> 475c165c (Fix faulty MemorySynthInit behavior (#2468))
       }
     }
 
