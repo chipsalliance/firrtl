@@ -896,6 +896,7 @@ class VerilogEmitter extends SeqTransform with Emitter {
             case MemoryLoadFileType.Binary => "$readmemb"
             case MemoryLoadFileType.Hex    => "$readmemh"
           }
+<<<<<<< HEAD
           if (emissionOptions.emitMemoryInitAsNoSynth) {
             memoryInitials += Seq(s"""$readmem("$filename", ${s.name});""")
           } else {
@@ -904,6 +905,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
                                 |  end""".stripMargin
             memoryInitials += Seq(inlineLoad)
           }
+=======
+          memoryInitials += Seq(s"""$readmem("$filename", ${s.name});""")
+
+        case MemoryNoInit =>
+        // do nothing
+>>>>>>> 475c165c (Fix faulty MemorySynthInit behavior (#2468))
       }
     }
 
@@ -1252,8 +1259,10 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("`FIRRTL_AFTER_INITIAL"))
         emit(Seq("`endif"))
         emit(Seq("`endif // SYNTHESIS"))
-        if (!emissionOptions.emitMemoryInitAsNoSynth) {
+        if (!emissionOptions.emitMemoryInitAsNoSynth && !memoryInitials.isEmpty) {
+          emit(Seq("initial begin"))
           for (x <- memoryInitials) emit(Seq(tab, x))
+          emit(Seq("end"))
         }
       }
 
