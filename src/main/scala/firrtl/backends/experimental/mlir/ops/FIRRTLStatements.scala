@@ -17,7 +17,7 @@ case class PrintFOp(
 case class SkipOp() extends FIRRTLOp
 case class StopOp(clock: ValueAndType, cond: ValueAndType, exitCode: Int, name: String) extends FIRRTLOp
 
-trait VerifOp {
+trait VerifOp extends Op {
   val name:      String
   val clock:     ValueAndType
   val predicate: ValueAndType

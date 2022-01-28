@@ -163,13 +163,13 @@ object ConvertIR extends Transform with DependencyAPIMigration {
         val constantCache = collection.mutable.Map[(BigInt, BigInt, Boolean), Value]()
         val ns = Namespace(m)
         // use globalRegion and localRegion to make visitor being able to insert
-        implicit val globalRegion = collection.mutable.ArrayBuffer[Op]()
+        val globalRegion = collection.mutable.ArrayBuffer[Op]()
         // update port type
         m.ports.foreach {
           case Port(_, name, _, tpe) => typeMap.update(name, convertType(tpe))
         }
         // start to visit statement
-        visitStatement(m.body)
+        visitStatement(m.body)(globalRegion)
         def convertExpression(expression: Expression)(implicit region: collection.mutable.ArrayBuffer[Op]): Reference = expression match {
           case e: Reference =>
             // do nothing if we visit a reference.
@@ -373,7 +373,7 @@ object ConvertIR extends Transform with DependencyAPIMigration {
             val clk = convertExpression(s.clock).name
             val clkTpe = typeMap(clk)
             typeMap.update(n, tpe)
-            region += s.init match {
+            region += (s.init match {
               case firrtl.Utils.zero => RegOp((n, tpe), (clk, clkTpe))
               case _ =>
                 val reset = convertExpression(s.reset).name
@@ -381,7 +381,7 @@ object ConvertIR extends Transform with DependencyAPIMigration {
                 val init = convertExpression(s.init).name
                 val initTpe = typeMap(init)
                 RegResetOp((n, tpe), (clk, clkTpe), (reset, resetTpe), (init, initTpe))
-            }
+            })
           case s: Connect =>
             val n = convertExpression(s.loc).name
             val Tpe = typeMap(n)
@@ -429,7 +429,7 @@ object ConvertIR extends Transform with DependencyAPIMigration {
               val tpe = typeMap(n)
               (n, tpe)
             }
-            region += PrintFOp((clk, clkTpe), (cond, condTpe), args, s.string)
+            region += PrintFOp((clk, clkTpe), (cond, condTpe), args, s.string.string)
           case s: Verification =>
             val clk = convertExpression(s.clk).name
             val clkTpe = typeMap(clk)
@@ -437,21 +437,21 @@ object ConvertIR extends Transform with DependencyAPIMigration {
             val predTpe = typeMap(pred)
             val en = convertExpression(s.en).name
             val enTpe = typeMap(en)
-            region += s.op match {
-              case Formal.Assert => AssertOp((clk, clkTpe), (pred, predTpe), (en, enTpe), s.msg)
-              case Formal.Assume => AssumeOp((clk, clkTpe), (pred, predTpe), (en, enTpe), s.msg)
-              case Formal.Cover  => CoverOp((clk, clkTpe), (pred, predTpe), (en, enTpe), s.msg)
-            }
+            region += (s.op match {
+              case Formal.Assert => AssertOp((clk, clkTpe), (pred, predTpe), (en, enTpe), s.msg.string)
+              case Formal.Assume => AssumeOp((clk, clkTpe), (pred, predTpe), (en, enTpe), s.msg.string)
+              case Formal.Cover  => CoverOp((clk, clkTpe), (pred, predTpe), (en, enTpe), s.msg.string)
+            })
           // we support CHIRRTL since MFC already supported.
           case s: CDefMemory =>
             val n = ns.newName(s.name)
             val tpe = CMemoryType(convertType(s.tpe), s.size)
             typeMap.update(n, tpe)
-            region += if (s.seq) {
+            region += (if (s.seq) {
               SeqMemOp((n, tpe), convertMRUW(s.readUnderWrite))
             } else {
               CombMemOp((n, tpe))
-            }
+            })
           case s: CDefMPort =>
             // TODO: name conflict issue here?
             val data = ns.newName(s"${s.name}_data")
