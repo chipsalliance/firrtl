@@ -11,8 +11,8 @@ case class PartialConnectOp(dest: ValueAndType, src: ValueAndType) extends FIRRT
 case class PrintFOp(
   clock:       ValueAndType,
   cond:        ValueAndType,
-  formatSting: String,
-  operands:    Seq[ValueAndType])
+  operands:    Seq[ValueAndType],
+  formatSting: String)
     extends FIRRTLOp
 case class SkipOp() extends FIRRTLOp
 case class StopOp(clock: ValueAndType, cond: ValueAndType, exitCode: Int, name: String) extends FIRRTLOp
@@ -23,15 +23,13 @@ trait VerifOp {
   val predicate: ValueAndType
   val enable:    ValueAndType
   val message:   String
-  val operands:  Seq[ValueAndType]
 }
 
 case class AssertOp(
   clock:     ValueAndType,
   predicate: ValueAndType,
   enable:    ValueAndType,
-  message:   String,
-  operands:  Seq[ValueAndType])
+  message:   String)
     extends VerifOp {
   val name = "assert"
 }
@@ -40,8 +38,7 @@ case class AssumeOp(
   clock:     ValueAndType,
   predicate: ValueAndType,
   enable:    ValueAndType,
-  message:   String,
-  operands:  Seq[ValueAndType])
+  message:   String)
     extends VerifOp {
   val name = "assume"
 }
@@ -50,10 +47,9 @@ case class CoverOp(
   clock:     ValueAndType,
   predicate: ValueAndType,
   enable:    ValueAndType,
-  message:   String,
-  operands:  Seq[ValueAndType])
+  message:   String)
     extends VerifOp {
   val name = "cover"
 }
 
-case class WhenOp(thenRegion: Region, elseRegion: Region) extends FIRRTLOp
+case class WhenOp(condition: ValueAndType, thenRegion: Region, elseRegion: Region) extends FIRRTLOp

@@ -59,6 +59,7 @@ import firrtl.backends.experimental.mlir.ops.{
   UIntType => MUIntType,
   _
 }
+import firrtl.ir.ReadUnderWrite.{New, Old, Undefined}
 import firrtl.ir.{
   AggregateType,
   AnalogType,
@@ -84,6 +85,7 @@ import firrtl.ir.{
   FileInfo,
   FixedType,
   Flip,
+  Formal,
   GroundType,
   Info,
   Input,
@@ -101,6 +103,7 @@ import firrtl.ir.{
   Port,
   Print,
   RawStringParam,
+  ReadUnderWrite,
   Reference,
   ResetType,
   SIntLiteral,
@@ -120,7 +123,20 @@ import firrtl.ir.{
 import firrtl.options.CustomFileEmission
 import firrtl.options.Viewer.view
 import firrtl.stage.FirrtlOptions
-import firrtl.{AnnotationSeq, CDefMPort, CDefMemory, CircuitState, DependencyAPIMigration, Namespace, Transform}
+import firrtl.{
+  AnnotationSeq,
+  CDefMPort,
+  CDefMemory,
+  CircuitState,
+  DependencyAPIMigration,
+  MInfer,
+  MPortDir,
+  MRead,
+  MReadWrite,
+  MWrite,
+  Namespace,
+  Transform
+}
 
 case class EmittedMlirCircuitAnnotation(circuitOp: CircuitOp) extends NoTargetAnnotation with CustomFileEmission {
   def baseFileName(annotations: AnnotationSeq): String =
@@ -356,8 +372,8 @@ object ConvertIR extends Transform with DependencyAPIMigration {
               case _ => error("unknown Op, need remove WIR.")
             }
         }
-        def visitStatement(statement: Statement): Unit = statement match {
-          case s: Block => s.stmts.map(visitStatement)
+        def visitStatement(statement: Statement, region: Region): Unit = statement match {
+          case s: Block => s.stmts.foreach(visitStatement(_, region))
           case s: DefNode => convertExpression(s.value)
           case s: DefWire =>
             WireOp((s.name, convertType(s.tpe)))
@@ -394,19 +410,92 @@ object ConvertIR extends Transform with DependencyAPIMigration {
               val exprTpe = typeMap(expr)
               (expr, exprTpe)
             })
-          case s: IsInvalid    =>
-          case s: DefInstance  =>
-          case s: Print        =>
+          case s: IsInvalid =>
+            val expr = convertExpression(s.expr).name
+            // TODO: do this type really work? Invalid seems to be statement?
+            val exprTpe = typeMap(expr)
+            InvalidValueOp((expr, exprTpe))
+          case s: DefInstance =>
+            // query port and type globally from circuit.
+            // since we may not visit correspond module yet.
+            InstanceOp(
+              state.circuit.modules.collectFirst {
+                case Module(_, name, ports, _) if name == s.module => ports.map(convertPort)
+              }.get.map { p =>
+                val n = ns.newName(s"${s.name}_${p.name}")
+                typeMap.update(n, p.tpe)
+                (n, p.tpe)
+              },
+              s.name,
+              s.module
+            )
+          case s: Print =>
+            val clk = convertExpression(s.clk).name
+            val clkTpe = typeMap(clk)
+            val cond = convertExpression(s.en).name
+            val condTpe = typeMap(clk)
+            val args = s.args.map { a =>
+              val n = convertExpression(a).name
+              val tpe = typeMap(n)
+              (n, tpe)
+            }
+            PrintFOp((clk, clkTpe), (cond, condTpe), args, s.string)
           case s: Verification =>
+            val clk = convertExpression(s.clk).name
+            val clkTpe = typeMap(clk)
+            val pred = convertExpression(s.pred).name
+            val predTpe = typeMap(pred)
+            val en = convertExpression(s.en).name
+            val enTpe = typeMap(en)
+            s.op match {
+              case Formal.Assert => AssertOp((clk, clkTpe), (pred, predTpe), (en, enTpe), s.msg)
+              case Formal.Assume => AssumeOp((clk, clkTpe), (pred, predTpe), (en, enTpe), s.msg)
+              case Formal.Cover  => CoverOp((clk, clkTpe), (pred, predTpe), (en, enTpe), s.msg)
+            }
           // we support CHIRRTL since MFC already supported.
           case s: CDefMemory =>
-          case s: CDefMPort  =>
+            val n = ns.newName(s.name)
+            val tpe = CMemoryType(convertType(s.tpe), s.size)
+            typeMap.update(n, tpe)
+            if (s.seq) {
+              SeqMemOp((n, tpe), convertMRUW(s.readUnderWrite))
+            } else {
+              CombMemOp((n, tpe))
+            }
+          case s: CDefMPort =>
+            // TODO: name conflict issue here?
+            val data = ns.newName(s"${s.name}_data")
+            val dataTpe = typeMap(s.mem).asInstanceOf[CMemoryType].elementType
+            typeMap.update(data, dataTpe)
+            val port = ns.newName(s"${s.name}_port")
+            val portTpe = new MUIntType((typeMap(s.mem).asInstanceOf[CMemoryType].numElements - 1).bitLength)
+            typeMap.update(port, portTpe)
+            // insert to global region
+            MemoryPortOp((s.mem, typeMap(s.mem)), (data, dataTpe), (port, portTpe), convertMPortDir(s.direction))
+            val index = convertExpression(s.exps.head).name
+            val indexTpe = typeMap(index)
+            val clock = convertExpression(s.exps(1)).name
+            val clockTpe = typeMap(clock)
+            // insert to local region
+            MemoryPortAccessOp((port, portTpe), (index, indexTpe), (clock, clockTpe))
           // we support `when` block since MFC
           case s: Conditionally =>
-
+            val cond = convertExpression(s.pred).name
+            val condTpe = typeMap(cond)
+            WhenOp(
+              (cond, condTpe), {
+                val thenRegion = collection.mutable.ArrayBuffer[Op]()
+                visitStatement(s.conseq, thenRegion)
+                thenRegion
+              }, {
+                val elseRegion = collection.mutable.ArrayBuffer[Op]()
+                visitStatement(s.alt, elseRegion)
+                elseRegion
+              }
+            )
         }
         // start to visit statement
-//        visitStatement(m.body)
+        visitStatement(m.body, globalRegion)
 
         FModuleOp(m.name, m.ports.map(convertPort), globalRegion)
     }
@@ -445,6 +534,17 @@ object ConvertIR extends Transform with DependencyAPIMigration {
     def convertDirection(direction: Direction): MDIrection = direction match {
       case Input  => In
       case Output => Out
+    }
+    def convertMRUW(ruw: ReadUnderWrite.Value) = ruw match {
+      case Undefined => RUWUndefined
+      case Old       => RUWOld
+      case New       => RUWNew
+    }
+    def convertMPortDir(mPortDir: MPortDir) = mPortDir match {
+      case MInfer     => MemDirInfer
+      case MRead      => MemDirRead
+      case MWrite     => MemDirWrite
+      case MReadWrite => MemDirReadWrite
     }
     // TODO
     def convertParam(param: Param): String = param match {

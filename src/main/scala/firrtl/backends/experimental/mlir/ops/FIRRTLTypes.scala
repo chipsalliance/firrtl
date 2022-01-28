@@ -25,32 +25,32 @@ class FVectorType(val elementType: FIRRTLType, val numElements: unsigned) extend
 class AsyncResetType extends FIRRTLType
 class ResetType extends FIRRTLType
 
-object RUW_Undefined extends RUWAttr {
+object RUWUndefined extends RUWAttr {
   def name = "Undefined"
   def value = 0
 }
-object RUW_Old extends RUWAttr {
+object RUWOld extends RUWAttr {
   def name = "Old"
   def value = 1
 }
-object RUW_New extends RUWAttr {
+object RUWNew extends RUWAttr {
   def name = "New"
   def value = 2
 }
 trait RUWAttr extends Enum
-object MemDir_Infer extends MemDirAttr {
+object MemDirInfer extends MemDirAttr {
   def name = "Infer"
   def value = 0
 }
-object MemDir_Read extends MemDirAttr {
+object MemDirRead extends MemDirAttr {
   def name = "Read"
   def value = 1
 }
-object MemDir_Write extends MemDirAttr {
+object MemDirWrite extends MemDirAttr {
   def name = "Write"
   def value = 2
 }
-object MemDir_ReadWrite extends MemDirAttr {
+object MemDirReadWrite extends MemDirAttr {
   def name = "ReadWrite"
   def value = 3
 }

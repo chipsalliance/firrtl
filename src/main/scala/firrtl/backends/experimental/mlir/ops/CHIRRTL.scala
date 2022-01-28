@@ -9,7 +9,7 @@ import firrtl.backends.experimental.mlir._
 
 trait CHIRRTLOp extends Op
 
-case class CMemoryType(elementType: FIRRTLType, numElements: unsigned) extends Type
+case class CMemoryType(elementType: FIRRTLType, numElements: BigInt) extends FIRRTLType
 
 case class CombMemOp(result: ValueAndType) extends CHIRRTLOp
 

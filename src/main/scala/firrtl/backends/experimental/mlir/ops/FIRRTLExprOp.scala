@@ -7,6 +7,7 @@ package firrtl.backends.experimental.mlir.ops
 
 
 trait FIRRTLExprOp extends Op
+case class InvalidValueOp(result: ValueAndType) extends FIRRTLExprOp
 
 case class ConstantOp(result: ValueAndType, value: BigInt) extends FIRRTLExprOp
 case class SpecialConstantOp(result: ValueAndType, value: BigInt) extends FIRRTLExprOp
