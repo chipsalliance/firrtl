@@ -79,37 +79,28 @@ import firrtl.ir.{
   Default,
   Direction,
   DoPrim,
-  DoubleParam,
   Expression,
   ExtModule,
-  FileInfo,
   FixedType,
   Flip,
   Formal,
   GroundType,
-  Info,
   Input,
-  IntParam,
   IntWidth,
   IntervalType,
   IsInvalid,
   Module,
-  MultiInfo,
-  NoInfo,
   Orientation,
   Output,
-  Param,
   PartialConnect,
   Port,
   Print,
-  RawStringParam,
   ReadUnderWrite,
   Reference,
   ResetType,
   SIntLiteral,
   SIntType,
   Statement,
-  StringParam,
   SubAccess,
   SubField,
   SubIndex,
@@ -172,15 +163,14 @@ object ConvertIR extends Transform with DependencyAPIMigration {
         val constantCache = collection.mutable.Map[(BigInt, BigInt, Boolean), Value]()
         val ns = Namespace(m)
         // use globalRegion and localRegion to make visitor being able to insert
-        val globalRegion = collection.mutable.ArrayBuffer[Op]()
-        val localRegion = collection.mutable.ArrayBuffer[Op]()
-
+        implicit val globalRegion = collection.mutable.ArrayBuffer[Op]()
         // update port type
         m.ports.foreach {
           case Port(_, name, _, tpe) => typeMap.update(name, convertType(tpe))
         }
-
-        def convertExpression(expression: Expression): Reference = expression match {
+        // start to visit statement
+        visitStatement(m.body)
+        def convertExpression(expression: Expression)(implicit region: collection.mutable.ArrayBuffer[Op]): Reference = expression match {
           case e: Reference =>
             // do nothing if we visit a reference.
             e
@@ -198,7 +188,7 @@ object ConvertIR extends Transform with DependencyAPIMigration {
             // append subfieldType to typeMap
             typeMap(n) = subfieldType
             // append SubfieldOp to MLIR globalRegion.
-            globalRegion += SubfieldOp(
+            region += SubfieldOp(
               (n, subfieldType),
               (bundle.name, bundleType),
               tpeIdx
@@ -217,7 +207,7 @@ object ConvertIR extends Transform with DependencyAPIMigration {
             // append elementType to typeMap
             typeMap(n) = elementType
             // append SubindexOp to MLIR globalRegion.
-            globalRegion += SubindexOp(
+            region += SubindexOp(
               (n, elementType),
               (vector.name, vectorType),
               e.value
@@ -242,7 +232,7 @@ object ConvertIR extends Transform with DependencyAPIMigration {
             // append subfieldType to typeMap
             typeMap(n) = elementType
             // append SubfieldOp to MLIR globalRegion.
-            globalRegion += SubaccessOp(
+            region += SubaccessOp(
               (n, elementType),
               (vector.name, vectorType),
               (index.name, indexType)
@@ -258,7 +248,7 @@ object ConvertIR extends Transform with DependencyAPIMigration {
                   val constantType: FIRRTLType = convertType(e.tpe)
                   typeMap(n) = constantType
                   constantCache.update((e.value, convertWidth(e.width), true), n)
-                  globalRegion += ConstantOp((n, constantType), e.value)
+                  region += ConstantOp((n, constantType), e.value)
                   n
                 }
               )
@@ -272,7 +262,7 @@ object ConvertIR extends Transform with DependencyAPIMigration {
                   val constantType: FIRRTLType = convertType(e.tpe)
                   typeMap(n) = constantType
                   constantCache.update((e.value, convertWidth(e.width), false), n)
-                  globalRegion += ConstantOp((n, constantType), e.value)
+                  region += ConstantOp((n, constantType), e.value)
                   n
                 }
               )
@@ -285,7 +275,7 @@ object ConvertIR extends Transform with DependencyAPIMigration {
                 typeMap(n) = resultType
                 val lhs = convertExpression(e.args(0))
                 val rhs = convertExpression(e.args(1))
-                globalRegion += (e.op match {
+                region += (e.op match {
                   case Add =>
                     AddPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
                   case Sub =>
@@ -327,7 +317,7 @@ object ConvertIR extends Transform with DependencyAPIMigration {
                 val resultType: FIRRTLType = convertType(e.op.propagateType(e))
                 typeMap(n) = resultType
                 val input = convertExpression(e.args(0))
-                globalRegion += (e.op match {
+                region += (e.op match {
                   case AsSInt       => AsSIntPrimOp((n, resultType), (input.name, convertType(input.tpe)))
                   case AsUInt       => AsUIntPrimOp((n, resultType), (input.name, convertType(input.tpe)))
                   case AsAsyncReset => AsAsyncResetPrimOp((n, resultType), (input.name, convertType(input.tpe)))
@@ -345,7 +335,7 @@ object ConvertIR extends Transform with DependencyAPIMigration {
                 val resultType: FIRRTLType = convertType(e.op.propagateType(e))
                 typeMap(n) = resultType
                 val input = convertExpression(e.args(0))
-                globalRegion += (e.op match {
+                region += (e.op match {
                   case Head => HeadPrimOp((n, resultType), (input.name, convertType(input.tpe)), e.consts(0))
                   case Tail => TailPrimOp((n, resultType), (input.name, convertType(input.tpe)), e.consts(0))
                   case Shl  => ShlPrimOp((n, resultType), (input.name, convertType(input.tpe)), e.consts(0))
@@ -359,7 +349,7 @@ object ConvertIR extends Transform with DependencyAPIMigration {
                 val resultType: FIRRTLType = convertType(e.op.propagateType(e))
                 typeMap(n) = resultType
                 val input = convertExpression(e.args(0))
-                globalRegion += BitsPrimOp(
+                region += BitsPrimOp(
                   (n, resultType),
                   (input.name, convertType(input.tpe)),
                   e.consts(0),
@@ -372,18 +362,18 @@ object ConvertIR extends Transform with DependencyAPIMigration {
               case _ => error("unknown Op, need remove WIR.")
             }
         }
-        def visitStatement(statement: Statement, region: Region): Unit = statement match {
-          case s: Block => s.stmts.foreach(visitStatement(_, region))
+        def visitStatement(statement: Statement)(implicit region: collection.mutable.ArrayBuffer[Op]): Unit = statement match {
+          case s: Block => s.stmts.foreach(visitStatement(_))
           case s: DefNode => convertExpression(s.value)
           case s: DefWire =>
-            WireOp((s.name, convertType(s.tpe)))
+            region += WireOp((s.name, convertType(s.tpe)))
           case s: DefRegister =>
             val n = s.name
             val tpe = convertType(s.tpe)
             val clk = convertExpression(s.clock).name
             val clkTpe = typeMap(clk)
             typeMap.update(n, tpe)
-            s.init match {
+            region += s.init match {
               case firrtl.Utils.zero => RegOp((n, tpe), (clk, clkTpe))
               case _ =>
                 val reset = convertExpression(s.reset).name
@@ -397,15 +387,15 @@ object ConvertIR extends Transform with DependencyAPIMigration {
             val Tpe = typeMap(n)
             val expr = convertExpression(s.expr).name
             val exprTpe = typeMap(expr)
-            ConnectOp((n, Tpe), (expr, exprTpe))
+            region += ConnectOp((n, Tpe), (expr, exprTpe))
           case s: PartialConnect =>
             val n = convertExpression(s.loc).name
             val Tpe = typeMap(n)
             val expr = convertExpression(s.expr).name
             val exprTpe = typeMap(expr)
-            PartialConnectOp((n, Tpe), (expr, exprTpe))
+            region += PartialConnectOp((n, Tpe), (expr, exprTpe))
           case s: Attach =>
-            AttachOp(s.exprs.map { e =>
+            region += AttachOp(s.exprs.map { e =>
               val expr = convertExpression(e).name
               val exprTpe = typeMap(expr)
               (expr, exprTpe)
@@ -414,11 +404,11 @@ object ConvertIR extends Transform with DependencyAPIMigration {
             val expr = convertExpression(s.expr).name
             // TODO: do this type really work? Invalid seems to be statement?
             val exprTpe = typeMap(expr)
-            InvalidValueOp((expr, exprTpe))
+            region += InvalidValueOp((expr, exprTpe))
           case s: DefInstance =>
             // query port and type globally from circuit.
             // since we may not visit correspond module yet.
-            InstanceOp(
+            region += InstanceOp(
               state.circuit.modules.collectFirst {
                 case Module(_, name, ports, _) if name == s.module => ports.map(convertPort)
               }.get.map { p =>
@@ -439,7 +429,7 @@ object ConvertIR extends Transform with DependencyAPIMigration {
               val tpe = typeMap(n)
               (n, tpe)
             }
-            PrintFOp((clk, clkTpe), (cond, condTpe), args, s.string)
+            region += PrintFOp((clk, clkTpe), (cond, condTpe), args, s.string)
           case s: Verification =>
             val clk = convertExpression(s.clk).name
             val clkTpe = typeMap(clk)
@@ -447,7 +437,7 @@ object ConvertIR extends Transform with DependencyAPIMigration {
             val predTpe = typeMap(pred)
             val en = convertExpression(s.en).name
             val enTpe = typeMap(en)
-            s.op match {
+            region += s.op match {
               case Formal.Assert => AssertOp((clk, clkTpe), (pred, predTpe), (en, enTpe), s.msg)
               case Formal.Assume => AssumeOp((clk, clkTpe), (pred, predTpe), (en, enTpe), s.msg)
               case Formal.Cover  => CoverOp((clk, clkTpe), (pred, predTpe), (en, enTpe), s.msg)
@@ -457,7 +447,7 @@ object ConvertIR extends Transform with DependencyAPIMigration {
             val n = ns.newName(s.name)
             val tpe = CMemoryType(convertType(s.tpe), s.size)
             typeMap.update(n, tpe)
-            if (s.seq) {
+            region += if (s.seq) {
               SeqMemOp((n, tpe), convertMRUW(s.readUnderWrite))
             } else {
               CombMemOp((n, tpe))
@@ -471,31 +461,29 @@ object ConvertIR extends Transform with DependencyAPIMigration {
             val portTpe = new MUIntType((typeMap(s.mem).asInstanceOf[CMemoryType].numElements - 1).bitLength)
             typeMap.update(port, portTpe)
             // insert to global region
-            MemoryPortOp((s.mem, typeMap(s.mem)), (data, dataTpe), (port, portTpe), convertMPortDir(s.direction))
+            globalRegion += MemoryPortOp((s.mem, typeMap(s.mem)), (data, dataTpe), (port, portTpe), convertMPortDir(s.direction))
             val index = convertExpression(s.exps.head).name
             val indexTpe = typeMap(index)
             val clock = convertExpression(s.exps(1)).name
             val clockTpe = typeMap(clock)
             // insert to local region
-            MemoryPortAccessOp((port, portTpe), (index, indexTpe), (clock, clockTpe))
+            region += MemoryPortAccessOp((port, portTpe), (index, indexTpe), (clock, clockTpe))
           // we support `when` block since MFC
           case s: Conditionally =>
             val cond = convertExpression(s.pred).name
             val condTpe = typeMap(cond)
-            WhenOp(
+            region += WhenOp(
               (cond, condTpe), {
                 val thenRegion = collection.mutable.ArrayBuffer[Op]()
-                visitStatement(s.conseq, thenRegion)
+                visitStatement(s.conseq)(thenRegion)
                 thenRegion
               }, {
                 val elseRegion = collection.mutable.ArrayBuffer[Op]()
-                visitStatement(s.alt, elseRegion)
+                visitStatement(s.alt)(elseRegion)
                 elseRegion
               }
             )
         }
-        // start to visit statement
-        visitStatement(m.body, globalRegion)
 
         FModuleOp(m.name, m.ports.map(convertPort), globalRegion)
     }
@@ -545,19 +533,6 @@ object ConvertIR extends Transform with DependencyAPIMigration {
       case MRead      => MemDirRead
       case MWrite     => MemDirWrite
       case MReadWrite => MemDirReadWrite
-    }
-    // TODO
-    def convertParam(param: Param): String = param match {
-      case IntParam(name, value)       => ""
-      case DoubleParam(name, value)    => ""
-      case StringParam(name, value)    => ""
-      case RawStringParam(name, value) => ""
-    }
-    // TODO
-    def convertInfo(info: Info): String = info match {
-      case FileInfo(escaped) => ""
-      case MultiInfo(infos)  => ""
-      case NoInfo            => ""
     }
     state.copy(annotations =
       state.annotations :+ EmittedMlirCircuitAnnotation(
