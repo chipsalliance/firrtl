@@ -24,6 +24,10 @@ import firrtl.backends.experimental.mlir.ops.{
   FVectorType,
   InstanceOp,
   InvalidValueOp,
+  MemDirInfer,
+  MemDirRead,
+  MemDirReadWrite,
+  MemDirWrite,
   MemoryPortAccessOp,
   MemoryPortOp,
   Node,
@@ -31,6 +35,9 @@ import firrtl.backends.experimental.mlir.ops.{
   PartialConnectOp,
   PrimOp,
   PrintFOp,
+  RUWNew,
+  RUWOld,
+  RUWUndefined,
   RegOp,
   RegResetOp,
   ResetType,
@@ -58,29 +65,48 @@ object Serializer {
       op match {
         case op: CHIRRTLOp =>
           op match {
-            case CombMemOp(result)                           =>
-            case MemoryPortAccessOp(port, index, clock)      =>
+            case CombMemOp(result) =>
+              writeLine(s"%$result = chirrtl.combmem : ${serialize(result._2)}")
+            case MemoryPortAccessOp(port, index, clock) =>
+              writeLine(
+                s"chirrtl.memoryport.access %${port._1}[%${index}], %${clock._1} : !chirrtl.cmemoryport, ${serialize(
+                  index._2
+                )} ${serialize(clock._2)}"
+              )
             case MemoryPortOp(memory, data, port, direction) =>
-            case SeqMemOp(result, ruw)                       =>
-            case _                                           =>
+              writeLine(s"${data._1}, ${port._1} = chirrtl.memoryport ${direction match {
+                case _: MemDirInfer.type     => "Infer"
+                case _: MemDirRead.type      => "Read"
+                case _: MemDirReadWrite.type => "ReadWrite"
+                case _: MemDirWrite.type     => "Write"
+              }} %$memory: ${serialize(memory._2)} -> (${serialize(data._2)}, ${serialize(port._2)})")
+            case SeqMemOp(result, ruw) =>
+              writeLine(s"%$result = chirrtl.seqmem : ${ruw match {
+                case RUWNew       => "New"
+                case RUWOld       => "Old"
+                case RUWUndefined => "Undefined"
+              }} ${serialize(result._2)}")
           }
         case op: FIRRTLExprOp =>
           op match {
             case ConstantOp(result, value) =>
+              writeLine(s"%${result._1} = firrtl.constant $value : ${serialize(result._2)}")
             case op: FIRRTLVerifOp =>
               op match {
                 case AssertOp(clock, predicate, enable, message) =>
+                // TODO
                 case AssumeOp(clock, predicate, enable, message) =>
-                case CoverOp(clock, predicate, enable, message)  =>
-                case _                                           =>
+                // TODO
+                case CoverOp(clock, predicate, enable, message) =>
+                // TODO
               }
             case InvalidValueOp(result) =>
+              writeLine(s"%${result._1} = firrtl.invalidvalue : ${serialize(result._2)}")
             case op: PrimOp =>
             case SpecialConstantOp(result, value)      =>
             case SubaccessOp(result, input, index)     =>
             case SubfieldOp(result, input, fieldIndex) =>
             case SubindexOp(result, input, index)      =>
-            case _                                     =>
           }
         case op: ops.FIRRTLOp =>
           op match {
@@ -135,7 +161,7 @@ object Serializer {
             case StopOp(clock, cond, exitCode, name) =>
               writeLine(s"firrtl.stop ${clock._1}, ${cond._1}, $exitCode : $name")
             case PrintFOp(clock, cond, operands, formatSting) =>
-              // TODO
+            // TODO
             case NodeOp(result) =>
               // TODO: fix
               writeLine(s"${result._1} = ${serialize(result._2)}")
@@ -143,15 +169,14 @@ object Serializer {
               writeLine(s"firrtl.when $condition {")
               thenRegion.foreach(write(_)(b, indentNum + 1))
               write("}")
-              if (elseRegion.nonEmpty){
+              if (elseRegion.nonEmpty) {
                 write(" else {")
                 elseRegion.foreach(write(_)(b, indentNum + 1))
                 write("}")
               }
               newLine()
-            case _                                         =>
+            case _ =>
           }
-        case _ =>
       }
     case op: ops.Type =>
       op match {
@@ -171,7 +196,6 @@ object Serializer {
         case _ =>
       }
     case op: ops.PortInfo =>
-    case _ =>
   }
   def writeLine(str: String)(implicit b: StringBuilder, indent: Int): Unit = {
     b ++= (Indent * indent)
