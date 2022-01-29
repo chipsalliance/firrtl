@@ -7,6 +7,12 @@ package firrtl.backends.experimental.mlir.ops
 
 case class CircuitOp(name: String, body: Region) extends FIRRTLOp
 
-case class FModuleOp(name: String, ports: Seq[PortInfo], body: Region) extends FIRRTLOp
+trait ModuleOp extends FIRRTLOp {
+  val name: String
+  val ports: Seq[PortInfo]
+}
 
-case class FExtModuleOp(name: String, port: Seq[PortInfo]) extends FIRRTLOp
+case class FModuleOp(name: String, ports: Seq[PortInfo], body: Region) extends ModuleOp
+
+// TODO: parameters
+case class FExtModuleOp(name: String, ports: Seq[PortInfo]) extends ModuleOp

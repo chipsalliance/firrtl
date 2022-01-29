@@ -10,9 +10,7 @@ package firrtl.backends.experimental.mlir
 package object ops {
   type Region = Seq[Op]
 
-  abstract class Node {
-    def serialize: String = "todo"
-  }
+  abstract class Node
 
   trait Type extends Node
 
@@ -21,7 +19,7 @@ package object ops {
   type ValueAndType = (String, FIRRTLType)
   type Value = String
 
-  case class PortInfo(name: String, tpe: FIRRTLType, direction: Direction)
+  case class PortInfo(name: String, tpe: FIRRTLType, direction: Direction) extends Node
 
   /** Defined in FIRRTLAttributes.h */
   case object In extends Direction {

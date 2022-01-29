@@ -17,7 +17,7 @@ case class PrintFOp(
 case class SkipOp() extends FIRRTLOp
 case class StopOp(clock: ValueAndType, cond: ValueAndType, exitCode: Int, name: String) extends FIRRTLOp
 
-trait VerifOp extends Op {
+trait FIRRTLVerifOp extends FIRRTLExprOp {
   val name:      String
   val clock:     ValueAndType
   val predicate: ValueAndType
@@ -30,7 +30,8 @@ case class AssertOp(
   predicate: ValueAndType,
   enable:    ValueAndType,
   message:   String)
-    extends VerifOp {
+    extends FIRRTLVerifOp
+ {
   val name = "assert"
 }
 
@@ -39,7 +40,8 @@ case class AssumeOp(
   predicate: ValueAndType,
   enable:    ValueAndType,
   message:   String)
-    extends VerifOp {
+    extends FIRRTLVerifOp
+ {
   val name = "assume"
 }
 
@@ -48,7 +50,8 @@ case class CoverOp(
   predicate: ValueAndType,
   enable:    ValueAndType,
   message:   String)
-    extends VerifOp {
+    extends FIRRTLVerifOp
+ {
   val name = "cover"
 }
 
