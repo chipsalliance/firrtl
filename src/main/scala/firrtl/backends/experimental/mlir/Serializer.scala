@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // Author: Jiuyang Liu <liu@jiuyang.me>
 package firrtl.backends.experimental.mlir
+import firrtl.Utils.error
 import firrtl.backends.experimental.mlir.ops.{
   AnalogType,
   AssertOp,
   AssumeOp,
   AsyncResetType,
   AttachOp,
+  BundleElement,
   BundleType,
   CHIRRTLOp,
   CMemoryType,
@@ -53,12 +55,41 @@ import firrtl.backends.experimental.mlir.ops.{
   WhenOp,
   WireOp
 }
-
 object Serializer {
   val NewLine = "\n"
   val Indent = "  "
-  def serialize(node: ops.FIRRTLType): String = ???
-  def serialize(node: ops.PortInfo):   String = ???
+
+  def serializeElement(node: ops.FIRRTLType): String = node match {
+    case sint:       SIntType => s"sint" + (if (sint.width != -1) s"<${sint.width}>" else "")
+    case uint:       UIntType => s"uint" + (if (uint.width != -1) s"<${uint.width}>" else "")
+    case analogType: AnalogType => s"analog" + (if (analogType.width != -1) s"<${analogType.width}>" else "")
+    case bundleType: BundleType =>
+      s"bundle<${bundleType.elements.map {
+        case BundleElement(name, flip, element) => s"$name ${if (flip) "flip " else ""}: ${serializeElement(element)}"
+      }.mkString(", ")}>"
+    case vectorType: FVectorType    => s"vector<${serializeElement(vectorType.elementType)}, ${vectorType.numElements}>"
+    case _:          ClockType      => "clock"
+    case _:          AsyncResetType => "asyncreset"
+    case _:          ResetType      => "reset"
+    case _:          CMemoryType    => error("cmemory is not element type.")
+
+  }
+  def serialize(node: ops.FIRRTLType): String = node match {
+    case sint:       SIntType => s"!firrtl.sint" + (if (sint.width != -1) s"<${sint.width}>" else "")
+    case uint:       UIntType => s"!firrtl.uint" + (if (uint.width != -1) s"<${uint.width}>" else "")
+    case analogType: AnalogType => s"!firrtl.analog" + (if (analogType.width != -1) s"<${analogType.width}>" else "")
+    case bundleType: BundleType =>
+      s"!firrtl.bundle<${bundleType.elements.map {
+        case BundleElement(name, flip, element) => s"$name ${if (flip) "flip " else ""}: ${serializeElement(element)}"
+      }.mkString(", ")}>"
+    case CMemoryType(elementType, numElements) => s"!chirrtl.cmemory<${serialize(elementType)}, $numElements>"
+    case vectorType: FVectorType =>
+      s"!firrtl.vector<${serializeElement(vectorType.elementType)}, ${vectorType.numElements}>"
+    case _: ClockType      => "!firrtl.clock"
+    case _: AsyncResetType => "!firrtl.asyncreset"
+    case _: ResetType      => "!firrtl.reset"
+
+  }
 
   def write(node: Node)(implicit b: StringBuilder, indentNum: Int): Unit = node match {
     case op: ops.Op =>
@@ -89,6 +120,12 @@ object Serializer {
           }
         case op: FIRRTLExprOp =>
           op match {
+            // Tested, Instance Bug.
+            case SubfieldOp(result, input, fieldIndex) =>
+              writeLine(
+                s"%${result._1} = firrtl.subfield %${input._1}($fieldIndex) : (${serialize(input._2)}) -> ${serialize(result._2)}"
+              )
+
             case ConstantOp(result, value) =>
               writeLine(s"%${result._1} = firrtl.constant $value : ${serialize(result._2)}")
             case op: FIRRTLVerifOp =>
@@ -103,68 +140,76 @@ object Serializer {
             case InvalidValueOp(result) =>
               writeLine(s"%${result._1} = firrtl.invalidvalue : ${serialize(result._2)}")
             case op: PrimOp =>
-            case SpecialConstantOp(result, value)      =>
-            case SubaccessOp(result, input, index)     =>
-            case SubfieldOp(result, input, fieldIndex) =>
-            case SubindexOp(result, input, index)      =>
+            case SpecialConstantOp(result, value)  =>
+            case SubaccessOp(result, input, index) =>
+            case SubindexOp(result, input, index)  =>
           }
         case op: ops.FIRRTLOp =>
           op match {
+            // Tested
             case CircuitOp(name, body) =>
-              writeLine(s"firrtl.circuit $name {")
+              writeLine(s"""firrtl.circuit "$name" {""")
               body.foreach(write(_)(b, indentNum + 1))
               writeLine("}")
+            // Tested
             case FModuleOp(name, ports, body) =>
-              writeLine(s"firrtl.module @$name (")
-              ports.foreach(write(_)(b, indentNum + 1))
-              writeLine(") {")
-              body.foreach(write)
-              writeLine("}")
-            case FExtModuleOp(name, ports) =>
-              writeLine(s"firrtl.module @$name {")
-              ports.foreach(write(_)(b, indentNum + 1))
-              writeLine(")")
-            case AttachOp(arguments) =>
-              write("firrtl.attach ")
-              write(arguments.map(a => s"%${a._1}").mkString(", "))
-              write(" : ")
-              write(arguments.map(a => serialize(a._2)).mkString(", "))
-              newLine()
-            case ConnectOp(dest, src) =>
-              writeLine(s"firrtl.connect %${dest._1}, %${src._1} : ${serialize(dest._2)}, ${serialize(src._2)}")
-              newLine()
-            case PartialConnectOp(dest, src) =>
-              writeLine(s"firrtl.partialconnect ${dest._1}, ${src._1} : ${serialize(dest._2)}, ${serialize(src._2)}")
-            case InstanceOp(results, instanceName, moduleName) =>
-              // instance need module.
-              writeLine(s"${results.map(_._1).mkString(", ")} = firrtl.instance $instanceName @$moduleName(${results
-                .map(_._2)
+              writeLine(s"firrtl.module @$name(${ports
                 .map(p =>
                   s"${p.direction match {
                     case ops.In  => "in"
                     case ops.Out => "out"
-                  }} ${p.name} ${serialize(p.tpe)}"
-                )})")
-
+                  }} %${p.name}: ${serialize(p.tpe)}"
+                )
+                .mkString(s", ")}) {")
+              body.foreach(write(_)(b, indentNum + 1))
+              writeLine("}")
+            // Tested
+            case InstanceOp(results, instanceName, moduleName) =>
+              writeLine(
+                s"${results.map(r => s"%${r._1}").mkString(", ")} = firrtl.instance $instanceName @$moduleName(${(
+                  results
+                    .map(_._2)
+                    .map(p =>
+                      s"${p.direction match {
+                        case ops.In  => "in"
+                        case ops.Out => "out"
+                      }} ${p.name}: ${serialize(p.tpe)}"
+                    )
+                  )
+                  .mkString(", ")})"
+              )
+            // Tested
+            case ConnectOp(dest, src) =>
+              writeLine(s"firrtl.connect %${dest._1}, %${src._1} : ${serialize(dest._2)}, ${serialize(src._2)}")
+            // chisel3 won't emit this, TBD
+            case PartialConnectOp(dest, src) =>
+              writeLine(s"firrtl.partialconnect ${dest._1}, ${src._1} : ${serialize(dest._2)}, ${serialize(src._2)}")
+            // Tested
+            case AttachOp(arguments) =>
+              writeLine(
+                s"firrtl.attach ${arguments.map(a => s"%${a._1}").mkString(", ")} : ${arguments.map(a => serialize(a._2)).mkString(", ")}"
+              )
+            case FExtModuleOp(name, ports) =>
+            // Tested
             case WireOp(result) =>
-              writeLine(s"${result._1} = firrtl.wire : ${serialize(result._2)}")
+              writeLine(s"%${result._1} = firrtl.wire : ${serialize(result._2)}")
+            // Tested
             case RegOp(result, clock) =>
-              writeLine(s"${result._1} = firrtl.reg ${clock._1} : ${serialize(result._2)}")
+              writeLine(s"%${result._1} = firrtl.reg %${clock._1} : ${serialize(result._2)}")
+            // Tested
             case RegResetOp(result, clock, reset, init) =>
               writeLine(
-                s"${result._1} = firrtl.regreset ${clock._1}, ${reset._1}, ${init._1} : ${serialize(
+                s"%${result._1} = firrtl.regreset %${clock._1}, %${reset._1}, %${init._1} : ${serialize(
                   reset._2
-                )}, ${serialize(init._2)} ${serialize(result._2)}"
+                )}, ${serialize(init._2)}, ${serialize(result._2)}"
               )
             case SkipOp() =>
               writeLine("firrtl.skip")
             case StopOp(clock, cond, exitCode, name) =>
               writeLine(s"firrtl.stop ${clock._1}, ${cond._1}, $exitCode : $name")
             case PrintFOp(clock, cond, operands, formatSting) =>
-            // TODO
-            case NodeOp(result) =>
-              // TODO: fix
-              writeLine(s"${result._1} = ${serialize(result._2)}")
+            case NodeOp(result, input) =>
+              writeLine(s"%${result._1} = firrtl.node %${input._1} : ${serialize(result._2)}")
             case WhenOp(condition, thenRegion, elseRegion) =>
               writeLine(s"firrtl.when $condition {")
               thenRegion.foreach(write(_)(b, indentNum + 1))
@@ -195,7 +240,6 @@ object Serializer {
           }
         case _ =>
       }
-    case op: ops.PortInfo =>
   }
   def writeLine(str: String)(implicit b: StringBuilder, indent: Int): Unit = {
     b ++= (Indent * indent)

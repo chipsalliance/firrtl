@@ -19,7 +19,7 @@ class ClockType() extends FIRRTLType
 class SIntType(val width: BigInt) extends FIRRTLType
 class UIntType(val width: BigInt) extends FIRRTLType
 class AnalogType(val width: BigInt) extends FIRRTLType
-class BundleElement(val name: String, val isFlip: Boolean, val tpe: FIRRTLType)
+case class BundleElement(val name: String, val isFlip: Boolean, val tpe: FIRRTLType)
 class BundleType(val elements: Seq[BundleElement]) extends FIRRTLType
 class FVectorType(val elementType: FIRRTLType, val numElements: unsigned) extends FIRRTLType
 class AsyncResetType extends FIRRTLType

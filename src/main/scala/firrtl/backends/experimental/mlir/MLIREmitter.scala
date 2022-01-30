@@ -132,8 +132,14 @@ import firrtl.{
 case class EmittedMlirCircuitAnnotation(circuitOp: CircuitOp) extends NoTargetAnnotation with CustomFileEmission {
   def baseFileName(annotations: AnnotationSeq): String =
     view[FirrtlOptions](annotations).outputFileName.getOrElse(circuitOp.name)
-  def suffix:   Option[String] = Some("mlir")
-  def getBytes: Iterable[Byte] = circuitOp.toString.getBytes
+  def suffix: Option[String] = Some("mlir")
+
+  def getBytes: Iterable[Byte] = {
+    implicit val b = StringBuilder.newBuilder
+    implicit val indent = 0
+    Serializer.write(circuitOp)
+    b.toString().getBytes()
+  }
 }
 
 object MLIREmitter extends Transform with DependencyAPIMigration {
@@ -141,14 +147,7 @@ object MLIREmitter extends Transform with DependencyAPIMigration {
   // To make it possible to speed up MFC conversion in the future.
   override def invalidates(a: Transform): Boolean = false
   override protected def execute(state: CircuitState): CircuitState = {
-    val constantCache = state.circuit.modules.flatMap {
-      case Module(_, name, _, _) => Some(name -> collection.mutable.Map[BigInt, String]())
-      case _                     => None
-    }.toMap
-    val ssaNamespaces = state.circuit.modules.flatMap {
-      case Module(_, name, _, _) => Some(name -> Namespace())
-      case _                     => None
-    }.toMap
+    println(state.circuit.serialize)
 
     def convertCircuit(circuit: Circuit): CircuitOp =
       CircuitOp(circuit.main, circuit.modules.map(convertModule))
@@ -164,6 +163,9 @@ object MLIREmitter extends Transform with DependencyAPIMigration {
         val ns = Namespace(m)
         // use globalRegion and localRegion to make visitor being able to insert
         val globalRegion = collection.mutable.ArrayBuffer[Op]()
+        // key: (instance name, port name) value: port SSA
+        val instancePorts = collection.mutable.Map[(String, String), String]()
+
         // update port type
         m.ports.foreach {
           case Port(_, name, _, tpe) => typeMap.update(name, convertType(tpe))
@@ -176,25 +178,34 @@ object MLIREmitter extends Transform with DependencyAPIMigration {
               // do nothing if we visit a reference.
               e
             case e: SubField => {
-              // recursive convert bundle expression, and finally get the Reference.
-              val bundle: Reference = convertExpression(e.expr)
+              // recursive convert expression, and finally get the Reference.
+              val ref: Reference = convertExpression(e.expr)
               // query type for field reference(which must be inferred previously).
-              val bundleType: MBundleType = typeMap(bundle.name).asInstanceOf[MBundleType]
-              // MLIR SubfieldOp use index to locate corresponding field.
-              val tpeIdx: Int = bundleType.elements.indexWhere(f => f.name == e.name)
-              // create a SSA Value for this SubField and its Type.
-              val n: String = ns.newTemp
-              // query this type from bundleType
-              val subfieldType: FIRRTLType = bundleType.elements(tpeIdx).tpe
-              // append subfieldType to typeMap
-              typeMap(n) = subfieldType
-              // append SubfieldOp to MLIR globalRegion.
-              region += SubfieldOp(
-                (n, subfieldType),
-                (bundle.name, bundleType),
-                tpeIdx
-              )
-              Reference(n)
+              val refType = typeMap.get(ref.name)
+              refType match {
+                case None =>
+                  // this is an instance
+                  Reference(instancePorts((ref.name, e.name)))
+                case Some(bundleType: MBundleType) =>
+                  // this is an bundleType
+                  // MLIR SubfieldOp use index to locate corresponding field.
+                  val tpeIdx: Int = bundleType.elements.indexWhere(f => f.name == e.name)
+                  // create a SSA Value for this SubField and its Type.
+                  val n: String = ns.newTemp
+                  // query this type from bundleType
+                  val subfieldType: FIRRTLType = bundleType.elements(tpeIdx).tpe
+                  // append subfieldType to typeMap
+                  typeMap(n) = subfieldType
+                  // append SubfieldOp to MLIR globalRegion.
+                  region += SubfieldOp(
+                    (n, subfieldType),
+                    (ref.name, bundleType),
+                    tpeIdx
+                  )
+                  Reference(n)
+                case _ => error("I missed some case?")
+              }
+
             }
             case e: SubIndex => {
               // recursive convert vector expression, and finally get the Reference.
@@ -367,16 +378,24 @@ object MLIREmitter extends Transform with DependencyAPIMigration {
           statement match {
             case s: Block => s.stmts.foreach(visitStatement(_))
             case s: DefNode =>
+              val n = s.name
+              val ref = convertExpression(s.value)
+              val tpe = typeMap(ref.name)
+              typeMap.update(n, tpe)
+              region += NodeOp((n, tpe), (ref.name, tpe))
               convertExpression(s.value)
             case s: DefWire =>
-              region += WireOp((s.name, convertType(s.tpe)))
+              val n = s.name
+              val tpe = convertType(s.tpe)
+              typeMap.update(n, tpe)
+              region += WireOp((n, tpe))
             case s: DefRegister =>
               val n = s.name
               val tpe = convertType(s.tpe)
               val clk = convertExpression(s.clock).name
               val clkTpe = typeMap(clk)
               typeMap.update(n, tpe)
-              region += (s.init match {
+              region += (s.reset match {
                 case firrtl.Utils.zero => RegOp((n, tpe), (clk, clkTpe))
                 case _ =>
                   val reset = convertExpression(s.reset).name
@@ -417,6 +436,7 @@ object MLIREmitter extends Transform with DependencyAPIMigration {
                 }.get.map { p =>
                   val n = ns.newName(s"${s.name}_${p.name}")
                   typeMap.update(n, p.tpe)
+                  instancePorts((s.name, p.name)) = n
                   (n, p)
                 },
                 s.name,
@@ -542,6 +562,7 @@ object MLIREmitter extends Transform with DependencyAPIMigration {
       case MWrite     => MemDirWrite
       case MReadWrite => MemDirReadWrite
     }
+
     state.copy(annotations =
       state.annotations :+ EmittedMlirCircuitAnnotation(
         convertCircuit(state.circuit)

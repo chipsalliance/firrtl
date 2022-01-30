@@ -19,7 +19,7 @@ package object ops {
   type ValueAndType = (String, FIRRTLType)
   type Value = String
 
-  case class PortInfo(name: String, tpe: FIRRTLType, direction: Direction) extends Node
+  case class PortInfo(name: String, tpe: FIRRTLType, direction: Direction)
 
   /** Defined in FIRRTLAttributes.h */
   case object In extends Direction {

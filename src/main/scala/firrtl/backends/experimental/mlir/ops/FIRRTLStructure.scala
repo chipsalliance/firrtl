@@ -4,8 +4,16 @@
 // This files is based on circt/include/circt/Dialect/HW/???.td
 
 package firrtl.backends.experimental.mlir.ops
+import firrtl.backends.experimental.mlir.Serializer
 
-case class CircuitOp(name: String, body: Region) extends FIRRTLOp
+case class CircuitOp(name: String, body: Region) extends FIRRTLOp {
+  def serialize = {
+    implicit val b = StringBuilder.newBuilder
+    implicit val indent = 0
+    Serializer.write(this)
+    b.toString
+  }
+}
 
 trait ModuleOp extends FIRRTLOp {
   val name: String
