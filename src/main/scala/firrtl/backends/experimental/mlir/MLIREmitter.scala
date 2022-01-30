@@ -281,89 +281,100 @@ object MLIREmitter extends Transform with DependencyAPIMigration {
               )
             case e: DoPrim =>
               e.op match {
-                case _: BinaryPrimOp =>
-                  val n:          String = ns.newTemp
-                  val resultType: FIRRTLType = convertType(e.op.propagateType(e))
-                  typeMap(n) = resultType
+                case Add | Sub | Mul | Div | Rem | And | Or | Xor | Leq | Lt | Geq | Gt | Eq | Neq | Cat | Dshl |
+                    Dshr =>
+                  val n: String = ns.newTemp
                   val lhs = convertExpression(e.args(0))
+                  val lhsTpe = typeMap(lhs.name)
                   val rhs = convertExpression(e.args(1))
+                  val rhsTpe = typeMap(rhs.name)
+                  // don't calculate width here(SFC should not do this, since it depends on minimal high form)
+                  val resultType: FIRRTLType = e.op match {
+                    case Add | Sub | Mul | Div | Rem =>
+                      (lhsTpe, rhsTpe) match {
+                        case (_: MUIntType, _: MUIntType) => new MUIntType(-1)
+                        case (_: MSIntType, _: MSIntType) => new MSIntType(-1)
+                      }
+                    case And | Or | Xor | Cat | Dshl | Dshr => new MUIntType(-1)
+                    case Leq | Lt | Geq | Gt | Eq | Neq     => new MUIntType(1)
+                  }
+                  typeMap(n) = resultType
                   region += (e.op match {
-                    case Add =>
-                      AddPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
-                    case Sub =>
-                      SubPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
-                    case Mul =>
-                      MulPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
-                    case Div =>
-                      DivPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
-                    case Rem =>
-                      RemPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
-                    case And =>
-                      AndPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
-                    case Or =>
-                      OrPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
-                    case Xor =>
-                      XorPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
-                    case Leq =>
-                      LEQPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
-                    case Lt =>
-                      LTPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
-                    case Geq =>
-                      GEQPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
-                    case Gt =>
-                      GTPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
-                    case Eq =>
-                      EQPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
-                    case Neq =>
-                      NEQPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
-                    case Cat =>
-                      CatPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
-                    case Dshl =>
-                      DShlPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
-                    case Dshr =>
-                      DShrPrimOp((n, resultType), (lhs.name, convertType(lhs.tpe)), (rhs.name, convertType(rhs.tpe)))
+                    case Add  => AddPrimOp((n, resultType), (lhs.name, lhsTpe), (rhs.name, rhsTpe))
+                    case Sub  => SubPrimOp((n, resultType), (lhs.name, lhsTpe), (rhs.name, rhsTpe))
+                    case Mul  => MulPrimOp((n, resultType), (lhs.name, lhsTpe), (rhs.name, rhsTpe))
+                    case Div  => DivPrimOp((n, resultType), (lhs.name, lhsTpe), (rhs.name, rhsTpe))
+                    case Rem  => RemPrimOp((n, resultType), (lhs.name, lhsTpe), (rhs.name, rhsTpe))
+                    case And  => AndPrimOp((n, resultType), (lhs.name, lhsTpe), (rhs.name, rhsTpe))
+                    case Or   => OrPrimOp((n, resultType), (lhs.name, lhsTpe), (rhs.name, rhsTpe))
+                    case Xor  => XorPrimOp((n, resultType), (lhs.name, lhsTpe), (rhs.name, rhsTpe))
+                    case Leq  => LEQPrimOp((n, resultType), (lhs.name, lhsTpe), (rhs.name, rhsTpe))
+                    case Lt   => LTPrimOp((n, resultType), (lhs.name, lhsTpe), (rhs.name, rhsTpe))
+                    case Geq  => GEQPrimOp((n, resultType), (lhs.name, lhsTpe), (rhs.name, rhsTpe))
+                    case Gt   => GTPrimOp((n, resultType), (lhs.name, lhsTpe), (rhs.name, rhsTpe))
+                    case Eq   => EQPrimOp((n, resultType), (lhs.name, lhsTpe), (rhs.name, rhsTpe))
+                    case Neq  => NEQPrimOp((n, resultType), (lhs.name, lhsTpe), (rhs.name, rhsTpe))
+                    case Cat  => CatPrimOp((n, resultType), (lhs.name, lhsTpe), (rhs.name, rhsTpe))
+                    case Dshl => DShlPrimOp((n, resultType), (lhs.name, lhsTpe), (rhs.name, rhsTpe))
+                    case Dshr => DShrPrimOp((n, resultType), (lhs.name, lhsTpe), (rhs.name, rhsTpe))
                   })
                   Reference(n)
-                case _: UnaryPrimOp =>
-                  val n:          String = ns.newTemp
-                  val resultType: FIRRTLType = convertType(e.op.propagateType(e))
-                  typeMap(n) = resultType
+                case AsSInt | AsUInt | AsAsyncReset | AsClock | Cvt | Neg | Not | Andr | Orr | Xorr =>
+                  val n: String = ns.newTemp
                   val input = convertExpression(e.args(0))
+                  val inputType = typeMap(input.name)
+                  val resultType: FIRRTLType = e.op match {
+                    case AsSInt | Cvt | Neg => new MSIntType(-1)
+                    case AsUInt | Not       => new MUIntType(-1)
+                    case AsAsyncReset       => new MAsyncResetType
+                    case AsClock            => new MClockType
+                    case Andr | Orr | Xorr  => new MUIntType(1)
+                  }
+                  typeMap(n) = resultType
                   region += (e.op match {
-                    case AsSInt       => AsSIntPrimOp((n, resultType), (input.name, convertType(input.tpe)))
-                    case AsUInt       => AsUIntPrimOp((n, resultType), (input.name, convertType(input.tpe)))
-                    case AsAsyncReset => AsAsyncResetPrimOp((n, resultType), (input.name, convertType(input.tpe)))
-                    case AsClock      => AsClockPrimOp((n, resultType), (input.name, convertType(input.tpe)))
-                    case Cvt          => CvtPrimOp((n, resultType), (input.name, convertType(input.tpe)))
-                    case Neg          => NegPrimOp((n, resultType), (input.name, convertType(input.tpe)))
-                    case Not          => NotPrimOp((n, resultType), (input.name, convertType(input.tpe)))
-                    case Andr         => AndRPrimOp((n, resultType), (input.name, convertType(input.tpe)))
-                    case Orr          => OrRPrimOp((n, resultType), (input.name, convertType(input.tpe)))
-                    case Xorr         => XorRPrimOp((n, resultType), (input.name, convertType(input.tpe)))
+                    case AsSInt       => AsSIntPrimOp((n, resultType), (input.name, inputType))
+                    case AsUInt       => AsUIntPrimOp((n, resultType), (input.name, inputType))
+                    case AsAsyncReset => AsAsyncResetPrimOp((n, resultType), (input.name, inputType))
+                    case AsClock      => AsClockPrimOp((n, resultType), (input.name, inputType))
+                    case Cvt          => CvtPrimOp((n, resultType), (input.name, inputType))
+                    case Neg          => NegPrimOp((n, resultType), (input.name, inputType))
+                    case Not          => NotPrimOp((n, resultType), (input.name, inputType))
+                    case Andr         => AndRPrimOp((n, resultType), (input.name, inputType))
+                    case Orr          => OrRPrimOp((n, resultType), (input.name, inputType))
+                    case Xorr         => XorRPrimOp((n, resultType), (input.name, inputType))
                   })
                   Reference(n)
-                case _: BinaryIntPrimOp =>
-                  val n:          String = ns.newTemp
-                  val resultType: FIRRTLType = convertType(e.op.propagateType(e))
-                  typeMap(n) = resultType
+                case Head | Tail | Shl | Shr | Pad =>
+                  val n: String = ns.newTemp
                   val input = convertExpression(e.args(0))
+                  val inputType = typeMap(input.name)
+                  val resultType: FIRRTLType = e.op match {
+                    case Head | Tail => new MUIntType(-1)
+                    case Shl | Shr | Pad =>
+                      inputType match {
+                        case _: MUIntType => new MUIntType(-1)
+                        case _: MSIntType => new MSIntType(-1)
+                      }
+                  }
+                  typeMap(n) = resultType
                   region += (e.op match {
-                    case Head => HeadPrimOp((n, resultType), (input.name, convertType(input.tpe)), e.consts(0))
-                    case Tail => TailPrimOp((n, resultType), (input.name, convertType(input.tpe)), e.consts(0))
-                    case Shl  => ShlPrimOp((n, resultType), (input.name, convertType(input.tpe)), e.consts(0))
-                    case Shr  => ShrPrimOp((n, resultType), (input.name, convertType(input.tpe)), e.consts(0))
-                    case Pad  => PadPrimOp((n, resultType), (input.name, convertType(input.tpe)), e.consts(0))
+                    case Head => HeadPrimOp((n, resultType), (input.name, inputType), e.consts(0))
+                    case Tail => TailPrimOp((n, resultType), (input.name, inputType), e.consts(0))
+                    case Shl  => ShlPrimOp((n, resultType), (input.name, inputType), e.consts(0))
+                    case Shr  => ShrPrimOp((n, resultType), (input.name, inputType), e.consts(0))
+                    case Pad  => PadPrimOp((n, resultType), (input.name, inputType), e.consts(0))
                   })
                   Reference(n)
 
                 case Bits =>
-                  val n:          String = ns.newTemp
-                  val resultType: FIRRTLType = convertType(e.op.propagateType(e))
-                  typeMap(n) = resultType
+                  val n: String = ns.newTemp
                   val input = convertExpression(e.args(0))
+                  val inputType = typeMap(input.name)
+                  val resultType: FIRRTLType = new MUIntType(-1)
+                  typeMap(n) = resultType
                   region += BitsPrimOp(
                     (n, resultType),
-                    (input.name, convertType(input.tpe)),
+                    (input.name, inputType),
                     e.consts(0),
                     e.consts(1)
                   )
@@ -371,7 +382,7 @@ object MLIREmitter extends Transform with DependencyAPIMigration {
 
                 case AsInterval | AsFixedPoint | IncP | DecP | SetP | Wrap | Clip | Squeeze =>
                   error("not support FixedPoint and Range")
-                case _ => error("unknown Op, need remove WIR.")
+                case s => error(s"unknown ${s}, need remove WIR.")
               }
           }
         def visitStatement(statement: Statement)(implicit region: collection.mutable.ArrayBuffer[Op]): Unit =

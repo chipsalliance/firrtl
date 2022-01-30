@@ -10,7 +10,6 @@ trait FIRRTLExprOp extends Op
 case class InvalidValueOp(result: ValueAndType) extends FIRRTLExprOp
 
 case class ConstantOp(result: ValueAndType, value: BigInt) extends FIRRTLExprOp
-case class SpecialConstantOp(result: ValueAndType, value: BigInt) extends FIRRTLExprOp
 case class SubfieldOp(result: ValueAndType, input: ValueAndType, fieldIndex: BigInt) extends FIRRTLExprOp
 case class SubindexOp(result: ValueAndType, input: ValueAndType, index: BigInt) extends FIRRTLExprOp
 case class SubaccessOp(result: ValueAndType, input: ValueAndType, index: ValueAndType) extends FIRRTLExprOp
