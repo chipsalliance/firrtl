@@ -7,12 +7,9 @@ import firrtl.passes.Errors
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-object FixCombFalseLoops {
+object FixFalseCombLoops {
 
-  def falseLoopsRun(state: CircuitState) = {
-    val c = state.circuit
-    val errors = new Errors()
-
+  def fixFalseCombLoops(state: CircuitState): CircuitState = {
     //Modify circuit
     //Steps:
     //1) Create wires a0, a1
@@ -24,8 +21,7 @@ object FixCombFalseLoops {
     //Replace bits(a,0,0) with a0
     //3) For fourth line, replace a with a1 # a0
 
-
-    (state.copy(circuit = state.circuit.mapModule(onModule)), null, null, null)
+    state.copy(circuit = state.circuit.mapModule(onModule))
   }
 
 

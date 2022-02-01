@@ -31,7 +31,35 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
                   |    b_output <= b
                   |""".stripMargin
 
-    compile(parse(input))
+    val result = compile(parse(input))
+
+    //Assertions
+    val resultSerialized = result.circuit.serialize
+    val correctForm = """circuit hasloops :
+        |  module hasloops :
+        |    input clk : Clock
+        |    input c : UInt<1>
+        |    input d : UInt<1>
+        |    output a_output : UInt<2>
+        |    output b_output : UInt<1>
+        |
+        |    wire a0 : UInt<1>
+        |    wire a1 : UInt<1>
+        |    wire b : UInt<1>
+        |    a_output <= cat(a0, a1)
+        |    b_output <= b
+        |    a1 <= b
+        |    a0 <= c
+        |    b <= xor(a0, d)
+        |""".stripMargin
+
+    if (resultSerialized == correctForm) {
+      print("Output has correct form")
+    } else {
+      print("ERROR: Incorrect output form\n")
+      print(resultSerialized)
+    }
+
   }
 
 

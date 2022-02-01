@@ -3,7 +3,6 @@
 package firrtl.transforms
 
 import scala.collection.mutable
-
 import firrtl._
 import firrtl.ir._
 import firrtl.passes.{Errors, PassException}
@@ -13,7 +12,6 @@ import firrtl.Utils.throwInternalError
 import firrtl.graph._
 import firrtl.analyses.InstanceKeyGraph
 import firrtl.options.{Dependency, RegisteredTransform, ShellOption}
-import firrtl.transforms.FixCombFalseLoops.falseLoopsRun
 
 /**
   * A case class that represents a net in the circuit. This is necessary since combinational loop
@@ -317,10 +315,10 @@ class CheckCombLoops extends Transform with RegisteredTransform with DependencyA
       logger.warn("Skipping Combinational Loop Detection")
       state
     } else {
-      val (result, _, _, _) = falseLoopsRun(state)
-      val (finalResult, errors, connectivity, _) = run(result)
+      val circuitNoFalseLoops = FixFalseCombLoops.fixFalseCombLoops(state)
+      val (result, errors, connectivity, _) = run(circuitNoFalseLoops)
       errors.trigger()
-      finalResult
+      result
     }
   }
 }
