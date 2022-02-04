@@ -108,6 +108,26 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
     val result = compile(parse(input))
   }
 
+  "False loop where a variable needs to be split within a cat" should "not throw an exception" in {
+    val input = """circuit hasloops :
+                  |  module hasloops :
+                  |    input clk : Clock
+                  |    input c : UInt<1>
+                  |    input d : UInt<1>
+                  |    output a_output : UInt<3>
+                  |    output b_output : UInt<2>
+                  |    wire a : UInt<2>
+                  |    wire b : UInt<1>
+                  |
+                  |    a <= cat(b, c)
+                  |    b <= cat(d, bits(a, 0, 0))
+                  |    a_output <= a
+                  |    b_output <= b
+                  |""".stripMargin
+
+    val result = compile(parse(input))
+  }
+
   "Loop-free circuit" should "not throw an exception" in {
     val input = """circuit hasnoloops :
                   |  module thru :
