@@ -108,6 +108,26 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
     val result = compile(parse(input))
   }
 
+
+//  "False loop where bits is over multiple values" should "not throw an exception" in {
+//    val input = """circuit hasloops :
+//                  |  module hasloops :
+//                  |    input clk : Clock
+//                  |    input d : UInt<1>
+//                  |    input e : UInt<1>
+//                  |    input f : UInt<1>
+//                  |    output a_output : UInt<3>
+//                  |    output d_output : UInt<3>
+//                  |    wire a : UInt<3>
+//                  |
+//                  |    a <= cat(d, cat(e, f))
+//                  |    d_output <= bits(a, 2, 0)
+//                  |    a_output <= a
+//                  |""".stripMargin
+//
+//    val result = compile(parse(input))
+//  }
+
   "False loop where a variable needs to be split within a cat" should "not throw an exception" in {
     val input = """circuit hasloops :
                   |  module hasloops :

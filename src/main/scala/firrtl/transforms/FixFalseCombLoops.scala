@@ -2,14 +2,13 @@ package firrtl
 package transforms
 
 import firrtl.ir.UIntType
-import firrtl.passes.Errors
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 object FixFalseCombLoops {
 
-  def fixFalseCombLoops(state: CircuitState): CircuitState = {
+  def fixFalseCombLoops(state: CircuitState, loopVariables: String): CircuitState = {
     //Modify circuit
     //Steps:
     //1) Create wires a0, a1
@@ -21,11 +20,19 @@ object FixFalseCombLoops {
     //Replace bits(a,0,0) with a0
     //3) For fourth line, replace a with a1 # a0
 
-    state.copy(circuit = state.circuit.mapModule(onModule))
+    val parsedLoopVariables = parseLoopVariables(loopVariables)
+    state.copy(circuit = state.circuit.mapModule(onModule(_, parsedLoopVariables)))
+  }
+
+  //Parse error string into list of variables
+  def parseLoopVariables(loopVariables : String): List[String] = {
+    //TODO: Make into a map, to avoid duplicates problem
+    //TODO: Map from module to list of variables
+
   }
 
 
-  private def onModule(m: ir.DefModule): ir.DefModule = m match {
+  private def onModule(m: ir.DefModule, loopVariableRefs : List[String]): ir.DefModule = m match {
     case mod: ir.Module =>
       val values = helper(mod)
       mod.copy(body = ir.Block(values))
@@ -61,11 +68,11 @@ object FixFalseCombLoops {
 
         if (newConnect.loc.isInstanceOf[ir.Reference] && newConnect.loc.asInstanceOf[ir.Reference].name == "a") {
           //Summary: If a on lhs and DoPrim(cat) on rhs, split a as: (a0 = cat(0), a1 = cat(1), etc.)
-          //Currently works if cat two references, but not if any arg is another DoPrim
+          //TODO: Currently works if cat two references, but not if any arg is another DoPrim
           if (newConnect.expr.asInstanceOf[ir.DoPrim].op == PrimOps.Cat) {
             val args = newConnect.expr.asInstanceOf[ir.DoPrim].args
             for (i <- aList.indices) {
-              //if arg.length > 1, split arg into individual bits. Create wires for each bit of them
+              //TODO: if arg.length > 1, split arg into individual bits. Create wires for each bit of them
               //else, if arg.length == 1, use their values directly.
               if (args(i).tpe.asInstanceOf[UIntType].width == ir.IntWidth(1)) {
                 val tempConnect = ir.Connect(ir.NoInfo, aList(i), args(i))
@@ -81,9 +88,12 @@ object FixFalseCombLoops {
 
     def onExpr(s: ir.Expression, aList: Seq[ir.Reference]): ir.Expression = s match {
       case prim: ir.DoPrim =>
-        //Summary: Replaces bits(a, i, j) with (aj # ... # ai). *Currently only able to return a single bit.
+        //Summary: Replaces bits(a, i, j) with (aj # ... # ai).
         if (prim.op == PrimOps.Bits && prim.args(0).asInstanceOf[ir.Reference].name == "a") {
-          aList(1)
+          val high = prim.consts(0)
+          val low = prim.consts(1)
+          //TODO: Should these be BigInt?
+          convertToCats(aList.reverse, high.toInt, low.toInt)
         } else {
           //Summary: Recursively calls onExpr on each of the arguments to DoPrim
           var newPrimArgs = new ArrayBuffer[ir.Expression]()
@@ -95,7 +105,7 @@ object FixFalseCombLoops {
       case ref: ir.Reference =>
         if (ref.name == "a") {
           //Summary: Replaces a (in expr i.e. rhs) with (an # ... # a0)
-          ir.DoPrim(PrimOps.Cat, aList.reverse, Seq.empty, Utils.BoolType)
+          convertToCats(aList.reverse, aList.size - 1, 0)
         } else {
           ref
         }
@@ -107,4 +117,14 @@ object FixFalseCombLoops {
     conds.values.toList
   }
 
+
+  //Converts variable (x) into cats (x_high # ... # x_low)
+  def convertToCats(bitReferences: Seq[ir.Reference], high: Int, low: Int): ir.Expression = {
+    if (high == low) {
+      bitReferences(low)
+    } else {
+      //TODO: Should this be a BoolType?
+      ir.DoPrim(PrimOps.Cat, Seq(bitReferences(low), convertToCats(bitReferences, high, low + 1)), Seq.empty, Utils.BoolType)
+    }
+  }
 }
