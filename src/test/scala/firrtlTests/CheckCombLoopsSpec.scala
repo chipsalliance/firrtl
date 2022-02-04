@@ -81,24 +81,28 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
                   |""".stripMargin
 
     val result = compile(parse(input))
+    print(result.circuit.serialize)
   }
 
   "False loop where two variables need to be split" should "not throw an exception" in {
     val input = """circuit hasloops :
                   |  module hasloops :
                   |    input clk : Clock
-                  |    input c : UInt<2>
                   |    input d : UInt<1>
+                  |    input e : UInt<1>
                   |    output a_output : UInt<2>
                   |    output b_output : UInt<1>
+                  |    output c_output : UInt<2>
                   |    wire a : UInt<2>
                   |    wire b : UInt<1>
+                  |    wire c : UInt<2>
                   |
                   |    a <= cat(b, bits(c, 0, 0))
                   |    b <= xor(bits(a, 0, 0), d)
-                  |    c <= cat(bits(a, 1, 1), d)
+                  |    c <= cat(bits(a, 1, 1), e)
                   |    a_output <= a
                   |    b_output <= b
+                  |    c_output <= c
                   |""".stripMargin
 
     val result = compile(parse(input))
