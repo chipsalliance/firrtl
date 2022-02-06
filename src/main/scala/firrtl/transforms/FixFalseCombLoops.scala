@@ -1,7 +1,7 @@
 package firrtl
 package transforms
 
-import firrtl.ir.UIntType
+import firrtl.ir.{IntWidth, UIntType}
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -56,91 +56,117 @@ object FixFalseCombLoops {
   }
 
   private def helper(m: ir.Module, combLoopVars : List[String]): List[ir.Statement] = {
+    //TODO: Make this into only a list of ir.Statement
     val conds = mutable.LinkedHashMap[String, ir.Statement]()
+
+    def genRef(name: String, index: Int): ir.Reference = {
+      ir.Reference(name + index.toString, Utils.BoolType, WireKind, UnknownFlow)
+    }
 
     def onStmt(s: ir.Statement): Unit = s match {
       case ir.Block(block) => block.foreach(onStmt)
       case wire: ir.DefWire =>
-        if (wire.name == "a") {
-          conds("a0") = ir.DefWire(ir.NoInfo, "a0", Utils.BoolType)
-          conds("a1") = ir.DefWire(ir.NoInfo, "a1", Utils.BoolType)
+        //Summary: Splits wire into individual bits (wire x -> wire x_0, ..., wire x_n)
+        if (combLoopVars.contains(wire.name)) {
+          //TODO: Append width data to combLoopVars
+          for (i <- 0 until wire.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt) {
+            val bitWire = ir.DefWire(ir.NoInfo, wire.name + i.toString, Utils.BoolType)
+            conds(bitWire.serialize) = bitWire
+          }
         } else {
           conds(wire.serialize) = wire
         }
+
       case connect: ir.Connect =>
         var newConnect = connect
-        val a0Ref = ir.Reference("a0", Utils.BoolType, WireKind, UnknownFlow)
-        val a1Ref = ir.Reference("a1", Utils.BoolType, WireKind, UnknownFlow)
-        val aList = Seq(a1Ref, a0Ref)
-
+        //TODO: Debugging aList removal here
         if (newConnect.expr.isInstanceOf[ir.Expression]) {
           //Summary: Process expr (rhs) of Connect
-          val newExpr = onExpr(newConnect.expr, aList)
+          val newExpr = onExpr(newConnect.expr)
           newConnect = ir.Connect(ir.NoInfo, newConnect.loc, newExpr)
         }
 
         //At this point, it is certain:
         //a -> (an # ... # a0)
 
-        if (newConnect.loc.isInstanceOf[ir.Reference] && newConnect.loc.asInstanceOf[ir.Reference].name == "a") {
-          //Summary: If a on lhs and DoPrim(cat) on rhs, split a as: (a0 = cat(0), a1 = cat(1), etc.)
-          //TODO: Currently works if cat two references, but not if any arg is another DoPrim
-          if (newConnect.expr.asInstanceOf[ir.DoPrim].op == PrimOps.Cat) {
-            val args = newConnect.expr.asInstanceOf[ir.DoPrim].args
-            for (i <- aList.indices) {
-              //TODO: if arg.length > 1, split arg into individual bits. Create wires for each bit of them
-              //else, if arg.length == 1, use their values directly.
-              if (args(i).tpe.asInstanceOf[UIntType].width == ir.IntWidth(1)) {
-                val tempConnect = ir.Connect(ir.NoInfo, aList(i), args(i))
-                conds(tempConnect.serialize) = tempConnect
-              }
-            }
-          }
-        } else {
-          conds(newConnect.serialize) = newConnect
-        }
+        newConnect.loc match {
+          case ref: ir.Reference =>
+            if (combLoopVars.contains(ref.name)) {
+              newConnect.expr match {
+                case prim: ir.DoPrim =>
+                  //TODO: Convert to match on prim.op
+                  if (prim.op == PrimOps.Cat) {
+                    //Summary: If lhs in combLoopVars, rhs is DoPrim(cat); split lhs into bits as: (x_0 = rhs(0), ..., x_n = rhs(n))
+                    for (i <- 0 until ref.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt) {
+                      //TODO: Doesn't work if any arg.length > 1. Need to split such args up also.
+                      if (prim.args.reverse(i).tpe.asInstanceOf[UIntType].width == ir.IntWidth(1)) {
+                        val tempConnect = ir.Connect(ir.NoInfo, genRef(ref.name, i), prim.args.reverse(i))
+                        conds(tempConnect.serialize) = tempConnect
+                      }
+                    }
+                  } else {
+                    //TODO: Do something in this case
+                    //If lhs is ir.Reference, in combLoopVars, is ir.DoPrim, but not Cat
+                    conds(newConnect.serialize) = newConnect
+                  }
 
+                case _ =>
+                  //TODO: Do something in this case
+                  //If lhs is ir.Reference, in combLoopVars, but isn't ir.DoPrim
+                  conds(newConnect.serialize) = newConnect
+              }
+            } else {
+              //If lhs is ir.Reference, but isn't in combLoopVars
+              conds(newConnect.serialize) = newConnect
+            }
+
+          //If lhs is not a ir.Reference
+          case _ =>
+            conds(newConnect.serialize) = newConnect
+        }
     }
 
-    def onExpr(s: ir.Expression, aList: Seq[ir.Reference]): ir.Expression = s match {
+    def onExpr(s: ir.Expression): ir.Expression = s match {
       case prim: ir.DoPrim =>
-        //Summary: Replaces bits(a, i, j) with (aj # ... # ai).
-        if (prim.op == PrimOps.Bits && prim.args(0).asInstanceOf[ir.Reference].name == "a") {
+        if (prim.op == PrimOps.Bits && combLoopVars.contains(prim.args(0).asInstanceOf[ir.Reference].name)) {
+          //Summary: Replaces bits(a, i, j) with (aj # ... # ai)
           val high = prim.consts(0)
           val low = prim.consts(1)
+          val name = prim.args(0).asInstanceOf[ir.Reference].name
           //TODO: Should these be BigInt?
-          convertToCats(aList.reverse, high.toInt, low.toInt)
+          convertToCats(high.toInt, low.toInt, name)
         } else {
           //Summary: Recursively calls onExpr on each of the arguments to DoPrim
           var newPrimArgs = new ArrayBuffer[ir.Expression]()
           for (arg <- prim.args) {
-            newPrimArgs = newPrimArgs :+ onExpr(arg, aList)
+            newPrimArgs = newPrimArgs :+ onExpr(arg)
           }
           ir.DoPrim(prim.op, newPrimArgs, prim.consts, prim.tpe)
         }
       case ref: ir.Reference =>
-        if (ref.name == "a") {
+        if (combLoopVars.contains(ref.name)) {
           //Summary: Replaces a (in expr i.e. rhs) with (an # ... # a0)
-          convertToCats(aList.reverse, aList.size - 1, 0)
+          val size = ref.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt
+          convertToCats(size - 1, 0, ref.name)
         } else {
           ref
         }
       case other => other
     }
 
+    //Converts variable (x) into cats (x_high # ... # x_low)
+    def convertToCats(high: Int, low: Int, name: String): ir.Expression = {
+      if (high == low) {
+        genRef(name, low)
+      } else {
+        //TODO: Should this be tpe = BoolType?
+        ir.DoPrim(PrimOps.Cat, Seq(genRef(name, low), convertToCats(high, low + 1, name)), Seq.empty, Utils.BoolType)
+      }
+    }
+
+
 
     onStmt(m.body)
     conds.values.toList
-  }
-
-
-  //Converts variable (x) into cats (x_high # ... # x_low)
-  def convertToCats(bitReferences: Seq[ir.Reference], high: Int, low: Int): ir.Expression = {
-    if (high == low) {
-      bitReferences(low)
-    } else {
-      //TODO: Should this be a BoolType?
-      ir.DoPrim(PrimOps.Cat, Seq(bitReferences(low), convertToCats(bitReferences, high, low + 1)), Seq.empty, Utils.BoolType)
-    }
   }
 }

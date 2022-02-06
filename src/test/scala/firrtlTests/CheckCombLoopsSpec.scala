@@ -45,20 +45,20 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
         |
         |    wire a0 : UInt<1>
         |    wire a1 : UInt<1>
-        |    wire b : UInt<1>
+        |    wire b0 : UInt<1>
         |    a_output <= cat(a0, a1)
-        |    b_output <= b
-        |    a1 <= b
+        |    b_output <= b0
         |    a0 <= c
-        |    b <= xor(a0, d)
+        |    a1 <= b0
+        |    b0 <= xor(a0, d)
         |""".stripMargin
 
-//    if (resultSerialized == correctForm) {
-//      print("Output has correct form")
-//    } else {
-//      print("ERROR: Incorrect output form\n")
-//      print(resultSerialized)
-//    }
+    if (resultSerialized == correctForm) {
+      print("Output has correct form")
+    } else {
+      print("ERROR: Incorrect output form\n")
+      print(resultSerialized)
+    }
 
   }
 
