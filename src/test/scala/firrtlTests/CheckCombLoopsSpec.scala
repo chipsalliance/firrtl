@@ -62,7 +62,7 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
 
   }
 
-  "False combinational loop" should "not throw an exception" in {
+  "Breaking up direct assignments (not DoPrim on rhs)" should "not throw an exception" in {
     val input =
       """circuit hasloops :
         |  module hasloops :
@@ -104,7 +104,6 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
                   |""".stripMargin
 
     val result = compile(parse(input))
-    print(result.circuit.serialize)
   }
 
   "False loop where two variables need to be split" should "not throw an exception" in {

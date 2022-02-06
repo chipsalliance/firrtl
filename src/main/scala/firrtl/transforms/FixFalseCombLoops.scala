@@ -1,10 +1,10 @@
 package firrtl
 package transforms
 
-import firrtl.ir.{IntWidth, UIntType}
+import firrtl.ir.UIntType
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 object FixFalseCombLoops {
 
@@ -25,18 +25,18 @@ object FixFalseCombLoops {
   }
 
   //Parse error string into list of variables
-  def parseLoopVariables(combLoopsError : String): Map[String, List[String]] = {
-    var moduleToLoopVars = Map[String, List[String]]()
+  def parseLoopVariables(combLoopsError : String): Map[String, ListBuffer[String]] = {
+    var moduleToLoopVars = Map[String, ListBuffer[String]]()
 
     val split = combLoopsError.split("(\\r\\n|\\r|\\n)").drop(1).dropRight(1)
     split.foreach { x =>
       val moduleName = x.split("\\.")(0)
       val varName = x.split("\\.")(1).replaceAll("\\t", "")
       if (moduleToLoopVars.contains(moduleName)) {
-        val updatedVarList: List[String] = moduleToLoopVars(moduleName) :+ varName
+        val updatedVarList: ListBuffer[String] = moduleToLoopVars(moduleName) += varName
         moduleToLoopVars += (moduleName -> updatedVarList)
       } else {
-        moduleToLoopVars += (moduleName -> List(varName))
+        moduleToLoopVars += (moduleName -> ListBuffer(varName))
       }
     }
 
@@ -44,7 +44,7 @@ object FixFalseCombLoops {
   }
 
 
-  private def onModule(m: ir.DefModule, moduleToLoopVars : Map[String, List[String]]): ir.DefModule = m match {
+  private def onModule(m: ir.DefModule, moduleToLoopVars : Map[String, ListBuffer[String]]): ir.DefModule = m match {
     case mod: ir.Module =>
       if (moduleToLoopVars.contains(mod.name)) {
         val values = helper(mod, moduleToLoopVars(mod.name))
@@ -55,11 +55,12 @@ object FixFalseCombLoops {
     case other => other
   }
 
-  private def helper(m: ir.Module, combLoopVars : List[String]): List[ir.Statement] = {
+  private def helper(m: ir.Module, combLoopVars : ListBuffer[String]): List[ir.Statement] = {
     //TODO: Make this into only a list of ir.Statement
     val conds = mutable.LinkedHashMap[String, ir.Statement]()
 
     def genRef(name: String, index: Int): ir.Reference = {
+      //TODO: Handle case where there is a repeated name. Can't use name + index.toString
       ir.Reference(name + index.toString, Utils.BoolType, WireKind, UnknownFlow)
     }
 
@@ -68,10 +69,16 @@ object FixFalseCombLoops {
       case wire: ir.DefWire =>
         //Summary: Splits wire into individual bits (wire x -> wire x_0, ..., wire x_n)
         if (combLoopVars.contains(wire.name)) {
-          //TODO: Append width data to combLoopVars
-          for (i <- 0 until wire.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt) {
-            val bitWire = ir.DefWire(ir.NoInfo, wire.name + i.toString, Utils.BoolType)
-            conds(bitWire.serialize) = bitWire
+          if (wire.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt == 1) {
+            //Removes 1 bit wires from combLoopVars to avoid unnecessary computation
+            combLoopVars -= wire.name
+            conds(wire.serialize) = wire
+          } else {
+            //TODO: Can append width data to combLoopVars here
+            for (i <- 0 until wire.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt) {
+              val bitWire = ir.DefWire(ir.NoInfo, wire.name + i.toString, Utils.BoolType)
+              conds(bitWire.serialize) = bitWire
+            }
           }
         } else {
           conds(wire.serialize) = wire
@@ -79,7 +86,6 @@ object FixFalseCombLoops {
 
       case connect: ir.Connect =>
         var newConnect = connect
-        //TODO: Debugging aList removal here
         if (newConnect.expr.isInstanceOf[ir.Expression]) {
           //Summary: Process expr (rhs) of Connect
           val newExpr = onExpr(newConnect.expr)
@@ -99,15 +105,21 @@ object FixFalseCombLoops {
                     //Summary: If lhs in combLoopVars, rhs is DoPrim(cat); split lhs into bits as: (x_0 = rhs(0), ..., x_n = rhs(n))
                     for (i <- 0 until ref.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt) {
                       //TODO: Doesn't work if any arg.length > 1. Need to split such args up also.
-                      if (prim.args.reverse(i).tpe.asInstanceOf[UIntType].width == ir.IntWidth(1)) {
+                      if (prim.args.reverse(i).tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt == 1) {
                         val tempConnect = ir.Connect(ir.NoInfo, genRef(ref.name, i), prim.args.reverse(i))
                         conds(tempConnect.serialize) = tempConnect
                       }
                     }
                   } else {
-                    //TODO: Do something in this case
                     //If lhs is ir.Reference, in combLoopVars, is ir.DoPrim, but not Cat
-                    conds(newConnect.serialize) = newConnect
+                    //TODO: Handle when lhs is more than 1 bit
+                    if (ref.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt == 1) {
+                      //TODO: This case may never run, as 1 bit lhs will not be modified
+                      val tempConnect = ir.Connect(ir.NoInfo, genRef(ref.name, 0), newConnect.expr)
+                      conds(tempConnect.serialize) = tempConnect
+                    } else {
+                      conds(newConnect.serialize) = newConnect
+                    }
                   }
 
                 case _ =>
@@ -160,7 +172,7 @@ object FixFalseCombLoops {
         genRef(name, low)
       } else {
         //TODO: Should this be tpe = BoolType?
-        ir.DoPrim(PrimOps.Cat, Seq(genRef(name, low), convertToCats(high, low + 1, name)), Seq.empty, Utils.BoolType)
+        ir.DoPrim(PrimOps.Cat, Seq(genRef(name, high), convertToCats(high - 1, low, name)), Seq.empty, Utils.BoolType)
       }
     }
 
