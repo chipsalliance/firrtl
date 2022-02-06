@@ -62,6 +62,29 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
 
   }
 
+  "False combinational loop" should "not throw an exception" in {
+    val input =
+      """circuit hasloops :
+        |  module hasloops :
+        |    input clk : Clock
+        |    input c : UInt<1>
+        |    input d : UInt<1>
+        |    output a_output : UInt<2>
+        |    output b_output : UInt<1>
+        |    wire a : UInt<2>
+        |    wire e : UInt<2>
+        |    wire b : UInt<1>
+        |
+        |    a <= e
+        |    e <= cat(b, c)
+        |    b <= xor(bits(a, 0, 0), d)
+        |    a_output <= a
+        |    b_output <= b
+        |""".stripMargin
+
+    val result = compile(parse(input))
+  }
+
   "False combinational loop where var is not cat" should "not throw an exception" in {
     val input = """circuit hasloops :
                   |  module hasloops :
