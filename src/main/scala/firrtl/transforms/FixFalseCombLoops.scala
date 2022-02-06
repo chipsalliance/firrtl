@@ -8,7 +8,7 @@ import scala.collection.mutable.ArrayBuffer
 
 object FixFalseCombLoops {
 
-  def fixFalseCombLoops(state: CircuitState, loopVariables: String): CircuitState = {
+  def fixFalseCombLoops(state: CircuitState, combLoopsError: String): CircuitState = {
     //Modify circuit
     //Steps:
     //1) Create wires a0, a1
@@ -20,26 +20,42 @@ object FixFalseCombLoops {
     //Replace bits(a,0,0) with a0
     //3) For fourth line, replace a with a1 # a0
 
-    val parsedLoopVariables = parseLoopVariables(loopVariables)
-    state.copy(circuit = state.circuit.mapModule(onModule(_, parsedLoopVariables)))
+    val moduleToBadVars = parseLoopVariables(combLoopsError)
+    state.copy(circuit = state.circuit.mapModule(onModule(_, moduleToBadVars)))
   }
 
   //Parse error string into list of variables
-  def parseLoopVariables(loopVariables : String): List[String] = {
-    //TODO: Make into a map, to avoid duplicates problem
-    //TODO: Map from module to list of variables
+  def parseLoopVariables(combLoopsError : String): Map[String, List[String]] = {
+    var moduleToLoopVars = Map[String, List[String]]()
 
+    val split = combLoopsError.split("(\\r\\n|\\r|\\n)").drop(1).dropRight(1)
+    split.foreach { x =>
+      val moduleName = x.split("\\.")(0)
+      val varName = x.split("\\.")(1).replaceAll("\\t", "")
+      if (moduleToLoopVars.contains(moduleName)) {
+        val updatedVarList: List[String] = moduleToLoopVars(moduleName) :+ varName
+        moduleToLoopVars += (moduleName -> updatedVarList)
+      } else {
+        moduleToLoopVars += (moduleName -> List(varName))
+      }
+    }
+
+    moduleToLoopVars
   }
 
 
-  private def onModule(m: ir.DefModule, loopVariableRefs : List[String]): ir.DefModule = m match {
+  private def onModule(m: ir.DefModule, moduleToLoopVars : Map[String, List[String]]): ir.DefModule = m match {
     case mod: ir.Module =>
-      val values = helper(mod)
-      mod.copy(body = ir.Block(values))
+      if (moduleToLoopVars.contains(mod.name)) {
+        val values = helper(mod, moduleToLoopVars(mod.name))
+        mod.copy(body = ir.Block(values))
+      } else {
+        mod
+      }
     case other => other
   }
 
-  private def helper(m: ir.Module): List[ir.Statement] = {
+  private def helper(m: ir.Module, combLoopVars : List[String]): List[ir.Statement] = {
     val conds = mutable.LinkedHashMap[String, ir.Statement]()
 
     def onStmt(s: ir.Statement): Unit = s match {
