@@ -34,6 +34,7 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
     val result = compile(parse(input))
 
     //Assertions
+    //TODO: Ensure order of cat in this assertion is correct
     val resultSerialized = result.circuit.serialize
     val correctForm = """circuit hasloops :
         |  module hasloops :
@@ -45,12 +46,12 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
         |
         |    wire a0 : UInt<1>
         |    wire a1 : UInt<1>
-        |    wire b0 : UInt<1>
-        |    a_output <= cat(a0, a1)
-        |    b_output <= b0
+        |    wire b : UInt<1>
+        |    a_output <= cat(a1, a0)
+        |    b_output <= b
         |    a0 <= c
-        |    a1 <= b0
-        |    b0 <= xor(a0, d)
+        |    a1 <= b
+        |    b <= xor(a0, d)
         |""".stripMargin
 
     if (resultSerialized == correctForm) {

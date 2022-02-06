@@ -9,17 +9,6 @@ import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 object FixFalseCombLoops {
 
   def fixFalseCombLoops(state: CircuitState, combLoopsError: String): CircuitState = {
-    //Modify circuit
-    //Steps:
-    //1) Create wires a0, a1
-    //1.3) Delete a
-    //1.5) For first line:
-    //Split cat up across a0, a1
-
-    //2) For second line:
-    //Replace bits(a,0,0) with a0
-    //3) For fourth line, replace a with a1 # a0
-
     val moduleToBadVars = parseLoopVariables(combLoopsError)
     state.copy(circuit = state.circuit.mapModule(onModule(_, moduleToBadVars)))
   }
@@ -175,8 +164,7 @@ object FixFalseCombLoops {
         ir.DoPrim(PrimOps.Cat, Seq(genRef(name, high), convertToCats(high - 1, low, name)), Seq.empty, Utils.BoolType)
       }
     }
-
-
+    
 
     onStmt(m.body)
     conds.values.toList
