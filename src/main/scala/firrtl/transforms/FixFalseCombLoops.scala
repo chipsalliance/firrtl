@@ -14,7 +14,7 @@ object FixFalseCombLoops {
   }
 
   //Parse error string into list of variables
-  def parseLoopVariables(combLoopsError : String): Map[String, ListBuffer[String]] = {
+  def parseLoopVariables(combLoopsError: String): Map[String, ListBuffer[String]] = {
     var moduleToLoopVars = Map[String, ListBuffer[String]]()
 
     val split = combLoopsError.split("(\\r\\n|\\r|\\n)").drop(1).dropRight(1)
@@ -32,8 +32,7 @@ object FixFalseCombLoops {
     moduleToLoopVars
   }
 
-
-  private def onModule(m: ir.DefModule, moduleToLoopVars : Map[String, ListBuffer[String]]): ir.DefModule = m match {
+  private def onModule(m: ir.DefModule, moduleToLoopVars: Map[String, ListBuffer[String]]): ir.DefModule = m match {
     case mod: ir.Module =>
       if (moduleToLoopVars.contains(mod.name)) {
         val values = helper(mod, moduleToLoopVars(mod.name))
@@ -44,7 +43,7 @@ object FixFalseCombLoops {
     case other => other
   }
 
-  private def helper(m: ir.Module, combLoopVars : ListBuffer[String]): List[ir.Statement] = {
+  private def helper(m: ir.Module, combLoopVars: ListBuffer[String]): List[ir.Statement] = {
     //TODO: Make this into only a list of ir.Statement
     val conds = mutable.LinkedHashMap[String, ir.Statement]()
 
@@ -94,7 +93,9 @@ object FixFalseCombLoops {
                     //Summary: If lhs in combLoopVars, rhs is DoPrim(cat); split lhs into bits as: (x_0 = rhs(0), ..., x_n = rhs(n))
                     for (i <- 0 until ref.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt) {
                       //TODO: Doesn't work if any arg.length > 1. Need to split such args up also.
-                      if (prim.args.reverse(i).tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt == 1) {
+                      if (
+                        prim.args.reverse(i).tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt == 1
+                      ) {
                         val tempConnect = ir.Connect(ir.NoInfo, genRef(ref.name, i), prim.args.reverse(i))
                         conds(tempConnect.serialize) = tempConnect
                       }
@@ -164,7 +165,6 @@ object FixFalseCombLoops {
         ir.DoPrim(PrimOps.Cat, Seq(genRef(name, high), convertToCats(high - 1, low, name)), Seq.empty, Utils.BoolType)
       }
     }
-    
 
     onStmt(m.body)
     conds.values.toList
