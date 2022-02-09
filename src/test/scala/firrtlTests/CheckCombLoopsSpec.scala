@@ -33,8 +33,6 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
 
     val result = compile(parse(input))
 
-    //Assertions
-    //TODO: Ensure order of cat in this assertion is correct
     val resultSerialized = result.circuit.serialize
     val correctForm = """circuit hasloops :
                         |  module hasloops :
@@ -48,8 +46,6 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
                         |    wire a1 : UInt<1>
                         |    wire b : UInt<1>
                         |    node a = cat(a1, a0)
-                        |    //Used to annotate signals
-                        |    //Can we used to replace instances of a (without bit extraction)
                         |    a_output <= cat(a1, a0)
                         |    b_output <= b
                         |    a0 <= c
@@ -137,24 +133,26 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
     print(result.circuit.serialize)
   }
 
-//  "False loop where bits is over multiple values" should "not throw an exception" in {
-//    val input = """circuit hasloops :
-//                  |  module hasloops :
-//                  |    input clk : Clock
-//                  |    input d : UInt<1>
-//                  |    input e : UInt<1>
-//                  |    input f : UInt<1>
-//                  |    output a_output : UInt<3>
-//                  |    output d_output : UInt<3>
-//                  |    wire a : UInt<3>
-//                  |
-//                  |    a <= cat(d, cat(e, f))
-//                  |    d_output <= bits(a, 2, 0)
-//                  |    a_output <= a
-//                  |""".stripMargin
-//
-//    val result = compile(parse(input))
-//  }
+  //TODO: Fix, turn into false loop for test
+  "False loop where bits is over multiple values" should "not throw an exception" in {
+    val input = """circuit hasloops :
+                  |  module hasloops :
+                  |    input clk : Clock
+                  |    input d : UInt<1>
+                  |    input e : UInt<1>
+                  |    input f : UInt<1>
+                  |    output a_output : UInt<3>
+                  |    output d_output : UInt<3>
+                  |    wire a : UInt<3>
+                  |
+                  |    a <= cat(d, cat(e, f))
+                  |    d_output <= bits(a, 2, 0)
+                  |    a_output <= a
+                  |""".stripMargin
+
+    val result = compile(parse(input))
+    print(result.circuit.serialize)
+  }
 
   "False loop where a variable needs to be split within a cat" should "not throw an exception" in {
     val input = """circuit hasloops :
