@@ -46,7 +46,7 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
                         |    wire a1 : UInt<1>
                         |    wire b : UInt<1>
                         |    node a = cat(a1, a0)
-                        |    a_output <= cat(a1, a0)
+                        |    a_output <= a
                         |    b_output <= b
                         |    a0 <= c
                         |    a1 <= b

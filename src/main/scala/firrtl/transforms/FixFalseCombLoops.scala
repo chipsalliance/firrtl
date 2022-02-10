@@ -4,7 +4,7 @@ package transforms
 import firrtl.ir.UIntType
 
 import scala.collection.mutable
-import scala.collection.mutable.{ArrayBuffer, ListBuffer}
+import scala.collection.mutable.ListBuffer
 
 object FixFalseCombLoops {
 
@@ -139,7 +139,7 @@ object FixFalseCombLoops {
           convertToCats(high.toInt, low.toInt, name)
         } else {
           //Summary: Recursively calls onExpr on each of the arguments to DoPrim
-          var newPrimArgs = new ArrayBuffer[ir.Expression]()
+          var newPrimArgs = Seq[ir.Expression]()
           for (arg <- prim.args) {
             newPrimArgs = newPrimArgs :+ onExpr(arg)
           }
