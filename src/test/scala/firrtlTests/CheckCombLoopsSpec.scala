@@ -242,6 +242,29 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
     print(result.circuit.serialize)
   }
 
+
+  //TODO: Fix
+  "New false loop where nested cat with multiple bits" should "not throw an exception" in {
+    val input = """circuit hasloops :
+                  |  module hasloops :
+                  |    input clk : Clock
+                  |    input c : UInt<2>
+                  |    input d : UInt<2>
+                  |    output a_output : UInt<6>
+                  |    output b_output : UInt<2>
+                  |    wire a : UInt<6>
+                  |    wire b : UInt<2>
+                  |
+                  |    a <= cat(b, cat(c, d))
+                  |    b <= bits(a, 0, 0)
+                  |    a_output <= a
+                  |    b_output <= b
+                  |""".stripMargin
+
+    val result = compile(parse(input))
+    print(result.circuit.serialize)
+  }
+
   "Loop-free circuit" should "not throw an exception" in {
     val input = """circuit hasnoloops :
                   |  module thru :
