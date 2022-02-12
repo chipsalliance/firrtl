@@ -100,7 +100,6 @@ object FixFalseCombLoops {
                   if (prim.op == PrimOps.Cat) {
                     //Summary: If lhs in combLoopVars, rhs is DoPrim(cat); split lhs into bits as: (x_0 = rhs(0), ..., x_n = rhs(n))
 
-
                     //TODO: OLD CODE
 //                    for (i <- 0 until getWidth(ref.tpe)) {
 //                      //TODO: Doesn't work if any arg.length > 1. Need to split such args up also.
@@ -109,7 +108,6 @@ object FixFalseCombLoops {
 //                        conds(tempConnect.serialize) = tempConnect
 //                      }
 //                    }
-
 
                     //TODO: NEW CODE
                     val refWidth = getWidth(ref.tpe)
@@ -148,7 +146,6 @@ object FixFalseCombLoops {
                         }
                       }
                     }
-
 
                   } else {
                     //If lhs is ir.Reference, in combLoopVars, is ir.DoPrim, but not Cat
