@@ -1,8 +1,9 @@
 package firrtl
 package transforms
 
-import firrtl.ir.UIntType
+import firrtl.ir.{DefWire, UIntType, UnknownType}
 
+import scala.+:
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
@@ -71,11 +72,16 @@ object FixFalseCombLoops {
             combLoopVars -= wire.name
             conds(wire.serialize) = wire
           } else {
-            //TODO: Can append width data to combLoopVars here
+            //Create new wire for every bit in wire
+            var newBitWires = Seq[ir.Reference]()
             for (i <- 0 until wire.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt) {
               val bitWire = ir.DefWire(ir.NoInfo, wire.name + i.toString, Utils.BoolType)
               conds(bitWire.serialize) = bitWire
+              newBitWires = ir.Reference(bitWire) +: newBitWires
             }
+            //Create node for wire
+            val newNode = ir.DefNode(ir.NoInfo, wire.name, ir.DoPrim(PrimOps.Cat, newBitWires, Seq.empty, Utils.BoolType))
+            conds(newNode.serialize) = newNode
           }
         } else {
           conds(wire.serialize) = wire
@@ -156,14 +162,8 @@ object FixFalseCombLoops {
           }
           ir.DoPrim(prim.op, newPrimArgs, prim.consts, prim.tpe)
         }
-      case ref: ir.Reference =>
-        if (combLoopVars.contains(ref.name)) {
-          //Summary: Replaces a (in expr i.e. rhs) with (an # ... # a0)
-          val size = ref.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt
-          convertToCats(size - 1, 0, ref.name)
-        } else {
-          ref
-        }
+      // May need to do more work for references
+      case ref: ir.Reference => ref
       case other => other
     }
 
