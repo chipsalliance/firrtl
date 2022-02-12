@@ -54,6 +54,15 @@ object FixFalseCombLoops {
 
     def onStmt(s: ir.Statement): Unit = s match {
       case ir.Block(block) => block.foreach(onStmt)
+      case node: ir.DefNode =>
+        if (combLoopVars.contains(node.name)) {
+          if (node.value.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt == 1) {
+            //Removes 1 bit nodes from combLoopVars to avoid unnecessary computation
+            combLoopVars -= node.name
+          }
+        }
+        conds(node.serialize) = node
+
       case wire: ir.DefWire =>
         //Summary: Splits wire into individual bits (wire x -> wire x_0, ..., wire x_n)
         if (combLoopVars.contains(wire.name)) {
@@ -126,6 +135,8 @@ object FixFalseCombLoops {
           case _ =>
             conds(newConnect.serialize) = newConnect
         }
+      case other =>
+        conds(other.serialize) = other
     }
 
     def onExpr(s: ir.Expression): ir.Expression = s match {
