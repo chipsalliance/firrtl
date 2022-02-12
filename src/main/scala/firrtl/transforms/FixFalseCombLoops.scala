@@ -1,9 +1,8 @@
 package firrtl
 package transforms
 
-import firrtl.ir.{DefWire, UIntType, UnknownType}
+import firrtl.ir.UIntType
 
-import scala.{+:, math}
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
@@ -80,7 +79,8 @@ object FixFalseCombLoops {
               newBitWires = ir.Reference(bitWire) +: newBitWires
             }
             //Create node for wire
-            val newNode = ir.DefNode(ir.NoInfo, wire.name, ir.DoPrim(PrimOps.Cat, newBitWires, Seq.empty, Utils.BoolType))
+            val newNode =
+              ir.DefNode(ir.NoInfo, wire.name, ir.DoPrim(PrimOps.Cat, newBitWires, Seq.empty, Utils.BoolType))
             conds(newNode.serialize) = newNode
           }
         } else {
@@ -112,7 +112,8 @@ object FixFalseCombLoops {
                       val bitsLeft = refSize - currBit
                       // If total arg bits are less than lhs bits, stop
                       if (bitsLeft > 0) {
-                        val argWidth = prim.args.reverse(i).tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt
+                        val argWidth =
+                          prim.args.reverse(i).tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt
 
                         if (argWidth == 1) {
                           val tempConnect = ir.Connect(ir.NoInfo, genRef(ref.name, currBit), prim.args.reverse(i))
@@ -131,8 +132,11 @@ object FixFalseCombLoops {
                           } else {
                             //If arg is not a bad var, replace with bit prims
                             for (j <- 0 until math.min(argWidth, bitsLeft)) {
-                              val tempConnect = ir.Connect(ir.NoInfo, genRef(ref.name, currBit), ir.DoPrim(PrimOps.Bits,
-                                Seq(prim.args.reverse(i)), Seq(j, j), Utils.BoolType))
+                              val tempConnect = ir.Connect(
+                                ir.NoInfo,
+                                genRef(ref.name, currBit),
+                                ir.DoPrim(PrimOps.Bits, Seq(prim.args.reverse(i)), Seq(j, j), Utils.BoolType)
+                              )
                               conds(tempConnect.serialize) = tempConnect
                               currBit += 1
                             }
