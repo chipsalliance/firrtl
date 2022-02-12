@@ -57,8 +57,9 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
       print("Output has correct form")
     } else {
       print("ERROR: Incorrect output form\n")
-      print(resultSerialized)
     }
+
+    print(resultSerialized)
 
   }
 

@@ -66,21 +66,21 @@ object FixFalseCombLoops {
       case wire: ir.DefWire =>
         //Summary: Splits wire into individual bits (wire x -> wire x_0, ..., wire x_n)
         if (combLoopVars.contains(wire.name)) {
-          if (wire.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt == 1) {
+          val wireWidth = wire.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt
+          if (wireWidth == 1) {
             //Removes 1 bit wires from combLoopVars to avoid unnecessary computation
             combLoopVars -= wire.name
             conds(wire.serialize) = wire
           } else {
             //Create new wire for every bit in wire
-            var newBitWires = Seq[ir.Reference]()
-            for (i <- 0 until wire.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt) {
+            for (i <- 0 until wireWidth) {
+              //TODO: Handle case where there is a repeated name. Can't use wire.name + i.toString
               val bitWire = ir.DefWire(ir.NoInfo, wire.name + i.toString, Utils.BoolType)
               conds(bitWire.serialize) = bitWire
-              newBitWires = ir.Reference(bitWire) +: newBitWires
             }
-            //Create node for wire
+            //Creates node wire = cat(a_n # ... # a_0)
             val newNode =
-              ir.DefNode(ir.NoInfo, wire.name, ir.DoPrim(PrimOps.Cat, newBitWires, Seq.empty, Utils.BoolType))
+              ir.DefNode(ir.NoInfo, wire.name, convertToCats(wireWidth - 1, 0, wire.name))
             conds(newNode.serialize) = newNode
           }
         } else {
@@ -191,8 +191,6 @@ object FixFalseCombLoops {
           }
           ir.DoPrim(prim.op, newPrimArgs, prim.consts, prim.tpe)
         }
-      // May need to do more work for references
-      case ref: ir.Reference => ref
       case other => other
     }
 
