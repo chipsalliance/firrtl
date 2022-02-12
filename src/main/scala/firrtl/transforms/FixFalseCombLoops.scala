@@ -1,8 +1,6 @@
 package firrtl
 package transforms
 
-import firrtl.ir.UIntType
-
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
@@ -56,7 +54,7 @@ object FixFalseCombLoops {
       case ir.Block(block) => block.foreach(onStmt)
       case node: ir.DefNode =>
         if (combLoopVars.contains(node.name)) {
-          if (node.value.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt == 1) {
+          if (node.value.tpe.asInstanceOf[ir.UIntType].width.asInstanceOf[ir.IntWidth].width.toInt == 1) {
             //Removes 1 bit nodes from combLoopVars to avoid unnecessary computation
             combLoopVars -= node.name
           }
@@ -66,7 +64,7 @@ object FixFalseCombLoops {
       case wire: ir.DefWire =>
         //Summary: Splits wire into individual bits (wire x -> wire x_0, ..., wire x_n)
         if (combLoopVars.contains(wire.name)) {
-          val wireWidth = wire.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt
+          val wireWidth = wire.tpe.asInstanceOf[ir.UIntType].width.asInstanceOf[ir.IntWidth].width.toInt
           if (wireWidth == 1) {
             //Removes 1 bit wires from combLoopVars to avoid unnecessary computation
             combLoopVars -= wire.name
@@ -106,14 +104,14 @@ object FixFalseCombLoops {
                   //TODO: Convert to match on prim.op
                   if (prim.op == PrimOps.Cat) {
                     //Summary: If lhs in combLoopVars, rhs is DoPrim(cat); split lhs into bits as: (x_0 = rhs(0), ..., x_n = rhs(n))
-                    val refSize = ref.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt
+                    val refSize = ref.tpe.asInstanceOf[ir.UIntType].width.asInstanceOf[ir.IntWidth].width.toInt
                     var currBit = 0
                     for (i <- 0 until 2) {
                       val bitsLeft = refSize - currBit
                       // If total arg bits are less than lhs bits, stop
                       if (bitsLeft > 0) {
                         val argWidth =
-                          prim.args.reverse(i).tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt
+                          prim.args.reverse(i).tpe.asInstanceOf[ir.UIntType].width.asInstanceOf[ir.IntWidth].width.toInt
 
                         if (argWidth == 1) {
                           val tempConnect = ir.Connect(ir.NoInfo, genRef(ref.name, currBit), prim.args.reverse(i))
@@ -147,7 +145,7 @@ object FixFalseCombLoops {
                   } else {
                     //If lhs is ir.Reference, in combLoopVars, is ir.DoPrim, but not Cat
                     //TODO: Handle when lhs is more than 1 bit
-                    if (ref.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt == 1) {
+                    if (ref.tpe.asInstanceOf[ir.UIntType].width.asInstanceOf[ir.IntWidth].width.toInt == 1) {
                       //TODO: This case may never run, as 1 bit lhs will not be modified
                       val tempConnect = ir.Connect(ir.NoInfo, genRef(ref.name, 0), newConnect.expr)
                       conds(tempConnect.serialize) = tempConnect
@@ -194,7 +192,7 @@ object FixFalseCombLoops {
       case other => other
     }
 
-    //Converts variable (x) into cats (x_high # ... # x_low)
+    //Converts variable (x) into nested cats (x_high # ... # x_low)
     def convertToCats(high: Int, low: Int, name: String): ir.Expression = {
       if (high == low) {
         genRef(name, low)
