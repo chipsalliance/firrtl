@@ -3,7 +3,7 @@ package transforms
 
 import firrtl.ir.{DefWire, UIntType, UnknownType}
 
-import scala.+:
+import scala.{+:, math}
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
@@ -106,13 +106,38 @@ object FixFalseCombLoops {
                   //TODO: Convert to match on prim.op
                   if (prim.op == PrimOps.Cat) {
                     //Summary: If lhs in combLoopVars, rhs is DoPrim(cat); split lhs into bits as: (x_0 = rhs(0), ..., x_n = rhs(n))
-                    for (i <- 0 until ref.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt) {
-                      //TODO: Doesn't work if any arg.length > 1. Need to split such args up also.
-                      if (
-                        prim.args.reverse(i).tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt == 1
-                      ) {
-                        val tempConnect = ir.Connect(ir.NoInfo, genRef(ref.name, i), prim.args.reverse(i))
-                        conds(tempConnect.serialize) = tempConnect
+                    val refSize = ref.tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt
+                    var currBit = 0
+                    for (i <- 0 until 2) {
+                      val bitsLeft = refSize - currBit
+                      // If total arg bits are less than lhs bits, stop
+                      if (bitsLeft > 0) {
+                        val argWidth = prim.args.reverse(i).tpe.asInstanceOf[UIntType].width.asInstanceOf[ir.IntWidth].width.toInt
+
+                        if (argWidth == 1) {
+                          val tempConnect = ir.Connect(ir.NoInfo, genRef(ref.name, currBit), prim.args.reverse(i))
+                          conds(tempConnect.serialize) = tempConnect
+                          currBit += 1
+                        } else {
+                          //If arg is a bad var, replace with new vars
+                          if (combLoopVars.contains(prim.args.reverse(i).asInstanceOf[ir.Reference].name)) {
+                            val name = prim.args.reverse(i).asInstanceOf[ir.Reference].name
+
+                            for (j <- 0 until math.min(argWidth, bitsLeft)) {
+                              val tempConnect = ir.Connect(ir.NoInfo, genRef(ref.name, currBit), genRef(name, j))
+                              conds(tempConnect.serialize) = tempConnect
+                              currBit += 1
+                            }
+                          } else {
+                            //If arg is not a bad var, replace with bit prims
+                            for (j <- 0 until math.min(argWidth, bitsLeft)) {
+                              val tempConnect = ir.Connect(ir.NoInfo, genRef(ref.name, currBit), ir.DoPrim(PrimOps.Bits,
+                                Seq(prim.args.reverse(i)), Seq(j, j), Utils.BoolType))
+                              conds(tempConnect.serialize) = tempConnect
+                              currBit += 1
+                            }
+                          }
+                        }
                       }
                     }
                   } else {
