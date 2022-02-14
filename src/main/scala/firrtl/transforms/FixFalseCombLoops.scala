@@ -94,76 +94,7 @@ object FixFalseCombLoops {
         newConnect.loc match {
           case ref: ir.Reference =>
             if (combLoopVars.contains(ref.name)) {
-              newConnect.expr match {
-                case prim: ir.DoPrim =>
-                  //TODO: Convert to match on prim.op
-                  if (prim.op == PrimOps.Cat) {
-                    //Summary: If lhs in combLoopVars, rhs is DoPrim(cat); split lhs into bits as: (x_0 = rhs(0), ..., x_n = rhs(n))
-
-                    //TODO: OLD CODE
-//                    for (i <- 0 until getWidth(ref.tpe)) {
-//                      //TODO: Doesn't work if any arg.length > 1. Need to split such args up also.
-//                      if (getWidth(prim.args.reverse(i).tpe) == 1) {
-//                        val tempConnect = ir.Connect(ir.NoInfo, genRef(ref.name, i), prim.args.reverse(i))
-//                        conds(tempConnect.serialize) = tempConnect
-//                      }
-//                    }
-
-                    //TODO: NEW CODE
-                    val refWidth = getWidth(ref.tpe)
-                    var currBit = 0
-                    for (i <- 0 until 2) {
-                      val bitsLeft = refWidth - currBit
-                      // If total arg bits are less than lhs bits, stop
-                      if (bitsLeft > 0) {
-                        val argWidth = getWidth(prim.args.reverse(i).tpe)
-                        if (argWidth == 1) {
-                          val tempConnect = ir.Connect(ir.NoInfo, genRef(ref.name, currBit), prim.args.reverse(i))
-                          conds(tempConnect.serialize) = tempConnect
-                          currBit += 1
-                        } else {
-                          //If arg is a bad var, replace with new vars
-                          if (combLoopVars.contains(prim.args.reverse(i).asInstanceOf[ir.Reference].name)) {
-                            val name = prim.args.reverse(i).asInstanceOf[ir.Reference].name
-
-                            for (j <- 0 until math.min(argWidth, bitsLeft)) {
-                              val tempConnect = ir.Connect(ir.NoInfo, genRef(ref.name, currBit), genRef(name, j))
-                              conds(tempConnect.serialize) = tempConnect
-                              currBit += 1
-                            }
-                          } else {
-                            //If arg is not a bad var, replace with bit prims
-                            for (j <- 0 until math.min(argWidth, bitsLeft)) {
-                              val tempConnect = ir.Connect(
-                                ir.NoInfo,
-                                genRef(ref.name, currBit),
-                                ir.DoPrim(PrimOps.Bits, Seq(prim.args.reverse(i)), Seq(j, j), Utils.BoolType)
-                              )
-                              conds(tempConnect.serialize) = tempConnect
-                              currBit += 1
-                            }
-                          }
-                        }
-                      }
-                    }
-
-                  } else {
-                    //If lhs is ir.Reference, in combLoopVars, is ir.DoPrim, but not Cat
-                    //TODO: Handle when lhs is more than 1 bit
-                    if (getWidth(ref.tpe) == 1) {
-                      //TODO: This case may never run, as 1 bit lhs will not be modified
-                      val tempConnect = ir.Connect(ir.NoInfo, genRef(ref.name, 0), newConnect.expr)
-                      conds(tempConnect.serialize) = tempConnect
-                    } else {
-                      conds(newConnect.serialize) = newConnect
-                    }
-                  }
-
-                case _ =>
-                  //TODO: Do something in this case
-                  //If lhs is ir.Reference, in combLoopVars, but isn't ir.DoPrim
-                  conds(newConnect.serialize) = newConnect
-              }
+              bitwiseAssignment(ref.name, newConnect.expr, getWidth(ref.tpe) - 1, 0)
             } else {
               //If lhs is ir.Reference, but isn't in combLoopVars
               conds(newConnect.serialize) = newConnect
@@ -216,6 +147,61 @@ object FixFalseCombLoops {
         //TODO: Should this be tpe = BoolType?
         ir.DoPrim(PrimOps.Cat, Seq(genRef(name, high), convertToCats(high - 1, low, name)), Seq.empty, Utils.BoolType)
       }
+    }
+
+    //Takes in potentially recursive cat, returns
+    def bitwiseAssignment(lhsName: String, expr: ir.Expression, leftIndex: Int, rightIndex: Int): Unit = {
+      val rhsWidth = getWidth(expr.tpe)
+
+      var l = leftIndex
+      var r = rightIndex
+      expr match {
+        case prim: ir.DoPrim => {
+          prim.op match {
+            case PrimOps.Cat =>
+              for (i <- 0 until 2) {
+                val argWidth = getWidth(prim.args(i).tpe)
+                bitwiseAssignment(lhsName, prim.args.reverse(i), math.min(leftIndex, r + argWidth - 1), r)
+                r += argWidth
+              }
+            case other => //TODO
+              assignBits(prim)
+          }
+        }
+        case ref: ir.Reference =>
+          //If arg is a bad var, replace with new vars
+          if (combLoopVars.contains(ref.name)) {
+            for (j <- 0 until math.min(rhsWidth, leftIndex - rightIndex + 1)) {
+              val tempConnect = ir.Connect(ir.NoInfo, genRef(lhsName, r), genRef(ref.name, j))
+              conds(tempConnect.serialize) = tempConnect
+              r += 1
+            }
+          } else {
+            //If arg is not a bad var, replace with bit prims
+            assignBits(ref)
+          }
+        //TODO: see if other cases exist
+        case other =>
+          assignBits(other)
+      }
+
+      def assignBits(expr: ir.Expression): Unit = {
+        if (rhsWidth == 1) {
+          val tempConnect = ir.Connect(ir.NoInfo, genRef(lhsName, rightIndex), expr)
+          conds(tempConnect.serialize) = tempConnect
+        } else {
+          for (j <- 0 until math.min(rhsWidth, leftIndex - rightIndex + 1)) {
+            val tempConnect = ir.Connect(
+              ir.NoInfo,
+              genRef(lhsName, r),
+              ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(j, j), Utils.BoolType)
+            )
+            conds(tempConnect.serialize) = tempConnect
+            r += 1
+          }
+        }
+      }
+
     }
 
     onStmt(m.body)

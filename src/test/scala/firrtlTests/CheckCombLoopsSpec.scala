@@ -54,12 +54,13 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
                         |""".stripMargin
 
     if (resultSerialized == correctForm) {
-      print("Output has correct form")
+      print("Output has correct form\n")
     } else {
       print("ERROR: Incorrect output form\n")
     }
 
     print(resultSerialized)
+    compile(parse(resultSerialized))
 
   }
 
@@ -84,7 +85,9 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
         |""".stripMargin
 
     val result = compile(parse(input))
-    print(result.circuit.serialize)
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
   }
 
   "False combinational loop where var is not cat" should "not throw an exception" in {
@@ -106,7 +109,9 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
                   |""".stripMargin
 
     val result = compile(parse(input))
-    print(result.circuit.serialize)
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
   }
 
   "False loop where two variables need to be split" should "not throw an exception" in {
@@ -131,7 +136,9 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
                   |""".stripMargin
 
     val result = compile(parse(input))
-    print(result.circuit.serialize)
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
   }
 
   //TODO: Fix, turn into false loop for test
@@ -152,7 +159,9 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
                   |""".stripMargin
 
     val result = compile(parse(input))
-    print(result.circuit.serialize)
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
   }
 
   "False loop where a variable needs to be split within a cat" should "not throw an exception" in {
@@ -173,7 +182,9 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
                   |""".stripMargin
 
     val result = compile(parse(input))
-    print(result.circuit.serialize)
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
   }
 
   "New false loop where output uses subword" should "not throw an exception" in {
@@ -195,7 +206,9 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
                   |""".stripMargin
 
     val result = compile(parse(input))
-    print(result.circuit.serialize)
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
   }
 
 //TODO: Fix
@@ -217,7 +230,9 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
                   |""".stripMargin
 
     val result = compile(parse(input))
-    print(result.circuit.serialize)
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
   }
 
 //TODO: Fix
@@ -239,7 +254,9 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
                   |""".stripMargin
 
     val result = compile(parse(input))
-    print(result.circuit.serialize)
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
   }
 
   //TODO: Fix
@@ -261,7 +278,9 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
                   |""".stripMargin
 
     val result = compile(parse(input))
-    print(result.circuit.serialize)
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
   }
 
   "Loop-free circuit" should "not throw an exception" in {
@@ -285,7 +304,10 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
                   |    b <= inner.out2
                   |""".stripMargin
 
-    compile(parse(input))
+    val result = compile(parse(input))
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
   }
 
   "Simple combinational loop" should "throw an exception" in {
