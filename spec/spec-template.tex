@@ -371,7 +371,18 @@ $if(block-headings)$
 $endif$
 $endif$
 $if(pagestyle)$
+$if(pagestyle.fancy)$
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+$if(title)$
+\lhead{$title$}
+$endif$
+$if(version)$
+\rhead{Version $version$}
+$endif$
+$else$
 \pagestyle{$pagestyle$}
+$endif$
 $endif$
 $if(csl-refs)$
 \newlength{\cslhangindent}
