@@ -1919,16 +1919,16 @@ A multiplexer expression is legal only if the following holds.
 
 1. The type of the selection signal is an unsigned integer.
 
-1 The width of the selection signal is any of:
+1. The width of the selection signal is any of:
 
-  1. One-bit
+    1. One-bit
 
-  1. Unspecified, but will infer to one-bit
+    1. Unspecified, but will infer to one-bit
 
-1. The types of the two input expressions are
+1. The types of the two input expressions are equivalent.
 
 1. The types of the two input expressions are passive (see section
-    [4.4](#passive_types)).
+   [4.4](#passive_types)).
 
 ## Conditionally Valids {#conditionally_valids}
 
