@@ -600,8 +600,7 @@ ground type component will have its value automatically sign-extended or
 zero-extended to the larger bit width. The behaviour of connect
 statements between two circuit components with aggregate types is
 defined by the connection algorithm in section
-[5.1.1](#connection_algorithm){reference-type="ref"
-reference="connection_algorithm"}.
+[5.1.1](#connection_algorithm).
 
 ### The Connection Algorithm {#connection_algorithm}
 
@@ -630,12 +629,10 @@ hold:
 
 1.  The types of the left-hand and right-hand side expressions must be
     weakly equivalent (see section
-    [4.6](#weak_type_equivalence){reference-type="ref"
-    reference="weak_type_equivalence"} for details).
+    [4.6](#weak_type_equivalence) for details).
 
 2.  The flow of the left-hand side expression must be sink or duplex
-    (see section [\[flow\]](#flow){reference-type="ref"
-    reference="flow"} for an explanation of flow).
+    (see section [8](#flows) for an explanation of flow).
 
 3.  Either the flow of the right-hand side expression is source or
     duplex, or the right-hand side expression has a passive type.
@@ -651,8 +648,7 @@ appropriately, while bundle fields not present in both types will be
 ignored. Similarly, vectors with mismatched lengths will be connected up
 to the shorter length, and the remaining sub-elements are ignored. The
 full algorithm is detailed in section
-[5.2.1](#partial_connection_algorithm){reference-type="ref"
-reference="partial_connection_algorithm"}.
+[5.2.1](#partial_connection_algorithm).
 
 The following example demonstrates partially connecting a module's input
 port to its output port, where port `myinput` is connected to port
@@ -680,8 +676,7 @@ For details on the syntax and semantics of the sub-field expression,
 sub-index expression, and statement groups, see sections
 [6.6](#subfields),
 [6.7](#subindices), and
-[5.3](#statement_groups){reference-type="ref"
-reference="statement_groups"}.
+[5.3](#statement_groups).
 
 ### The Partial Connection Algorithm {#partial_connection_algorithm}
 
@@ -737,8 +732,7 @@ Note that connect and partial connect statements have equal priority,
 and later connect or partial connect statements always take priority
 over earlier connect or partial connect statements. Conditional
 statements are also affected by last connect semantics, and for details
-see section [5.10.5](#conditional_last_connect){reference-type="ref"
-reference="conditional_last_connect"}.
+see section [5.10.5](#conditional_last_connect).
 
 In the case where a connection to a circuit component with an aggregate
 type is followed by a connection to a sub-element of that component,
@@ -791,8 +785,7 @@ module MyModule :
    myport <= portx
 ```
 
-See section [6.6](#subfields){reference-type="ref"
-reference="subfields"} for more details about sub-field expressions.
+See section [6.6](#subfields) for more details about sub-field expressions.
 
 ## Empty
 
@@ -881,8 +874,7 @@ initialization coverage errors.
 
 The following example demonstrates the effect of invalidating a variety
 of circuit components with aggregate types. See section
-[5.7.1](#invalidate_algorithm){reference-type="ref"
-reference="invalidate_algorithm"} for details on the algorithm for
+[5.7.1](#invalidate_algorithm) for details on the algorithm for
 determining what is invalidated.
 
 ``` firrtl
@@ -1194,8 +1186,7 @@ In the case where an invalid statement is followed by a conditional
 statement containing a connect to the invalidated component, the
 resulting connection to the component can be expressed using a
 conditionally valid expression. See section
-[6.10](#conditionally_valids){reference-type="ref"
-reference="conditionally_valids"} for more details about the
+[6.10](#conditionally_valids) for more details about the
 conditionally valid expression.
 
 ``` firrtl
@@ -1219,10 +1210,8 @@ w <= validif(c, a)
 The behaviour of conditional connections to circuit components with
 aggregate types can be modeled by first expanding each connect into
 individual connect statements on its ground elements (see section
-[5.1.1](#connection_algorithm){reference-type="ref"
-reference="connection_algorithm"} and
-[5.2.1](#partial_connection_algorithm){reference-type="ref"
-reference="partial_connection_algorithm"} for the connection and partial
+[5.1.1](#connection_algorithm) and
+[5.2.1](#partial_connection_algorithm) for the connection and partial
 connection algorithms) and then applying the conditional last connect
 semantics.
 
@@ -1250,8 +1239,7 @@ w.b <= mux(c, y.b, x.b)
 ```
 
 Similar to the behavior of aggregate types under last connect semantics
-(see section [5.3.1](#last_connect){reference-type="ref"
-reference="last_connect"}), the conditional connects to a sub-element of
+(see section [5.3.1](#last_connect)), the conditional connects to a sub-element of
 an aggregate component only generates a multiplexer for the sub-element
 that is overwritten.
 
@@ -1940,8 +1928,7 @@ A multiplexer expression is legal only if the following holds.
 1. The types of the two input expressions are
 
 1. The types of the two input expressions are passive (see section
-    [4.4](#passive_types){reference-type="ref"
-    reference="passive_types"}).
+    [4.4](#passive_types)).
 
 ## Conditionally Valids {#conditionally_valids}
 
@@ -1967,8 +1954,7 @@ A conditionally valid expression is legal only if the following holds.
 1.  The type of the valid signal is a single bit unsigned integer.
 
 2.  The type of the input expression is passive (see section
-    [4.4](#passive_types){reference-type="ref"
-    reference="passive_types"}).
+    [4.4](#passive_types)).
 
 Conditional statements can be equivalently expressed as multiplexers and
 conditionally valid expressions. See section
@@ -2322,14 +2308,12 @@ from those of the fixed-point argument type. See section
 [10](#fixed_rules) for
 more detail.
 
-# Flows
+# Flows {#flows}
 
 An expression's flow partially determines the legality of connecting to
 and from the expression. Every expression is classified as either
 *source*, *sink*, or *duplex*. For details on connection rules refer
-back to sections [5.1](#connects){reference-type="ref"
-reference="connects"} and [5.2](#partial_connects){reference-type="ref"
-reference="partial_connects"}.
+back to sections [5.1](#connects) and [5.2](#partial_connects).
 
 The flow of a reference to a declared circuit component depends on the
 kind of circuit component. A reference to an input port, an instance, a
@@ -2421,8 +2405,7 @@ Within a memory declaration, all port names must be unique.
 During the lowering transformation, all circuit component declarations
 with aggregate types are rewritten as a group of component declarations,
 each with a ground type. The name expansion algorithm in section
-[11.1](#expansion_algorithm){reference-type="ref"
-reference="expansion_algorithm"} calculates the names of all replacement
+[11.1](#expansion_algorithm) calculates the names of all replacement
 components derived from the original aggregate-typed component.
 
 After the lowering transformation, the names of the lowered circuit
