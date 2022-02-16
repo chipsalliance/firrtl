@@ -10,6 +10,24 @@ author:
   Jonathan Bachrach\
   <jrb@eecs.berkeley.edu>
 title: Specification for the FIRRTL Language
+date: \today
+# Custom options added to the customized template
+version: 0.2.0
+# Options passed to the document class
+classoption:
+- 12pt
+# Link options
+colorlinks: true
+linkcolor: blue
+filecolor: magenta
+urlcolor: cyan
+toccolor: blue
+# General pandoc configuration
+toc: true
+numbersections: true
+# Header Setup
+pagestyle:
+  fancy: true
 ---
 
 # Introduction
