@@ -2360,31 +2360,42 @@ respective sections.
 
 # Fixed-Point Math {#fixed_rules}
 
-  ------------- ------------------------------------------------------- -------------------
+| Operator    | Result Width                                          | Result Binary Point |
+|-------------|-------------------------------------------------------|---------------------|
+| add(e1, e2) | max(w~e1~-p~e1~, w~e2~-p~e2~) + max(p~e1~, p~e2~) + 1 | max(p~e1~, p~e2~)   |
+| mul(e1, e2) | w~1~ + w~2~                                           | p~1~ + p~2~         |
+
+: Propagation rules for binary primitive operators that operate on two
+  fixed-point numbers. Here, w~e1~ and p~e1~ are used to indicate the width and
+  binary point of the first operand, while w~e2~ and p~e2~ are used to indicate
+  the width and binary point of the second operand.
 
 
-   add(e1, e2)   max(w~e1~-p~e1~, w~e2~-p~e2~) + max(p~e1~, p~e2~) + 1   max(p~e1~, p~e2~)
-   sub(e1, e2)   max(w~e1~-p~e1~, w~e2~-p~e2~) + max(p~e1~, p~e2~) + 1   max(p~e1~, p~e2~)
-   mul(e1, e2)                        w~1~ + w~2~                           p~1~ + p~2~
-  ------------- ------------------------------------------------------- -------------------
+| Operator   | Result Width                | Result Binary Point |
+|------------|-----------------------------|---------------------|
+| pad(e, n)  | max(w~e~, n)                | p~e~                |
+| shl(e, n)  | w~e~ + n                    | p~e~                |
+| shr(e, n)  | max(w~e~ - n, max(1, p~e~)) | p~e~                |
+| incp(e, n) | w~e~ + n                    | p~e~ + n            |
+| decp(e, n) | w~e~ - n                    | p~e~ - n            |
+| setp(e, n) | w~e~ - p~e~ + n             | n                   |
 
-  ------------ ----------------------------- ----------
+: Propagation rules for binary primitive operators that modify the width and/or
+  precision of a single fixed-point number using a constant integer literal
+  parameter. Here, w~e~ and p~e~ are used to indicate the width and binary
+  point of the fixed-point operand, while `n` is used to represent the value of
+  the constant parameter.
 
+| Operator     | Result Width          | Result Binary Point |
+|--------------|-----------------------|---------------------|
+| dshl(e1, e1) | w~e1~ + 2`^`w~e2~ - 1 | p~e~                |
+| dshr(e1, e2) | w~e1~                 | p~e~                |
 
-   pad(e, n)           max(w~e~, n)             p~e~
-   shl(e, n)             w~e~ + n               p~e~
-   shr(e, n)    max(w~e~ - n, max(1, p~e~))     p~e~
-   incp(e, n)            w~e~ + n             p~e~ + n
-   decp(e, n)            w~e~ - n             p~e~ - n
-   setp(e, n)         w~e~ - p~e~ + n            n
-  ------------ ----------------------------- ----------
-
-  -------------- ----------------------- ------
-
-
-   dshl(e1, e1)   w~e1~ + 2`^`w~e2~ - 1   p~e~
-   dshr(e1, e2)           w~e1~           p~e~
-  -------------- ----------------------- ------
+: Propagation rules for dynamic shifts on fixed-point numbers. These take a
+  fixed-point argument and an UInt argument. Here, w~e1~ and p~e1~ are used
+  to indicate the width and binary point of the fixed-point operand, while
+  w~e1~ is used to represent the width of the unsigned integer operand. Note
+  that the actual shift amount will be the dynamic value of the `e2` argument.
 
 # Namespaces
 
