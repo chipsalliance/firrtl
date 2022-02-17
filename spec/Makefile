@@ -10,7 +10,7 @@ spec.pdf : spec.tex
 	 pdflatex -output-format=pdf spec.tex
 
 spec-md.pdf: spec.md firrtl.xml spec-template.tex
-	pandoc $< --template spec-template.tex --syntax-definition firrtl.xml -o $@
+	pandoc $< --template spec-template.tex --syntax-definition firrtl.xml -r markdown+table_captions -o $@
 
 clean:
 	rm -f *.aux *.log *.out *.toc *.pdf
