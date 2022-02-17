@@ -315,7 +315,6 @@ class CheckCombLoops extends Transform with RegisteredTransform with DependencyA
       logger.warn("Skipping Combinational Loop Detection")
       state
     } else {
-
       var (result, errors, connectivity, _) = run(state)
 
       if (state.annotations.contains(EnableFixFalseCombLoops)) {

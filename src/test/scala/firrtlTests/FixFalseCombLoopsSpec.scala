@@ -4,7 +4,10 @@ import firrtl.options.Dependency
 import firrtl.testutils.LeanTransformSpec
 import firrtl.transforms.{CheckCombLoops, EnableFixFalseCombLoops}
 
-class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops])){
+class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops])) {
+
+  //TODO: Add tests for, "Did not modify circuit"
+  //These should be circuits we officially do not support (at least yet)
 
   "False combinational loop" should "not throw an exception" in {
     val input = """circuit hasloops :
@@ -274,6 +277,5 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
     print(resultSerialized)
     compile(parse(resultSerialized))
   }
-
 
 }

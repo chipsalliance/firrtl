@@ -7,7 +7,7 @@ import firrtl.options.{HasShellOptions, ShellOption}
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
-case object EnableFixFalseCombLoops extends NoTargetAnnotation with  HasShellOptions {
+case object EnableFixFalseCombLoops extends NoTargetAnnotation with HasShellOptions {
 
   val options = Seq(
     new ShellOption[Unit](
@@ -19,7 +19,6 @@ case object EnableFixFalseCombLoops extends NoTargetAnnotation with  HasShellOpt
   )
 
 }
-
 
 object FixFalseCombLoops {
 

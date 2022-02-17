@@ -14,7 +14,6 @@ import firrtl.stage.FirrtlStage
 import firrtl.util.BackendCompilationUtilities.createTestDirectory
 
 class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops])) {
-
   "Loop-free circuit" should "not throw an exception" in {
     val input = """circuit hasnoloops :
                   |  module thru :
@@ -36,10 +35,7 @@ class CheckCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops
                   |    b <= inner.out2
                   |""".stripMargin
 
-    val result = compile(parse(input))
-    val resultSerialized = result.circuit.serialize
-    print(resultSerialized)
-    compile(parse(resultSerialized))
+    compile(parse(input))
   }
 
   "Simple combinational loop" should "throw an exception" in {
