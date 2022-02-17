@@ -317,17 +317,22 @@ class CheckCombLoops extends Transform with RegisteredTransform with DependencyA
     } else {
 
       var (result, errors, connectivity, _) = run(state)
-      //If there is an error, try fixing as a false loop
-      while (errors.errors.nonEmpty) {
-        val fixedFalseLoop = FixFalseCombLoops.fixFalseCombLoops(result, errors.errors(0).getMessage)
-        //If false loop fix cannot fix circuit, it is a real error
-        if (result.circuit.serialize == fixedFalseLoop.circuit.serialize) {
-          errors.trigger()
+
+      if (state.annotations.contains(EnableFixFalseCombLoops)) {
+        //If there is an error, try fixing as a false loop
+        while (errors.errors.nonEmpty) {
+          val fixedFalseLoop = FixFalseCombLoops.fixFalseCombLoops(result, errors.errors(0).getMessage)
+          //If false loop fix cannot fix circuit, it is a real error
+          if (result.circuit.serialize == fixedFalseLoop.circuit.serialize) {
+            errors.trigger()
+          }
+          val (newResult, newErrors, connectivity, _) = run(fixedFalseLoop)
+          result = newResult
+          errors = newErrors
         }
-        val (newResult, newErrors, connectivity, _) = run(fixedFalseLoop)
-        result = newResult
-        errors = newErrors
       }
+
+      errors.trigger()
       result
     }
   }

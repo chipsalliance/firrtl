@@ -1,8 +1,25 @@
 package firrtl
 package transforms
 
+import firrtl.annotations.NoTargetAnnotation
+import firrtl.options.{HasShellOptions, ShellOption}
+
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
+
+case object EnableFixFalseCombLoops extends NoTargetAnnotation with  HasShellOptions {
+
+  val options = Seq(
+    new ShellOption[Unit](
+      longOption = "fix-false-comb-loops",
+      toAnnotationSeq = _ => Seq(EnableFixFalseCombLoops),
+      //TODO: Help text
+      helpText = ""
+    )
+  )
+
+}
+
 
 object FixFalseCombLoops {
 
