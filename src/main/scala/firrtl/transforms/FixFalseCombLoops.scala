@@ -20,6 +20,21 @@ case object EnableFixFalseCombLoops extends NoTargetAnnotation with HasShellOpti
 
 }
 
+/** Transforms a circuit with a combinational loop to a logically equivalent circuit with that loop removed.
+  * Resolves a subset of word-level combinational loops which are not combinational loops at the bit-level.
+  *
+  * Given a circuit and a loop it contains, provided by the output of the CheckCombLoops pass,
+  * this pass will transform all variables and logic involved in the combinational loop to bit-level equivalents.
+  *
+  * This pass is repeatedly called within CheckCombLoops until either no combinational loops remains
+  * or the circuit contains combinational loop which cannot be fixed or are not fixed by this pass.
+  *
+  * @throws firrtl.transforms.CheckCombLoops.CombLoopException if loop could not be fixed
+  * @note Input form: Low FIRRTL and a combinational loop detected in CheckCombLoops
+  * @note Output form: Low FIRRTL with provided combinational loop resolved
+  * @note This pass does not attempt to resolve loops involving module/instance input or output ports.
+  *       As a result, this pass does not resolve intra-module loops or loops through instances.
+  */
 object FixFalseCombLoops {
 
   def fixFalseCombLoops(state: CircuitState, combLoopsError: String): CircuitState = {

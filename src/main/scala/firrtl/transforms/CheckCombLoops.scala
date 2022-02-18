@@ -3,6 +3,7 @@
 package firrtl.transforms
 
 import scala.collection.mutable
+
 import firrtl._
 import firrtl.ir._
 import firrtl.passes.{Errors, PassException}
