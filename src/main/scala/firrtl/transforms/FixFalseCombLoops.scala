@@ -13,21 +13,21 @@ case object EnableFixFalseCombLoops extends NoTargetAnnotation with HasShellOpti
     new ShellOption[Unit](
       longOption = "fix-false-comb-loops",
       toAnnotationSeq = _ => Seq(EnableFixFalseCombLoops),
-      //TODO: Help text
-      helpText = ""
+      helpText = "Resolves a subset of word-level combinational loops."
     )
   )
 
 }
 
-/** Transforms a circuit with a combinational loop to a logically equivalent circuit with that loop removed.
+/**
+  * Transforms a circuit with a combinational loop to a logically equivalent circuit with that loop removed.
   * Resolves a subset of word-level combinational loops which are not combinational loops at the bit-level.
   *
   * Given a circuit and a loop it contains, provided by the output of the CheckCombLoops pass,
   * this pass will transform all variables and logic involved in the combinational loop to bit-level equivalents.
   *
-  * This pass is repeatedly called within CheckCombLoops until either no combinational loops remains
-  * or the circuit contains combinational loop which cannot be fixed or are not fixed by this pass.
+  * This pass is repeatedly called within CheckCombLoops until either no combinational loop remains
+  * or the circuit contains a combinational loop which cannot be fixed or is not fixed by this pass.
   *
   * @throws firrtl.transforms.CheckCombLoops.CombLoopException if loop could not be fixed
   * @note Input form: Low FIRRTL and a combinational loop detected in CheckCombLoops
@@ -37,13 +37,24 @@ case object EnableFixFalseCombLoops extends NoTargetAnnotation with HasShellOpti
   */
 object FixFalseCombLoops {
 
+  /**
+    * Transforms a circuit with a combinational loop to a logically equivalent circuit with that loop removed.
+    *
+    * @param state          the circuit to be transformed
+    * @param combLoopsError the error string from the CheckCombLoops pass
+    * @return the modified circuit
+    */
   def fixFalseCombLoops(state: CircuitState, combLoopsError: String): CircuitState = {
     val moduleToBadVars = parseLoopVariables(combLoopsError)
+    if (moduleToBadVars.keys.size > 1) {
+      //Multi-module loops are currently not handled.
+      return state
+    }
     state.copy(circuit = state.circuit.mapModule(onModule(_, moduleToBadVars)))
   }
 
   //Parse error string into list of variables
-  def parseLoopVariables(combLoopsError: String): Map[String, ListBuffer[String]] = {
+  private def parseLoopVariables(combLoopsError: String): Map[String, ListBuffer[String]] = {
     var moduleToLoopVars = Map[String, ListBuffer[String]]()
 
     val split = combLoopsError.split("(\\r\\n|\\r|\\n)").drop(1).dropRight(1)

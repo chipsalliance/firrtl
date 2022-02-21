@@ -59,7 +59,7 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
 
   }
 
-  "Breaking up direct assignments (not DoPrim on rhs)" should "not throw an exception" in {
+  "False combinational loop with an intermediate variable" should "not throw an exception" in {
     val input =
       """circuit hasloops :
         |  module hasloops :
@@ -85,7 +85,7 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
     compile(parse(resultSerialized))
   }
 
-  "False combinational loop where var is not cat" should "not throw an exception" in {
+  "False combinational loop where primitive inside cat" should "not throw an exception" in {
     val input = """circuit hasloops :
                   |  module hasloops :
                   |    input clk : Clock
@@ -109,7 +109,7 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
     compile(parse(resultSerialized))
   }
 
-  "False loop where two variables need to be split" should "not throw an exception" in {
+  "False loop where there are two loops" should "not throw an exception" in {
     val input = """circuit hasloops :
                   |  module hasloops :
                   |    input clk : Clock
@@ -136,8 +136,124 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
     compile(parse(resultSerialized))
   }
 
-  //TODO: Fix, turn into false loop for test
-  "False loop where bits is over multiple values" should "not throw an exception" in {
+  "False loop with subword in a cat" should "not throw an exception" in {
+    val input = """circuit hasloops :
+                  |  module hasloops :
+                  |    input clk : Clock
+                  |    input c : UInt<1>
+                  |    input d : UInt<1>
+                  |    output a_output : UInt<3>
+                  |    output b_output : UInt<2>
+                  |    wire a : UInt<2>
+                  |    wire b : UInt<1>
+                  |
+                  |    a <= cat(b, c)
+                  |    b <= cat(bits(a, 0, 0), d)
+                  |    a_output <= a
+                  |    b_output <= b
+                  |""".stripMargin
+
+    val result = compile(parse(input), Seq(EnableFixFalseCombLoops))
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
+  }
+
+  "False loop where output uses subword" should "not throw an exception" in {
+    val input = """circuit hasloops :
+                  |  module hasloops :
+                  |    input clk : Clock
+                  |    input c : UInt<1>
+                  |    input d : UInt<1>
+                  |    output a_output : UInt<3>
+                  |    output b_output : UInt<2>
+                  |    wire a : UInt<2>
+                  |    wire b : UInt<1>
+                  |
+                  |
+                  |    a <= cat(b, c)
+                  |    b <= cat(bits(a, 0, 0), d)
+                  |    a_output <= bits(a, 0, 0)
+                  |    b_output <= b
+                  |""".stripMargin
+
+    val result = compile(parse(input), Seq(EnableFixFalseCombLoops))
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
+  }
+
+  "False loop where a narrower wire is assigned to a wider value" should "not throw an exception" in {
+    val input = """circuit hasloops :
+                  |  module hasloops :
+                  |    input clk : Clock
+                  |    input c : UInt<3>
+                  |    input d : UInt<1>
+                  |    output a_output : UInt<4>
+                  |    output b_output : UInt<2>
+                  |    wire a : UInt<4>
+                  |    wire b : UInt<2>
+                  |
+                  |    a <= cat(b, c)
+                  |    b <= cat(bits(a, 0, 0), d)
+                  |    a_output <= a
+                  |    b_output <= b
+                  |""".stripMargin
+
+    val result = compile(parse(input), Seq(EnableFixFalseCombLoops))
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
+  }
+
+  "False loop where output uses a wider subword" should "not throw an exception" in {
+    val input = """circuit hasloops :
+                  |  module hasloops :
+                  |    input clk : Clock
+                  |    input c : UInt<3>
+                  |    input d : UInt<1>
+                  |    output a_output : UInt<4>
+                  |    output b_output : UInt<2>
+                  |    wire a : UInt<4>
+                  |    wire b : UInt<2>
+                  |
+                  |    a <= cat(b, c)
+                  |    b <= cat(bits(a, 0, 0), d)
+                  |    a_output <= bits(a, 3, 2)
+                  |    b_output <= b
+                  |""".stripMargin
+
+    val result = compile(parse(input), Seq(EnableFixFalseCombLoops))
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
+  }
+
+  //TODO: fix
+  "False loop with nested cat with multiple bits" should "not throw an exception" in {
+    val input = """circuit hasloops :
+                  |  module hasloops :
+                  |    input clk : Clock
+                  |    input c : UInt<2>
+                  |    input d : UInt<2>
+                  |    output a_output : UInt<6>
+                  |    output b_output : UInt<2>
+                  |    wire a : UInt<6>
+                  |    wire b : UInt<2>
+                  |
+                  |    a <= cat(b, cat(c, d))
+                  |    b <= bits(a, 0, 0)
+                  |    a_output <= a
+                  |    b_output <= b
+                  |""".stripMargin
+
+    val result = compile(parse(input), Seq(EnableFixFalseCombLoops))
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
+  }
+
+  "False loop where subword is over multiple values" should "not throw an exception" in {
     val input = """circuit hasloops :
                   |  module hasloops :
                   |    input clk : Clock
@@ -159,123 +275,36 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
     compile(parse(resultSerialized))
   }
 
-  "False loop where a variable needs to be split within a cat" should "not throw an exception" in {
+  //All tests below should error/are not currently handled by this pass.
+  "Combinational loop through a combinational memory read port" should "throw an exception" in {
     val input = """circuit hasloops :
                   |  module hasloops :
                   |    input clk : Clock
-                  |    input c : UInt<1>
-                  |    input d : UInt<1>
-                  |    output a_output : UInt<3>
-                  |    output b_output : UInt<2>
-                  |    wire a : UInt<2>
-                  |    wire b : UInt<1>
-                  |
-                  |    a <= cat(b, c)
-                  |    b <= cat(d, bits(a, 0, 0))
-                  |    a_output <= a
-                  |    b_output <= b
+                  |    input a : UInt<1>
+                  |    input b : UInt<1>
+                  |    output c : UInt<1>
+                  |    output d : UInt<1>
+                  |    wire y : UInt<1>
+                  |    wire z : UInt<1>
+                  |    c <= b
+                  |    mem m :
+                  |      data-type => UInt<1>
+                  |      depth => 2
+                  |      read-latency => 0
+                  |      write-latency => 1
+                  |      reader => r
+                  |      read-under-write => undefined
+                  |    m.r.clk <= clk
+                  |    m.r.addr <= y
+                  |    m.r.en <= UInt(1)
+                  |    z <= m.r.data
+                  |    y <= z
+                  |    d <= z
                   |""".stripMargin
 
-    val result = compile(parse(input), Seq(EnableFixFalseCombLoops))
-    val resultSerialized = result.circuit.serialize
-    print(resultSerialized)
-    compile(parse(resultSerialized))
-  }
-
-  "New false loop where output uses subword" should "not throw an exception" in {
-    val input = """circuit hasloops :
-                  |  module hasloops :
-                  |    input clk : Clock
-                  |    input c : UInt<1>
-                  |    input d : UInt<1>
-                  |    output a_output : UInt<3>
-                  |    output b_output : UInt<2>
-                  |    wire a : UInt<2>
-                  |    wire b : UInt<1>
-                  |
-                  |
-                  |    a <= cat(b, c)
-                  |    b <= cat(d, bits(a, 0, 0))
-                  |    a_output <= bits(a, 0, 0)
-                  |    b_output <= b
-                  |""".stripMargin
-
-    val result = compile(parse(input), Seq(EnableFixFalseCombLoops))
-    val resultSerialized = result.circuit.serialize
-    print(resultSerialized)
-    compile(parse(resultSerialized))
-  }
-
-  //TODO: Fix
-  "New false loop where a is wider" should "not throw an exception" in {
-    val input = """circuit hasloops :
-                  |  module hasloops :
-                  |    input clk : Clock
-                  |    input c : UInt<3>
-                  |    input d : UInt<1>
-                  |    output a_output : UInt<4>
-                  |    output b_output : UInt<2>
-                  |    wire a : UInt<4>
-                  |    wire b : UInt<2>
-                  |
-                  |    a <= cat(b, c)
-                  |    b <= cat(d, bits(a, 0, 0))
-                  |    a_output <= a
-                  |    b_output <= b
-                  |""".stripMargin
-
-    val result = compile(parse(input), Seq(EnableFixFalseCombLoops))
-    val resultSerialized = result.circuit.serialize
-    print(resultSerialized)
-    compile(parse(resultSerialized))
-  }
-
-  //TODO: Fix
-  "New false loop where output uses a wider subword" should "not throw an exception" in {
-    val input = """circuit hasloops :
-                  |  module hasloops :
-                  |    input clk : Clock
-                  |    input c : UInt<3>
-                  |    input d : UInt<1>
-                  |    output a_output : UInt<4>
-                  |    output b_output : UInt<2>
-                  |    wire a : UInt<4>
-                  |    wire b : UInt<2>
-                  |
-                  |    a <= cat(b, c)
-                  |    b <= cat(d, bits(a, 0, 0))
-                  |    a_output <= bits(a, 3, 2)
-                  |    b_output <= b
-                  |""".stripMargin
-
-    val result = compile(parse(input), Seq(EnableFixFalseCombLoops))
-    val resultSerialized = result.circuit.serialize
-    print(resultSerialized)
-    compile(parse(resultSerialized))
-  }
-
-  //TODO: Fix
-  "New false loop where nested cat with multiple bits" should "not throw an exception" in {
-    val input = """circuit hasloops :
-                  |  module hasloops :
-                  |    input clk : Clock
-                  |    input c : UInt<2>
-                  |    input d : UInt<2>
-                  |    output a_output : UInt<6>
-                  |    output b_output : UInt<2>
-                  |    wire a : UInt<6>
-                  |    wire b : UInt<2>
-                  |
-                  |    a <= cat(b, cat(c, d))
-                  |    b <= bits(a, 0, 0)
-                  |    a_output <= a
-                  |    b_output <= b
-                  |""".stripMargin
-
-    val result = compile(parse(input), Seq(EnableFixFalseCombLoops))
-    val resultSerialized = result.circuit.serialize
-    print(resultSerialized)
-    compile(parse(resultSerialized))
+    intercept[CheckCombLoops.CombLoopException] {
+      compile(parse(input), Seq(EnableFixFalseCombLoops))
+    }
   }
 
 }

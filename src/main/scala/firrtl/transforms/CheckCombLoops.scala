@@ -318,6 +318,7 @@ class CheckCombLoops extends Transform with RegisteredTransform with DependencyA
     } else {
       var (result, errors, connectivity, _) = run(state)
 
+      var loopFixed = false
       if (state.annotations.contains(EnableFixFalseCombLoops)) {
         //If there is an error, try fixing as a false loop
         while (errors.errors.nonEmpty) {
@@ -326,12 +327,19 @@ class CheckCombLoops extends Transform with RegisteredTransform with DependencyA
           if (result.circuit.serialize == fixedFalseLoop.circuit.serialize) {
             errors.trigger()
           }
+          loopFixed = true
           val (newResult, newErrors, connectivity, _) = run(fixedFalseLoop)
           result = newResult
           errors = newErrors
         }
       }
 
+      if (loopFixed) {
+        logger.warn(
+          "Detected word level combinational loop; Transformed involved logic into equivalent bit level " +
+            "representation."
+        )
+      }
       errors.trigger()
       result
     }
