@@ -1,8 +1,10 @@
 package firrtlTests
 
+import firrtl.AnnotationSeq
+import firrtl.annotations.ModuleTarget
 import firrtl.options.Dependency
 import firrtl.testutils.LeanTransformSpec
-import firrtl.transforms.{CheckCombLoops, EnableFixFalseCombLoops}
+import firrtl.transforms.{CheckCombLoops, EnableFixFalseCombLoops, ExtModulePathAnnotation}
 
 class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops])) {
 
@@ -275,6 +277,53 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
     compile(parse(resultSerialized))
   }
 
+  "False combinational loop through a node" should "not throw an exception" in {
+    val input = """circuit hasloops :
+                  |  module hasloops :
+                  |    input clk : Clock
+                  |    input c : UInt<1>
+                  |    input d : UInt<1>
+                  |    output a_output : UInt<2>
+                  |    output b_output : UInt<1>
+                  |    wire a : UInt<2>
+                  |    wire b : UInt<1>
+                  |
+                  |    a <= cat(b, c)
+                  |    node z = bits(a, 0, 0)
+                  |    b <= xor(z, d)
+                  |    a_output <= a
+                  |    b_output <= b
+                  |""".stripMargin
+
+    val result = compile(parse(input), Seq(EnableFixFalseCombLoops))
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
+  }
+
+  "False combinational loop with a UInt literal" should "not throw an exception" in {
+    val input = """circuit hasloops :
+                  |  module hasloops :
+                  |    input clk : Clock
+                  |    input c : UInt<1>
+                  |    input d : UInt<1>
+                  |    output a_output : UInt<2>
+                  |    output b_output : UInt<1>
+                  |    wire a : UInt<2>
+                  |    wire b : UInt<1>
+                  |
+                  |    a <= cat(b, c)
+                  |    b <= xor(bits(a, 0, 0), UInt(1))
+                  |    a_output <= a
+                  |    b_output <= b
+                  |""".stripMargin
+
+    val result = compile(parse(input), Seq(EnableFixFalseCombLoops))
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
+  }
+
   //All tests below should error/are not currently handled by this pass.
   "Combinational loop through a combinational memory read port" should "throw an exception" in {
     val input = """circuit hasloops :
@@ -298,6 +347,111 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
                   |    m.r.addr <= y
                   |    m.r.en <= UInt(1)
                   |    z <= m.r.data
+                  |    y <= z
+                  |    d <= z
+                  |""".stripMargin
+
+    intercept[CheckCombLoops.CombLoopException] {
+      compile(parse(input), Seq(EnableFixFalseCombLoops))
+    }
+  }
+
+  "Real bit-level combinational loop" should "throw an exception" in {
+    val input = """circuit hasloops :
+                  |  module hasloops :
+                  |    input clk : Clock
+                  |    input a : UInt<1>
+                  |    input b : UInt<1>
+                  |    output c : UInt<1>
+                  |    output d : UInt<1>
+                  |    wire y : UInt<1>
+                  |    wire z : UInt<1>
+                  |    c <= b
+                  |    z <= y
+                  |    y <= z
+                  |    d <= z
+                  |""".stripMargin
+
+    intercept[CheckCombLoops.CombLoopException] {
+      compile(parse(input), Seq(EnableFixFalseCombLoops))
+    }
+  }
+
+  "Combinational loop through an annotated ExtModule" should "throw an exception" in {
+    val input = """circuit hasloops :
+                  |  extmodule blackbox :
+                  |    input in : UInt<1>
+                  |    output out : UInt<1>
+                  |  module hasloops :
+                  |    input clk : Clock
+                  |    input a : UInt<1>
+                  |    input b : UInt<1>
+                  |    output c : UInt<1>
+                  |    output d : UInt<1>
+                  |    wire y : UInt<1>
+                  |    wire z : UInt<1>
+                  |    c <= b
+                  |    inst inner of blackbox
+                  |    inner.in <= y
+                  |    z <= inner.out
+                  |    y <= z
+                  |    d <= z
+                  |""".stripMargin
+
+    val mt = ModuleTarget("hasloops", "blackbox")
+    val annos = AnnotationSeq(Seq(ExtModulePathAnnotation(mt.ref("in"), mt.ref("out")), EnableFixFalseCombLoops))
+    intercept[CheckCombLoops.CombLoopException] {
+      compile(parse(input), annos)
+    }
+  }
+
+  "Combination loop through an instance" should "throw an exception" in {
+    val input = """circuit hasloops :
+                  |  module thru :
+                  |    input in : UInt<1>
+                  |    output out : UInt<1>
+                  |    out <= in
+                  |  module hasloops :
+                  |    input clk : Clock
+                  |    input a : UInt<1>
+                  |    input b : UInt<1>
+                  |    output c : UInt<1>
+                  |    output d : UInt<1>
+                  |    wire y : UInt<1>
+                  |    wire z : UInt<1>
+                  |    c <= b
+                  |    inst inner of thru
+                  |    inner.in <= y
+                  |    z <= inner.out
+                  |    y <= z
+                  |    d <= z
+                  |""".stripMargin
+
+    intercept[CheckCombLoops.CombLoopException] {
+      compile(parse(input), Seq(EnableFixFalseCombLoops))
+    }
+  }
+
+  "Combinational loop through an output RHS reference" should "throw an exception" in {
+    val input = """circuit hasloops :
+                  |  module thru :
+                  |    input in : UInt<1>
+                  |    output tmp : UInt<1>
+                  |    output out : UInt<1>
+                  |    tmp <= in
+                  |    out <= tmp
+                  |  module hasloops :
+                  |    input clk : Clock
+                  |    input a : UInt<1>
+                  |    input b : UInt<1>
+                  |    output c : UInt<1>
+                  |    output d : UInt<1>
+                  |    wire y : UInt<1>
+                  |    wire z : UInt<1>
+                  |    c <= b
+                  |    inst inner of thru
+                  |    inner.in <= y
+                  |    z <= inner.out
                   |    y <= z
                   |    d <= z
                   |""".stripMargin
