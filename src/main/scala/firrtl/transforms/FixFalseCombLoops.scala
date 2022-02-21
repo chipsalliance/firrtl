@@ -90,13 +90,16 @@ object FixFalseCombLoops {
     def onStmt(s: ir.Statement): Unit = s match {
       case ir.Block(block) => block.foreach(onStmt)
       case node: ir.DefNode =>
-        if (combLoopVars.contains(node.name)) {
-          if (getWidth(node.value.tpe) == 1) {
-            //Removes 1 bit nodes from combLoopVars to avoid unnecessary computation
-            combLoopVars -= node.name
-          }
-        }
-        conds(node.serialize) = node
+        val newNode = ir.DefNode(ir.NoInfo, node.name, onExpr(node.value))
+        conds(newNode.serialize) = newNode
+      //TODO: Figure out why we added this
+//        if (combLoopVars.contains(node.name)) {
+//          if (getWidth(node.value.tpe) == 1) {
+//            //Removes 1 bit nodes from combLoopVars to avoid unnecessary computation
+//            combLoopVars -= node.name
+//          }
+//        }
+//        conds(node.serialize) = node
 
       case wire: ir.DefWire =>
         //Summary: Splits wire into individual bits (wire x -> wire x_0, ..., wire x_n)
@@ -191,59 +194,75 @@ object FixFalseCombLoops {
       }
     }
 
-    //Takes in potentially recursive cat, returns
     def bitwiseAssignment(lhsName: String, expr: ir.Expression, leftIndex: Int, rightIndex: Int): Unit = {
-      val rhsWidth = getWidth(expr.tpe)
 
-      var l = leftIndex
-      var r = rightIndex
-      expr match {
-        case prim: ir.DoPrim => {
-          prim.op match {
-            case PrimOps.Cat =>
-              for (i <- 0 until 2) {
-                val argWidth = getWidth(prim.args(i).tpe)
-                bitwiseAssignment(lhsName, prim.args.reverse(i), math.min(leftIndex, r + argWidth - 1), r)
-                r += argWidth
-              }
-            case other => //TODO
-              assignBits(prim)
-          }
+      //LHS is wider than right hand side
+      if (leftIndex - rightIndex + 1 > getWidth(expr.tpe)) {
+        //Assign right bits
+        val croppedLeftIndex = rightIndex + getWidth(expr.tpe) - 1
+        bitwiseAssignmentRecursion(expr, croppedLeftIndex, rightIndex)
+        //Extend left bits (UInt)
+        for (i <- croppedLeftIndex + 1 to leftIndex) {
+          val tempConnect = ir.Connect(ir.NoInfo, genRef(lhsName, i), ir.UIntLiteral(0))
+          conds(tempConnect.serialize) = tempConnect
         }
-        case ref: ir.Reference =>
-          //If arg is a bad var, replace with new vars
-          if (combLoopVars.contains(ref.name)) {
+      }
+
+      bitwiseAssignmentRecursion(expr, leftIndex, rightIndex)
+
+      //Takes in potentially recursive cat, returns
+      def bitwiseAssignmentRecursion(expr: ir.Expression, leftIndex: Int, rightIndex: Int): Unit = {
+        val rhsWidth = getWidth(expr.tpe)
+
+        var r = rightIndex
+        expr match {
+          case prim: ir.DoPrim => {
+            prim.op match {
+              case PrimOps.Cat =>
+                for (i <- 0 until 2) {
+                  val argWidth = getWidth(prim.args(i).tpe)
+                  bitwiseAssignment(lhsName, prim.args.reverse(i), math.min(leftIndex, r + argWidth - 1), r)
+                  r += argWidth
+                }
+              case other => //TODO
+                assignBits(prim)
+            }
+          }
+          case ref: ir.Reference =>
+            //If arg is a bad var, replace with new vars
+            if (combLoopVars.contains(ref.name)) {
+              for (j <- 0 until math.min(rhsWidth, leftIndex - rightIndex + 1)) {
+                val tempConnect = ir.Connect(ir.NoInfo, genRef(lhsName, r), genRef(ref.name, j))
+                conds(tempConnect.serialize) = tempConnect
+                r += 1
+              }
+            } else {
+              //If arg is not a bad var, replace with bit prims
+              assignBits(ref)
+            }
+          //TODO: see if other cases exist
+          case other =>
+            assignBits(other)
+        }
+
+        def assignBits(expr: ir.Expression): Unit = {
+          if (rhsWidth == 1) {
+            val tempConnect = ir.Connect(ir.NoInfo, genRef(lhsName, rightIndex), expr)
+            conds(tempConnect.serialize) = tempConnect
+          } else {
             for (j <- 0 until math.min(rhsWidth, leftIndex - rightIndex + 1)) {
-              val tempConnect = ir.Connect(ir.NoInfo, genRef(lhsName, r), genRef(ref.name, j))
+              val tempConnect = ir.Connect(
+                ir.NoInfo,
+                genRef(lhsName, r),
+                ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(j, j), Utils.BoolType)
+              )
               conds(tempConnect.serialize) = tempConnect
               r += 1
             }
-          } else {
-            //If arg is not a bad var, replace with bit prims
-            assignBits(ref)
-          }
-        //TODO: see if other cases exist
-        case other =>
-          assignBits(other)
-      }
-
-      def assignBits(expr: ir.Expression): Unit = {
-        if (rhsWidth == 1) {
-          val tempConnect = ir.Connect(ir.NoInfo, genRef(lhsName, rightIndex), expr)
-          conds(tempConnect.serialize) = tempConnect
-        } else {
-          for (j <- 0 until math.min(rhsWidth, leftIndex - rightIndex + 1)) {
-            val tempConnect = ir.Connect(
-              ir.NoInfo,
-              genRef(lhsName, r),
-              ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(j, j), Utils.BoolType)
-            )
-            conds(tempConnect.serialize) = tempConnect
-            r += 1
           }
         }
-      }
 
+      }
     }
 
     onStmt(m.body)
