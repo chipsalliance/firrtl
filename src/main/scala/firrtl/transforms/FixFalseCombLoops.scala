@@ -2,6 +2,7 @@ package firrtl
 package transforms
 
 import firrtl.annotations.NoTargetAnnotation
+import firrtl.ir.{IntWidth, UIntType}
 import firrtl.options.{HasShellOptions, ShellOption}
 
 import scala.collection.mutable
@@ -93,13 +94,13 @@ object FixFalseCombLoops {
         val newNode = ir.DefNode(ir.NoInfo, node.name, onExpr(node.value))
         conds(newNode.serialize) = newNode
       //TODO: Figure out why we added this
-//        if (combLoopVars.contains(node.name)) {
-//          if (getWidth(node.value.tpe) == 1) {
-//            //Removes 1 bit nodes from combLoopVars to avoid unnecessary computation
-//            combLoopVars -= node.name
-//          }
-//        }
-//        conds(node.serialize) = node
+      //        if (combLoopVars.contains(node.name)) {
+      //          if (getWidth(node.value.tpe) == 1) {
+      //            //Removes 1 bit nodes from combLoopVars to avoid unnecessary computation
+      //            combLoopVars -= node.name
+      //          }
+      //        }
+      //        conds(node.serialize) = node
 
       case wire: ir.DefWire =>
         //Summary: Splits wire into individual bits (wire x -> wire x_0, ..., wire x_n)
@@ -153,23 +154,56 @@ object FixFalseCombLoops {
         conds(other.serialize) = other
     }
 
-    def onExpr(s: ir.Expression): ir.Expression = s match {
+    def onExpr(s: ir.Expression, high: Int = -1, low: Int = -1): ir.Expression = s match {
       case prim: ir.DoPrim =>
-        if (prim.op == PrimOps.Bits && combLoopVars.contains(prim.args(0).asInstanceOf[ir.Reference].name)) {
+        prim.op match {
           //Summary: Replaces bits(a, i, j) with (aj # ... # ai)
-          val high = prim.consts(0)
-          val low = prim.consts(1)
-          val name = prim.args(0).asInstanceOf[ir.Reference].name
-          //TODO: Should these be BigInt?
-          convertToCats(high.toInt, low.toInt, name)
-        } else {
-          //Summary: Recursively calls onExpr on each of the arguments to DoPrim
-          var newPrimArgs = Seq[ir.Expression]()
-          for (arg <- prim.args) {
-            newPrimArgs = newPrimArgs :+ onExpr(arg)
-          }
-          ir.DoPrim(prim.op, newPrimArgs, prim.consts, prim.tpe)
+          case PrimOps.Bits =>
+            //TODO: what if high and low are already set?
+            val leftIndex = prim.consts(0)
+            val rightIndex = prim.consts(1)
+            val arg = onExpr(prim.args(0), leftIndex.toInt, rightIndex.toInt)
+            val returnWidth = leftIndex - rightIndex + 1
+            if (getWidth(arg.tpe) == returnWidth) {
+              arg
+            } else {
+              ir.DoPrim(PrimOps.Bits, Seq(arg), prim.consts, s.tpe)
+            }
+
+          case PrimOps.AsUInt =>
+            val processedArg = onExpr(prim.args(0), high, low)
+            val newWidth = getWidth(processedArg.tpe)
+            ir.DoPrim(PrimOps.AsUInt, Seq(processedArg), prim.consts, UIntType(IntWidth(newWidth)))
+
+          case _ =>
+            //Summary: Recursively calls onExpr on each of the arguments to DoPrim
+            var newPrimArgs = Seq[ir.Expression]()
+            for (arg <- prim.args) {
+              arg match {
+                case ref: ir.Reference =>
+                  newPrimArgs = newPrimArgs :+ ref
+                case other =>
+                  newPrimArgs = newPrimArgs :+ onExpr(other, high, low)
+              }
+            }
+            ir.DoPrim(prim.op, newPrimArgs, prim.consts, prim.tpe)
         }
+
+      case ref: ir.Reference =>
+        val name = ref.name
+        if (combLoopVars.contains(name)) {
+          //Summary: replaces loop var a with a_high # ... # a_low
+          var hi = high
+          var lo = low
+          if (high == -1) {
+            hi = getWidth(ref.tpe) - 1
+            lo = 0
+          }
+          convertToCats(hi, lo, name)
+        } else {
+          ref
+        }
+
       case other => other
     }
 
@@ -180,8 +214,12 @@ object FixFalseCombLoops {
     }
 
     //Returns width associated with inputted statement
-    def getWidth(stmt: ir.Type): Int = {
-      stmt.asInstanceOf[ir.UIntType].width.asInstanceOf[ir.IntWidth].width.toInt
+    def getWidth(stmt: ir.Type): Int = stmt match {
+      case uint: ir.UIntType =>
+        uint.width.asInstanceOf[ir.IntWidth].width.toInt
+      case sint: ir.SIntType =>
+        sint.width.asInstanceOf[ir.IntWidth].width.toInt
+
     }
 
     //Converts variable (x) into nested cats (x_high # ... # x_low)
@@ -190,7 +228,13 @@ object FixFalseCombLoops {
         genRef(name, low)
       } else {
         //TODO: Should this be tpe = BoolType?
-        ir.DoPrim(PrimOps.Cat, Seq(genRef(name, high), convertToCats(high - 1, low, name)), Seq.empty, Utils.BoolType)
+        //answer: no
+        ir.DoPrim(
+          PrimOps.Cat,
+          Seq(genRef(name, high), convertToCats(high - 1, low, name)),
+          Seq.empty,
+          UIntType(IntWidth(high - low + 1))
+        )
       }
     }
 

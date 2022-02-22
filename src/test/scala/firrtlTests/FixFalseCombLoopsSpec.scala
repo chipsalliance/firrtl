@@ -81,9 +81,41 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
         |    b_output <= b
         |""".stripMargin
 
+    val correctForm = """circuit hasloops :
+                        |  module hasloops :
+                        |    input clk : Clock
+                        |    input c : UInt<1>
+                        |    input d : UInt<1>
+                        |    output a_output : UInt<2>
+                        |    output b_output : UInt<1>
+                        |
+                        |    wire a0 : UInt<1>
+                        |    wire a1 : UInt<1>
+                        |    node a = cat(a1, a0)
+                        |    wire e0 : UInt<1>
+                        |    wire e1 : UInt<1>
+                        |    node e = cat(e1, e0)
+                        |    wire b : UInt<1>
+                        |    a_output <= cat(a1, a0)
+                        |    b_output <= b
+                        |    a0 <= e0
+                        |    a1 <= e1
+                        |    e0 <= c
+                        |    e1 <= b
+                        |    b <= xor(a0, d)
+                        |""".stripMargin
+
     val result = compile(parse(input), Seq(EnableFixFalseCombLoops))
     val resultSerialized = result.circuit.serialize
+
+    if (resultSerialized == correctForm) {
+      print("Output has correct form\n")
+    } else {
+      print("ERROR: Incorrect output form\n")
+    }
+
     print(resultSerialized)
+    assert(resultSerialized == correctForm)
     compile(parse(resultSerialized))
   }
 
@@ -259,16 +291,16 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
     val input = """circuit hasloops :
                   |  module hasloops :
                   |    input clk : Clock
-                  |    input c : SInt<3>
-                  |    input d : SInt<1>
+                  |    input c : UInt<3>
+                  |    input d : UInt<1>
                   |    output a_output : SInt<4>
-                  |    output b_output : SInt<2>
+                  |    output b_output : UInt<2>
                   |    wire a : SInt<4>
-                  |    wire b : SInt<2>
+                  |    wire b : UInt<2>
                   |
-                  |    a <= cat(b, c)
-                  |    b <= cat(bits(a, 0, 0), d)
-                  |    a_output <= a
+                  |    a <= asSInt(cat(b, c))
+                  |    b <= cat(bits(asUInt(a), 0, 0), d)
+                  |    a_output <= asSInt(a)
                   |    b_output <= b
                   |""".stripMargin
 
