@@ -8,9 +8,6 @@ import firrtl.transforms.{CheckCombLoops, EnableFixFalseCombLoops, ExtModulePath
 
 class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLoops])) {
 
-  //TODO: Add tests for, "Did not modify circuit"
-  //These should be circuits we officially do not support (at least yet)
-
   "False combinational loop" should "not throw an exception" in {
     val input = """circuit hasloops :
                   |  module hasloops :
@@ -433,6 +430,30 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
                   |    x.exponent <= UInt(1)
                   |    x.significand <= UInt(1)
                   """.stripMargin
+    val result = compile(parse(input), Seq(EnableFixFalseCombLoops))
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
+  }
+
+  //TODO: Turn this into a recursive bits test
+  "False loop where there is a bits within a bits" should "not throw an exception" in {
+    val input = """circuit hasloops :
+                  |  module hasloops :
+                  |    input clk : Clock
+                  |    input c : UInt<1>
+                  |    input d : UInt<1>
+                  |    output a_output : UInt<2>
+                  |    output b_output : UInt<1>
+                  |    wire a : UInt<3>
+                  |    wire b : UInt<1>
+                  |
+                  |    a <= cat(b, c)
+                  |    b <= xor(bits(bits(a, 2, 0), 0, 0), d)
+                  |    a_output <= a
+                  |    b_output <= b
+                  |""".stripMargin
+
     val result = compile(parse(input), Seq(EnableFixFalseCombLoops))
     val resultSerialized = result.circuit.serialize
     print(resultSerialized)
