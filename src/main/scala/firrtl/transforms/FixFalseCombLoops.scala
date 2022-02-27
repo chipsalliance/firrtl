@@ -270,13 +270,7 @@ object FixFalseCombLoops {
     index:        Int
   ): String = {
     if (namespace.contains(name + index.toString)) {
-      if (bitWireNames.contains(name, index)) {
-        bitWireNames((name, index))
-      } else {
-        val newName = namespace.newName(name + index.toString)
-        bitWireNames((name, index)) = newName
-        newName
-      }
+      bitWireNames.getOrElseUpdate((name, index), namespace.newName(name + index.toString))
     } else {
       name + index.toString
     }
