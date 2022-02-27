@@ -47,8 +47,7 @@ object FixFalseCombLoops {
     */
   def fixFalseCombLoops(state: CircuitState, combLoopsError: String): CircuitState = {
     //Stores the new transformation of the circuit to be returned
-    //TODO: Make this into only a list of ir.Statement
-    val result_circuit = mutable.LinkedHashMap[String, ir.Statement]()
+    val result_circuit = ListBuffer[ir.Statement]()
     val moduleToBadVars = parseLoopVariables(combLoopsError)
     if (moduleToBadVars.keys.size > 1) {
       //Multi-module loops are currently not handled.
@@ -76,11 +75,11 @@ object FixFalseCombLoops {
     moduleToLoopVars
   }
 
-  private def onModule(m: ir.DefModule, result_circuit: mutable.LinkedHashMap[String, ir.Statement], moduleToLoopVars: Map[String, ListBuffer[String]]): ir.DefModule = m match {
+  private def onModule(m: ir.DefModule, result_circuit: ListBuffer[ir.Statement], moduleToLoopVars: Map[String, ListBuffer[String]]): ir.DefModule = m match {
     case mod: ir.Module =>
       if (moduleToLoopVars.contains(mod.name)) {
         onStmt(mod.body, result_circuit, moduleToLoopVars(mod.name))
-        mod.copy(body = ir.Block(result_circuit.values.toList))
+        mod.copy(body = ir.Block(result_circuit.toList))
       } else {
         mod
       }
@@ -88,11 +87,11 @@ object FixFalseCombLoops {
   }
 
 
-  def onStmt(s: ir.Statement, result_circuit: mutable.LinkedHashMap[String, ir.Statement], combLoopVars: ListBuffer[String]): Unit = s match {
+  def onStmt(s: ir.Statement, result_circuit: ListBuffer[ir.Statement], combLoopVars: ListBuffer[String]): Unit = s match {
     case ir.Block(block) => block.foreach(onStmt(_, result_circuit, combLoopVars))
     case node: ir.DefNode =>
       val newNode = ir.DefNode(ir.NoInfo, node.name, onExpr(node.value, result_circuit, combLoopVars))
-      result_circuit(newNode.serialize) = newNode
+      result_circuit += newNode
     //TODO: Figure out why we added this
     //        if (combLoopVars.contains(node.name)) {
     //          if (getWidth(node.value.tpe) == 1) {
@@ -109,21 +108,21 @@ object FixFalseCombLoops {
         if (wireWidth == 1) {
           //Removes 1 bit wires from combLoopVars to avoid unnecessary computation
           combLoopVars -= wire.name
-          result_circuit(wire.serialize) = wire
+          result_circuit += wire
         } else {
           //Create new wire for every bit in wire
           for (i <- 0 until wireWidth) {
             //TODO: Handle case where there is a repeated name. Can't use wire.name + i.toString
             val bitWire = ir.DefWire(ir.NoInfo, wire.name + i.toString, Utils.BoolType)
-            result_circuit(bitWire.serialize) = bitWire
+            result_circuit += bitWire
           }
           //Creates node wire = cat(a_n # ... # a_0)
           val newNode =
             ir.DefNode(ir.NoInfo, wire.name, convertToCats(wireWidth - 1, 0, wire.name))
-          result_circuit(newNode.serialize) = newNode
+          result_circuit += newNode
         }
       } else {
-        result_circuit(wire.serialize) = wire
+        result_circuit += wire
       }
 
     case connect: ir.Connect =>
@@ -143,18 +142,18 @@ object FixFalseCombLoops {
             bitwiseAssignment(newConnect.expr, result_circuit, combLoopVars, ref.name, getWidth(ref.tpe) - 1, 0)
           } else {
             //If lhs is ir.Reference, but isn't in combLoopVars
-            result_circuit(newConnect.serialize) = newConnect
+            result_circuit += newConnect
           }
 
         //If lhs is not a ir.Reference
         case _ =>
-          result_circuit(newConnect.serialize) = newConnect
+          result_circuit += newConnect
       }
     case other =>
-      result_circuit(other.serialize) = other
+      result_circuit += other
   }
 
-  def onExpr(s: ir.Expression, result_circuit: mutable.LinkedHashMap[String, ir.Statement], combLoopVars: ListBuffer[String], high: Int = -1, low: Int = -1): ir.Expression = s match {
+  def onExpr(s: ir.Expression, result_circuit: ListBuffer[ir.Statement], combLoopVars: ListBuffer[String], high: Int = -1, low: Int = -1): ir.Expression = s match {
     case prim: ir.DoPrim =>
       prim.op match {
         //Summary: Replaces bits(a, i, j) with (aj # ... # ai)
@@ -236,7 +235,7 @@ object FixFalseCombLoops {
     }
   }
 
-  def bitwiseAssignment(expr: ir.Expression, result_circuit: mutable.LinkedHashMap[String, ir.Statement], combLoopVars: ListBuffer[String], lhsName: String, leftIndex: Int, rightIndex: Int): Unit = {
+  def bitwiseAssignment(expr: ir.Expression, result_circuit: ListBuffer[ir.Statement], combLoopVars: ListBuffer[String], lhsName: String, leftIndex: Int, rightIndex: Int): Unit = {
     //LHS is wider than right hand side
     if (leftIndex - rightIndex + 1 > getWidth(expr.tpe)) {
       //Assign right bits
@@ -245,7 +244,7 @@ object FixFalseCombLoops {
       //Extend left bits (UInt)
       for (i <- croppedLeftIndex + 1 to leftIndex) {
         val tempConnect = ir.Connect(ir.NoInfo, genRef(lhsName, i), ir.UIntLiteral(0))
-        result_circuit(tempConnect.serialize) = tempConnect
+        result_circuit += tempConnect
       }
     }
 
@@ -274,7 +273,7 @@ object FixFalseCombLoops {
           if (combLoopVars.contains(ref.name)) {
             for (j <- 0 until math.min(rhsWidth, leftIndex - rightIndex + 1)) {
               val tempConnect = ir.Connect(ir.NoInfo, genRef(lhsName, r), genRef(ref.name, j))
-              result_circuit(tempConnect.serialize) = tempConnect
+              result_circuit += tempConnect
               r += 1
             }
           } else {
@@ -289,7 +288,7 @@ object FixFalseCombLoops {
       def assignBits(expr: ir.Expression): Unit = {
         if (rhsWidth == 1) {
           val tempConnect = ir.Connect(ir.NoInfo, genRef(lhsName, rightIndex), expr)
-          result_circuit(tempConnect.serialize) = tempConnect
+          result_circuit += tempConnect
         } else {
           for (j <- 0 until math.min(rhsWidth, leftIndex - rightIndex + 1)) {
             val tempConnect = ir.Connect(
@@ -297,7 +296,7 @@ object FixFalseCombLoops {
               genRef(lhsName, r),
               ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(j, j), Utils.BoolType)
             )
-            result_circuit(tempConnect.serialize) = tempConnect
+            result_circuit += tempConnect
             r += 1
           }
         }
