@@ -46,12 +46,15 @@ object FixFalseCombLoops {
     * @return the modified circuit
     */
   def fixFalseCombLoops(state: CircuitState, combLoopsError: String): CircuitState = {
+    //Stores the new transformation of the circuit to be returned
+    //TODO: Make this into only a list of ir.Statement
+    val result_circuit = mutable.LinkedHashMap[String, ir.Statement]()
     val moduleToBadVars = parseLoopVariables(combLoopsError)
     if (moduleToBadVars.keys.size > 1) {
       //Multi-module loops are currently not handled.
       return state
     }
-    state.copy(circuit = state.circuit.mapModule(onModule(_, moduleToBadVars)))
+    state.copy(circuit = state.circuit.mapModule(onModule(_, result_circuit, moduleToBadVars)))
   }
 
   //Parse error string into list of variables
@@ -73,243 +76,236 @@ object FixFalseCombLoops {
     moduleToLoopVars
   }
 
-  private def onModule(m: ir.DefModule, moduleToLoopVars: Map[String, ListBuffer[String]]): ir.DefModule = m match {
+  private def onModule(m: ir.DefModule, result_circuit: mutable.LinkedHashMap[String, ir.Statement], moduleToLoopVars: Map[String, ListBuffer[String]]): ir.DefModule = m match {
     case mod: ir.Module =>
       if (moduleToLoopVars.contains(mod.name)) {
-        val values = helper(mod, moduleToLoopVars(mod.name))
-        mod.copy(body = ir.Block(values))
+        onStmt(mod.body, result_circuit, moduleToLoopVars(mod.name))
+        mod.copy(body = ir.Block(result_circuit.values.toList))
       } else {
         mod
       }
     case other => other
   }
 
-  private def helper(m: ir.Module, combLoopVars: ListBuffer[String]): List[ir.Statement] = {
-    //TODO: Make this into only a list of ir.Statement
-    val conds = mutable.LinkedHashMap[String, ir.Statement]()
 
-    def onStmt(s: ir.Statement): Unit = s match {
-      case ir.Block(block) => block.foreach(onStmt)
-      case node: ir.DefNode =>
-        val newNode = ir.DefNode(ir.NoInfo, node.name, onExpr(node.value))
-        conds(newNode.serialize) = newNode
-      //TODO: Figure out why we added this
-      //        if (combLoopVars.contains(node.name)) {
-      //          if (getWidth(node.value.tpe) == 1) {
-      //            //Removes 1 bit nodes from combLoopVars to avoid unnecessary computation
-      //            combLoopVars -= node.name
-      //          }
-      //        }
-      //        conds(node.serialize) = node
+  def onStmt(s: ir.Statement, result_circuit: mutable.LinkedHashMap[String, ir.Statement], combLoopVars: ListBuffer[String]): Unit = s match {
+    case ir.Block(block) => block.foreach(onStmt(_, result_circuit, combLoopVars))
+    case node: ir.DefNode =>
+      val newNode = ir.DefNode(ir.NoInfo, node.name, onExpr(node.value, result_circuit, combLoopVars))
+      result_circuit(newNode.serialize) = newNode
+    //TODO: Figure out why we added this
+    //        if (combLoopVars.contains(node.name)) {
+    //          if (getWidth(node.value.tpe) == 1) {
+    //            //Removes 1 bit nodes from combLoopVars to avoid unnecessary computation
+    //            combLoopVars -= node.name
+    //          }
+    //        }
+    //        result_circuit(node.serialize) = node
 
-      case wire: ir.DefWire =>
-        //Summary: Splits wire into individual bits (wire x -> wire x_0, ..., wire x_n)
-        if (combLoopVars.contains(wire.name)) {
-          val wireWidth = getWidth(wire.tpe)
-          if (wireWidth == 1) {
-            //Removes 1 bit wires from combLoopVars to avoid unnecessary computation
-            combLoopVars -= wire.name
-            conds(wire.serialize) = wire
-          } else {
-            //Create new wire for every bit in wire
-            for (i <- 0 until wireWidth) {
-              //TODO: Handle case where there is a repeated name. Can't use wire.name + i.toString
-              val bitWire = ir.DefWire(ir.NoInfo, wire.name + i.toString, Utils.BoolType)
-              conds(bitWire.serialize) = bitWire
-            }
-            //Creates node wire = cat(a_n # ... # a_0)
-            val newNode =
-              ir.DefNode(ir.NoInfo, wire.name, convertToCats(wireWidth - 1, 0, wire.name))
-            conds(newNode.serialize) = newNode
-          }
+    case wire: ir.DefWire =>
+      //Summary: Splits wire into individual bits (wire x -> wire x_0, ..., wire x_n)
+      if (combLoopVars.contains(wire.name)) {
+        val wireWidth = getWidth(wire.tpe)
+        if (wireWidth == 1) {
+          //Removes 1 bit wires from combLoopVars to avoid unnecessary computation
+          combLoopVars -= wire.name
+          result_circuit(wire.serialize) = wire
         } else {
-          conds(wire.serialize) = wire
-        }
-
-      case connect: ir.Connect =>
-        var newConnect = connect
-        if (newConnect.expr.isInstanceOf[ir.Expression]) {
-          //Summary: Process expr (rhs) of Connect
-          val newExpr = onExpr(newConnect.expr)
-          newConnect = ir.Connect(ir.NoInfo, newConnect.loc, newExpr)
-        }
-
-        //At this point, it is certain:
-        //a -> (an # ... # a0)
-
-        newConnect.loc match {
-          case ref: ir.Reference =>
-            if (combLoopVars.contains(ref.name)) {
-              bitwiseAssignment(ref.name, newConnect.expr, getWidth(ref.tpe) - 1, 0)
-            } else {
-              //If lhs is ir.Reference, but isn't in combLoopVars
-              conds(newConnect.serialize) = newConnect
-            }
-
-          //If lhs is not a ir.Reference
-          case _ =>
-            conds(newConnect.serialize) = newConnect
-        }
-      case other =>
-        conds(other.serialize) = other
-    }
-
-    def onExpr(s: ir.Expression, high: Int = -1, low: Int = -1): ir.Expression = s match {
-      case prim: ir.DoPrim =>
-        prim.op match {
-          //Summary: Replaces bits(a, i, j) with (aj # ... # ai)
-          case PrimOps.Bits =>
-            //TODO: what if high and low are already set?
-            val leftIndex = prim.consts(0)
-            val rightIndex = prim.consts(1)
-            val arg = onExpr(prim.args(0), leftIndex.toInt, rightIndex.toInt)
-            val returnWidth = leftIndex - rightIndex + 1
-            if (getWidth(arg.tpe) == returnWidth) {
-              arg
-            } else {
-              ir.DoPrim(PrimOps.Bits, Seq(arg), prim.consts, s.tpe)
-            }
-
-          case PrimOps.AsUInt =>
-            val processedArg = onExpr(prim.args(0), high, low)
-            val newWidth = getWidth(processedArg.tpe)
-            ir.DoPrim(PrimOps.AsUInt, Seq(processedArg), prim.consts, UIntType(IntWidth(newWidth)))
-
-          case _ =>
-            //Summary: Recursively calls onExpr on each of the arguments to DoPrim
-            var newPrimArgs = Seq[ir.Expression]()
-            for (arg <- prim.args) {
-              arg match {
-                case ref: ir.Reference =>
-                  newPrimArgs = newPrimArgs :+ ref
-                case other =>
-                  newPrimArgs = newPrimArgs :+ onExpr(other, high, low)
-              }
-            }
-            ir.DoPrim(prim.op, newPrimArgs, prim.consts, prim.tpe)
-        }
-
-      case ref: ir.Reference =>
-        val name = ref.name
-        if (combLoopVars.contains(name)) {
-          //Summary: replaces loop var a with a_high # ... # a_low
-          var hi = high
-          var lo = low
-          if (high == -1) {
-            hi = getWidth(ref.tpe) - 1
-            lo = 0
+          //Create new wire for every bit in wire
+          for (i <- 0 until wireWidth) {
+            //TODO: Handle case where there is a repeated name. Can't use wire.name + i.toString
+            val bitWire = ir.DefWire(ir.NoInfo, wire.name + i.toString, Utils.BoolType)
+            result_circuit(bitWire.serialize) = bitWire
           }
-          convertToCats(hi, lo, name)
-        } else {
-          ref
+          //Creates node wire = cat(a_n # ... # a_0)
+          val newNode =
+            ir.DefNode(ir.NoInfo, wire.name, convertToCats(wireWidth - 1, 0, wire.name))
+          result_circuit(newNode.serialize) = newNode
         }
-
-      case other => other
-    }
-
-    //Creates a reference to the bitWire for a given variable
-    def genRef(name: String, index: Int): ir.Reference = {
-      //TODO: Handle case where there is a repeated name. Can't use name + index.toString
-      ir.Reference(name + index.toString, Utils.BoolType, WireKind, UnknownFlow)
-    }
-
-    //Returns width associated with inputted statement
-    def getWidth(stmt: ir.Type): Int = stmt match {
-      case uint: ir.UIntType =>
-        uint.width.asInstanceOf[ir.IntWidth].width.toInt
-      case sint: ir.SIntType =>
-        sint.width.asInstanceOf[ir.IntWidth].width.toInt
-
-    }
-
-    //Converts variable (x) into nested cats (x_high # ... # x_low)
-    def convertToCats(high: Int, low: Int, name: String): ir.Expression = {
-      if (high == low) {
-        genRef(name, low)
       } else {
-        //TODO: Should this be tpe = BoolType?
-        //answer: no
-        ir.DoPrim(
-          PrimOps.Cat,
-          Seq(genRef(name, high), convertToCats(high - 1, low, name)),
-          Seq.empty,
-          UIntType(IntWidth(high - low + 1))
-        )
+        result_circuit(wire.serialize) = wire
+      }
+
+    case connect: ir.Connect =>
+      var newConnect = connect
+      if (newConnect.expr.isInstanceOf[ir.Expression]) {
+        //Summary: Process expr (rhs) of Connect
+        val newExpr = onExpr(newConnect.expr, result_circuit, combLoopVars)
+        newConnect = ir.Connect(ir.NoInfo, newConnect.loc, newExpr)
+      }
+
+      //At this point, it is certain:
+      //a -> (an # ... # a0)
+
+      newConnect.loc match {
+        case ref: ir.Reference =>
+          if (combLoopVars.contains(ref.name)) {
+            bitwiseAssignment(newConnect.expr, result_circuit, combLoopVars, ref.name, getWidth(ref.tpe) - 1, 0)
+          } else {
+            //If lhs is ir.Reference, but isn't in combLoopVars
+            result_circuit(newConnect.serialize) = newConnect
+          }
+
+        //If lhs is not a ir.Reference
+        case _ =>
+          result_circuit(newConnect.serialize) = newConnect
+      }
+    case other =>
+      result_circuit(other.serialize) = other
+  }
+
+  def onExpr(s: ir.Expression, result_circuit: mutable.LinkedHashMap[String, ir.Statement], combLoopVars: ListBuffer[String], high: Int = -1, low: Int = -1): ir.Expression = s match {
+    case prim: ir.DoPrim =>
+      prim.op match {
+        //Summary: Replaces bits(a, i, j) with (aj # ... # ai)
+        case PrimOps.Bits =>
+          //TODO: what if high and low are already set?
+          val leftIndex = prim.consts(0)
+          val rightIndex = prim.consts(1)
+          val arg = onExpr(prim.args(0), result_circuit, combLoopVars, leftIndex.toInt, rightIndex.toInt)
+          val returnWidth = leftIndex - rightIndex + 1
+          if (getWidth(arg.tpe) == returnWidth) {
+            arg
+          } else {
+            ir.DoPrim(PrimOps.Bits, Seq(arg), prim.consts, s.tpe)
+          }
+
+        case PrimOps.AsUInt =>
+          val processedArg = onExpr(prim.args(0), result_circuit, combLoopVars, high, low)
+          val newWidth = getWidth(processedArg.tpe)
+          ir.DoPrim(PrimOps.AsUInt, Seq(processedArg), prim.consts, UIntType(IntWidth(newWidth)))
+
+        case _ =>
+          //Summary: Recursively calls onExpr on each of the arguments to DoPrim
+          var newPrimArgs = Seq[ir.Expression]()
+          for (arg <- prim.args) {
+            arg match {
+              case ref: ir.Reference =>
+                newPrimArgs = newPrimArgs :+ ref
+              case other =>
+                newPrimArgs = newPrimArgs :+ onExpr(other, result_circuit, combLoopVars, high, low)
+            }
+          }
+          ir.DoPrim(prim.op, newPrimArgs, prim.consts, prim.tpe)
+      }
+
+    case ref: ir.Reference =>
+      val name = ref.name
+      if (combLoopVars.contains(name)) {
+        //Summary: replaces loop var a with a_high # ... # a_low
+        var hi = high
+        var lo = low
+        if (high == -1) {
+          hi = getWidth(ref.tpe) - 1
+          lo = 0
+        }
+        convertToCats(hi, lo, name)
+      } else {
+        ref
+      }
+
+    case other => other
+  }
+
+  //Creates a reference to the bitWire for a given variable
+  def genRef(name: String, index: Int): ir.Reference = {
+    //TODO: Handle case where there is a repeated name. Can't use name + index.toString
+    ir.Reference(name + index.toString, Utils.BoolType, WireKind, UnknownFlow)
+  }
+
+  //Returns width associated with inputted statement
+  def getWidth(stmt: ir.Type): Int = stmt match {
+    case uint: ir.UIntType =>
+      uint.width.asInstanceOf[ir.IntWidth].width.toInt
+    case sint: ir.SIntType =>
+      sint.width.asInstanceOf[ir.IntWidth].width.toInt
+
+  }
+
+  //Converts variable (x) into nested cats (x_high # ... # x_low)
+  def convertToCats(high: Int, low: Int, name: String): ir.Expression = {
+    if (high == low) {
+      genRef(name, low)
+    } else {
+      ir.DoPrim(
+        PrimOps.Cat,
+        Seq(genRef(name, high), convertToCats(high - 1, low, name)),
+        Seq.empty,
+        UIntType(IntWidth(high - low + 1))
+      )
+    }
+  }
+
+  def bitwiseAssignment(expr: ir.Expression, result_circuit: mutable.LinkedHashMap[String, ir.Statement], combLoopVars: ListBuffer[String], lhsName: String, leftIndex: Int, rightIndex: Int): Unit = {
+    //LHS is wider than right hand side
+    if (leftIndex - rightIndex + 1 > getWidth(expr.tpe)) {
+      //Assign right bits
+      val croppedLeftIndex = rightIndex + getWidth(expr.tpe) - 1
+      bitwiseAssignmentRecursion(expr, combLoopVars, croppedLeftIndex, rightIndex)
+      //Extend left bits (UInt)
+      for (i <- croppedLeftIndex + 1 to leftIndex) {
+        val tempConnect = ir.Connect(ir.NoInfo, genRef(lhsName, i), ir.UIntLiteral(0))
+        result_circuit(tempConnect.serialize) = tempConnect
       }
     }
 
-    def bitwiseAssignment(lhsName: String, expr: ir.Expression, leftIndex: Int, rightIndex: Int): Unit = {
+    bitwiseAssignmentRecursion(expr, combLoopVars, leftIndex, rightIndex)
 
-      //LHS is wider than right hand side
-      if (leftIndex - rightIndex + 1 > getWidth(expr.tpe)) {
-        //Assign right bits
-        val croppedLeftIndex = rightIndex + getWidth(expr.tpe) - 1
-        bitwiseAssignmentRecursion(expr, croppedLeftIndex, rightIndex)
-        //Extend left bits (UInt)
-        for (i <- croppedLeftIndex + 1 to leftIndex) {
-          val tempConnect = ir.Connect(ir.NoInfo, genRef(lhsName, i), ir.UIntLiteral(0))
-          conds(tempConnect.serialize) = tempConnect
-        }
-      }
+    //Takes in potentially recursive cat, returns
+    def bitwiseAssignmentRecursion(expr: ir.Expression, combLoopVars: ListBuffer[String], leftIndex: Int, rightIndex: Int): Unit = {
+      val rhsWidth = getWidth(expr.tpe)
 
-      bitwiseAssignmentRecursion(expr, leftIndex, rightIndex)
-
-      //Takes in potentially recursive cat, returns
-      def bitwiseAssignmentRecursion(expr: ir.Expression, leftIndex: Int, rightIndex: Int): Unit = {
-        val rhsWidth = getWidth(expr.tpe)
-
-        var r = rightIndex
-        expr match {
-          case prim: ir.DoPrim => {
-            prim.op match {
-              case PrimOps.Cat =>
-                for (i <- 0 until 2) {
-                  val argWidth = getWidth(prim.args(i).tpe)
-                  bitwiseAssignment(lhsName, prim.args.reverse(i), math.min(leftIndex, r + argWidth - 1), r)
-                  r += argWidth
-                }
-              case other => //TODO
-                assignBits(prim)
-            }
-          }
-          case ref: ir.Reference =>
-            //If arg is a bad var, replace with new vars
-            if (combLoopVars.contains(ref.name)) {
-              for (j <- 0 until math.min(rhsWidth, leftIndex - rightIndex + 1)) {
-                val tempConnect = ir.Connect(ir.NoInfo, genRef(lhsName, r), genRef(ref.name, j))
-                conds(tempConnect.serialize) = tempConnect
-                r += 1
+      var r = rightIndex
+      expr match {
+        case prim: ir.DoPrim => {
+          prim.op match {
+            case PrimOps.Cat =>
+              for (i <- 0 until 2) {
+                val argWidth = getWidth(prim.args(i).tpe)
+                bitwiseAssignment(prim.args.reverse(i), result_circuit, combLoopVars, lhsName, math.min(leftIndex, r + argWidth - 1), r)
+                r += argWidth
               }
-            } else {
-              //If arg is not a bad var, replace with bit prims
-              assignBits(ref)
-            }
-          //TODO: see if other cases exist
-          case other =>
-            assignBits(other)
+            case other => //TODO
+              assignBits(prim)
+          }
         }
-
-        def assignBits(expr: ir.Expression): Unit = {
-          if (rhsWidth == 1) {
-            val tempConnect = ir.Connect(ir.NoInfo, genRef(lhsName, rightIndex), expr)
-            conds(tempConnect.serialize) = tempConnect
-          } else {
+        case ref: ir.Reference =>
+          //If arg is a bad var, replace with new vars
+          if (combLoopVars.contains(ref.name)) {
             for (j <- 0 until math.min(rhsWidth, leftIndex - rightIndex + 1)) {
-              val tempConnect = ir.Connect(
-                ir.NoInfo,
-                genRef(lhsName, r),
-                ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(j, j), Utils.BoolType)
-              )
-              conds(tempConnect.serialize) = tempConnect
+              val tempConnect = ir.Connect(ir.NoInfo, genRef(lhsName, r), genRef(ref.name, j))
+              result_circuit(tempConnect.serialize) = tempConnect
               r += 1
             }
+          } else {
+            //If arg is not a bad var, replace with bit prims
+            assignBits(ref)
+          }
+        //TODO: see if other cases exist
+        case other =>
+          assignBits(other)
+      }
+
+      def assignBits(expr: ir.Expression): Unit = {
+        if (rhsWidth == 1) {
+          val tempConnect = ir.Connect(ir.NoInfo, genRef(lhsName, rightIndex), expr)
+          result_circuit(tempConnect.serialize) = tempConnect
+        } else {
+          for (j <- 0 until math.min(rhsWidth, leftIndex - rightIndex + 1)) {
+            val tempConnect = ir.Connect(
+              ir.NoInfo,
+              genRef(lhsName, r),
+              ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(j, j), Utils.BoolType)
+            )
+            result_circuit(tempConnect.serialize) = tempConnect
+            r += 1
           }
         }
-
       }
-    }
 
-    onStmt(m.body)
-    conds.values.toList
+    }
   }
+
+
+
 }

@@ -327,6 +327,7 @@ class CheckCombLoops extends Transform with RegisteredTransform with DependencyA
           if (result.circuit.serialize == fixedFalseLoop.circuit.serialize) {
             errors.trigger()
           }
+          //If false loop had changed circuit, iterate again on result
           loopFixed = true
           val (newResult, newErrors, connectivity, _) = run(fixedFalseLoop)
           result = newResult
