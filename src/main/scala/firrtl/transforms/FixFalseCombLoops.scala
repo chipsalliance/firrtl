@@ -82,12 +82,15 @@ object FixFalseCombLoops {
     */
   private case class ModuleContext(
     resultCircuit: ListBuffer[ir.Statement],
-    namespace: Namespace,
-    bitWireNames: mutable.LinkedHashMap[(String, Int), String],
-    combLoopVars: ListBuffer[String]
-  )
+    namespace:     Namespace,
+    bitWireNames:  mutable.LinkedHashMap[(String, Int), String],
+    combLoopVars:  ListBuffer[String])
 
-  private def onModule(m: ir.DefModule, resultCircuit: ListBuffer[ir.Statement], moduleToLoopVars: Map[String, ListBuffer[String]]): ir.DefModule = m match {
+  private def onModule(
+    m:                ir.DefModule,
+    resultCircuit:    ListBuffer[ir.Statement],
+    moduleToLoopVars: Map[String, ListBuffer[String]]
+  ): ir.DefModule = m match {
     case mod: ir.Module =>
       if (moduleToLoopVars.contains(mod.name)) {
         //Stores memoized namespace for repeated references
@@ -252,11 +255,22 @@ object FixFalseCombLoops {
     if (high == low) {
       genRef(ctx, name, low)
     } else {
-      ir.DoPrim(PrimOps.Cat, Seq(genRef(ctx, name, high), convertToCats(ctx, name, high - 1, low)), Seq.empty, UIntType(IntWidth(high - low + 1)))
+      ir.DoPrim(
+        PrimOps.Cat,
+        Seq(genRef(ctx, name, high), convertToCats(ctx, name, high - 1, low)),
+        Seq.empty,
+        UIntType(IntWidth(high - low + 1))
+      )
     }
   }
 
-  private def bitwiseAssignment(expr: ir.Expression, ctx: ModuleContext, lhsName: String, leftIndex: Int, rightIndex: Int): Unit = {
+  private def bitwiseAssignment(
+    expr:       ir.Expression,
+    ctx:        ModuleContext,
+    lhsName:    String,
+    leftIndex:  Int,
+    rightIndex: Int
+  ): Unit = {
     //LHS is wider than right hand side
     if (leftIndex - rightIndex + 1 > getWidth(expr.tpe)) {
       //Assign right bits
@@ -312,7 +326,11 @@ object FixFalseCombLoops {
           ctx.resultCircuit += tempConnect
         } else {
           for (j <- 0 until math.min(rhsWidth, leftIndex - rightIndex + 1)) {
-            val tempConnect = ir.Connect(ir.NoInfo, genRef(ctx, lhsName, r), ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(j, j), Utils.BoolType))
+            val tempConnect = ir.Connect(
+              ir.NoInfo,
+              genRef(ctx, lhsName, r),
+              ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(j, j), Utils.BoolType)
+            )
             ctx.resultCircuit += tempConnect
             r += 1
           }
