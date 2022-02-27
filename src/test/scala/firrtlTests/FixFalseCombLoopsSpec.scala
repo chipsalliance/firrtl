@@ -333,6 +333,29 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
     compile(parse(resultSerialized))
   }
 
+  "False loop with repeated names" should "not throw an exception" in {
+    val input = """circuit hasloops :
+                  |  module hasloops :
+                  |    input clk : Clock
+                  |    input c : UInt<1>
+                  |    input d : UInt<1>
+                  |    output a_output : UInt<2>
+                  |    output a0_output : UInt<1>
+                  |    wire a : UInt<2>
+                  |    wire a0 : UInt<1>
+                  |
+                  |    a <= cat(a0, c)
+                  |    a0 <= xor(bits(a, 0, 0), d)
+                  |    a_output <= a
+                  |    a0_output <= a0
+                  |""".stripMargin
+
+    val result = compile(parse(input), Seq(EnableFixFalseCombLoops))
+    val resultSerialized = result.circuit.serialize
+    print(resultSerialized)
+    compile(parse(resultSerialized))
+  }
+
   "False loop where subword is multiple bits" should "not throw an exception" in {
     val input = """circuit hasloops :
                   |  module hasloops :
