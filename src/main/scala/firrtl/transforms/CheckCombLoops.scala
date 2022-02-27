@@ -332,7 +332,6 @@ class CheckCombLoops extends Transform with RegisteredTransform with DependencyA
           val (newResult, newErrors, connectivity, _) = run(fixedFalseLoop)
           result = newResult
           errors = newErrors
-          print(result.circuit.serialize)
         }
       }
 
