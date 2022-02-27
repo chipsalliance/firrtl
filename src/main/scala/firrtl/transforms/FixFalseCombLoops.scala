@@ -80,7 +80,11 @@ object FixFalseCombLoops {
     moduleToLoopVars
   }
 
-  private def onModule(m: ir.DefModule, result_circuit: ListBuffer[ir.Statement], moduleToLoopVars: Map[String, ListBuffer[String]]): ir.DefModule = m match {
+  private def onModule(
+    m:                ir.DefModule,
+    result_circuit:   ListBuffer[ir.Statement],
+    moduleToLoopVars: Map[String, ListBuffer[String]]
+  ): ir.DefModule = m match {
     case mod: ir.Module =>
       if (moduleToLoopVars.contains(mod.name)) {
         //Stores memoized namespace for repeated references
@@ -95,12 +99,19 @@ object FixFalseCombLoops {
     case other => other
   }
 
-  def onStmt(s: ir.Statement, result_circuit: ListBuffer[ir.Statement], namespace: Namespace, bitWireNames: mutable.LinkedHashMap[(String, Int), String], combLoopVars: ListBuffer[String]): Unit = s match {
+  def onStmt(
+    s:              ir.Statement,
+    result_circuit: ListBuffer[ir.Statement],
+    namespace:      Namespace,
+    bitWireNames:   mutable.LinkedHashMap[(String, Int), String],
+    combLoopVars:   ListBuffer[String]
+  ): Unit = s match {
     case ir.Block(block) =>
       block.foreach(onStmt(_, result_circuit, namespace, bitWireNames, combLoopVars))
 
     case node: ir.DefNode =>
-      val newNode = ir.DefNode(ir.NoInfo, node.name, onExpr(node.value, result_circuit, namespace, bitWireNames, combLoopVars))
+      val newNode =
+        ir.DefNode(ir.NoInfo, node.name, onExpr(node.value, result_circuit, namespace, bitWireNames, combLoopVars))
       result_circuit += newNode
     //TODO: Figure out why we added this
     //        if (combLoopVars.contains(node.name)) {
@@ -127,7 +138,7 @@ object FixFalseCombLoops {
           }
           //Creates node wire = cat(a_n # ... # a_0)
           val newNode =
-            ir.DefNode(ir.NoInfo, wire.name, convertToCats(namespace,  bitWireNames, wire.name, wireWidth - 1, 0))
+            ir.DefNode(ir.NoInfo, wire.name, convertToCats(namespace, bitWireNames, wire.name, wireWidth - 1, 0))
           result_circuit += newNode
         }
       } else {
@@ -148,7 +159,16 @@ object FixFalseCombLoops {
       newConnect.loc match {
         case ref: ir.Reference =>
           if (combLoopVars.contains(ref.name)) {
-            bitwiseAssignment(newConnect.expr, result_circuit, namespace, bitWireNames, combLoopVars, ref.name, getWidth(ref.tpe) - 1, 0)
+            bitwiseAssignment(
+              newConnect.expr,
+              result_circuit,
+              namespace,
+              bitWireNames,
+              combLoopVars,
+              ref.name,
+              getWidth(ref.tpe) - 1,
+              0
+            )
           } else {
             //If lhs is ir.Reference, but isn't in combLoopVars
             result_circuit += newConnect
@@ -162,7 +182,15 @@ object FixFalseCombLoops {
       result_circuit += other
   }
 
-  def onExpr(s: ir.Expression, result_circuit: ListBuffer[ir.Statement], namespace: Namespace, bitWireNames : mutable.LinkedHashMap[(String, Int), String], combLoopVars: ListBuffer[String], high: Int = -1, low: Int = -1): ir.Expression = s match {
+  def onExpr(
+    s:              ir.Expression,
+    result_circuit: ListBuffer[ir.Statement],
+    namespace:      Namespace,
+    bitWireNames:   mutable.LinkedHashMap[(String, Int), String],
+    combLoopVars:   ListBuffer[String],
+    high:           Int = -1,
+    low:            Int = -1
+  ): ir.Expression = s match {
     case prim: ir.DoPrim =>
       prim.op match {
         //Summary: Replaces bits(a, i, j) with (aj # ... # ai)
@@ -170,7 +198,15 @@ object FixFalseCombLoops {
           //TODO: what if high and low are already set?
           val leftIndex = prim.consts(0)
           val rightIndex = prim.consts(1)
-          val arg = onExpr(prim.args(0), result_circuit, namespace, bitWireNames, combLoopVars, leftIndex.toInt, rightIndex.toInt)
+          val arg = onExpr(
+            prim.args(0),
+            result_circuit,
+            namespace,
+            bitWireNames,
+            combLoopVars,
+            leftIndex.toInt,
+            rightIndex.toInt
+          )
           val returnWidth = leftIndex - rightIndex + 1
           if (getWidth(arg.tpe) == returnWidth) {
             arg
@@ -191,7 +227,8 @@ object FixFalseCombLoops {
               case ref: ir.Reference =>
                 newPrimArgs = newPrimArgs :+ ref
               case other =>
-                newPrimArgs = newPrimArgs :+ onExpr(other, result_circuit, namespace, bitWireNames, combLoopVars, high, low)
+                newPrimArgs =
+                  newPrimArgs :+ onExpr(other, result_circuit, namespace, bitWireNames, combLoopVars, high, low)
             }
           }
           ir.DoPrim(prim.op, newPrimArgs, prim.consts, prim.tpe)
@@ -216,13 +253,22 @@ object FixFalseCombLoops {
   }
 
   //Creates a reference to the bit wire for a given variable
-  def genRef(namespace: Namespace, bitWireNames : mutable.LinkedHashMap[(String, Int), String], name: String, index: Int): ir.Reference = {
+  def genRef(
+    namespace:    Namespace,
+    bitWireNames: mutable.LinkedHashMap[(String, Int), String],
+    name:         String,
+    index:        Int
+  ): ir.Reference = {
     ir.Reference(genName(namespace, bitWireNames, name, index), Utils.BoolType, WireKind, UnknownFlow)
   }
 
   //Generates the name for a newly created bit wire
-  def genName(namespace: Namespace, bitWireNames : mutable.LinkedHashMap[(String, Int), String], name: String, index: Int): String = {
-    //TODO: Handle case where there is a repeated name.
+  def genName(
+    namespace:    Namespace,
+    bitWireNames: mutable.LinkedHashMap[(String, Int), String],
+    name:         String,
+    index:        Int
+  ): String = {
     if (namespace.contains(name + index.toString)) {
       if (bitWireNames.contains(name, index)) {
         bitWireNames((name, index))
@@ -246,7 +292,13 @@ object FixFalseCombLoops {
   }
 
   //Converts variable (x) into nested cats (x_high # ... # x_low)
-  def convertToCats(namespace: Namespace, bitWireNames : mutable.LinkedHashMap[(String, Int), String], name: String, high: Int, low: Int): ir.Expression = {
+  def convertToCats(
+    namespace:    Namespace,
+    bitWireNames: mutable.LinkedHashMap[(String, Int), String],
+    name:         String,
+    high:         Int,
+    low:          Int
+  ): ir.Expression = {
     if (high == low) {
       genRef(namespace, bitWireNames, name, low)
     } else {
@@ -259,7 +311,16 @@ object FixFalseCombLoops {
     }
   }
 
-  def bitwiseAssignment(expr: ir.Expression, result_circuit: ListBuffer[ir.Statement], namespace: Namespace, bitWireNames : mutable.LinkedHashMap[(String, Int), String], combLoopVars: ListBuffer[String], lhsName: String, leftIndex: Int, rightIndex: Int): Unit = {
+  def bitwiseAssignment(
+    expr:           ir.Expression,
+    result_circuit: ListBuffer[ir.Statement],
+    namespace:      Namespace,
+    bitWireNames:   mutable.LinkedHashMap[(String, Int), String],
+    combLoopVars:   ListBuffer[String],
+    lhsName:        String,
+    leftIndex:      Int,
+    rightIndex:     Int
+  ): Unit = {
     //LHS is wider than right hand side
     if (leftIndex - rightIndex + 1 > getWidth(expr.tpe)) {
       //Assign right bits
@@ -275,7 +336,12 @@ object FixFalseCombLoops {
     bitwiseAssignmentRecursion(expr, combLoopVars, leftIndex, rightIndex)
 
     //Takes in potentially recursive cat, returns
-    def bitwiseAssignmentRecursion(expr: ir.Expression, combLoopVars: ListBuffer[String], leftIndex: Int, rightIndex: Int): Unit = {
+    def bitwiseAssignmentRecursion(
+      expr:         ir.Expression,
+      combLoopVars: ListBuffer[String],
+      leftIndex:    Int,
+      rightIndex:   Int
+    ): Unit = {
       val rhsWidth = getWidth(expr.tpe)
 
       var r = rightIndex
@@ -285,7 +351,16 @@ object FixFalseCombLoops {
             case PrimOps.Cat =>
               for (i <- 0 until 2) {
                 val argWidth = getWidth(prim.args(i).tpe)
-                bitwiseAssignment(prim.args.reverse(i), result_circuit, namespace, bitWireNames, combLoopVars, lhsName, math.min(leftIndex, r + argWidth - 1), r)
+                bitwiseAssignment(
+                  prim.args.reverse(i),
+                  result_circuit,
+                  namespace,
+                  bitWireNames,
+                  combLoopVars,
+                  lhsName,
+                  math.min(leftIndex, r + argWidth - 1),
+                  r
+                )
                 r += argWidth
               }
             case other => //TODO
@@ -296,7 +371,11 @@ object FixFalseCombLoops {
           //If arg is a bad var, replace with new vars
           if (combLoopVars.contains(ref.name)) {
             for (j <- 0 until math.min(rhsWidth, leftIndex - rightIndex + 1)) {
-              val tempConnect = ir.Connect(ir.NoInfo, genRef(namespace, bitWireNames, lhsName, r), genRef(namespace, bitWireNames, ref.name, j))
+              val tempConnect = ir.Connect(
+                ir.NoInfo,
+                genRef(namespace, bitWireNames, lhsName, r),
+                genRef(namespace, bitWireNames, ref.name, j)
+              )
               result_circuit += tempConnect
               r += 1
             }
@@ -328,7 +407,5 @@ object FixFalseCombLoops {
 
     }
   }
-
-
 
 }
