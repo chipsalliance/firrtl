@@ -30,6 +30,25 @@ pagestyle:
   fancy: true
 # Margins
 geometry: margin=1in
+# pandoc-crossref
+autoSectionLabels: true
+figPrefix:
+  - Figure
+  - Figures
+eqnPrefix:
+  - Equation
+  - Equations
+tblPrefix:
+  - Table
+  - Tables
+lstPrefix:
+  - Listing
+  - Listings
+secPrefix:
+  - Section
+  - Sections
+# This 'lastDelim' option does not work...
+lastDelim: ", and"
 ---
 
 # Introduction
@@ -190,8 +209,8 @@ circuit connections within the module. A module port is specified by its , which
 may be input or output, a name, and the data type of the port.
 
 The following example declares a module with one input port, one output port,
-and one statement connecting the input port to the output port.  See section
-[5.1](#connects) for details on the connect statement.
+and one statement connecting the input port to the output port.  See
+[@sec:connects] for details on the connect statement.
 
 ``` firrtl
 module MyModule :
@@ -202,8 +221,8 @@ module MyModule :
 
 Note that a module definition does *not* indicate that the module will be
 physically present in the final circuit. Refer to the description of the
-instance statement for details on how to instantiate a module (section
-[5.12](#instances)).
+instance statement for details on how to instantiate a module
+([@sec:instances]).
 
 ## Externally Defined Modules
 
@@ -228,8 +247,8 @@ extmodule MyExternalModule :
 ```
 
 The widths of all externally defined module ports must be specified.  Width
-inference, described in section [9](#width_inference), is not supported for
-module ports.
+inference, described in [@sec:width-inference], is not supported for module
+ports.
 
 A common use of an externally defined module is to represent a Verilog module
 that will be written separately and provided together with FIRRTL-generated
@@ -257,7 +276,7 @@ SInt<32>
 ```
 
 Alternatively, if the bit width is omitted, it will be automatically inferred by
-FIRRTL's width inferencer, as detailed in section [9](#width_inference).
+FIRRTL's width inferencer, as detailed in [@sec:width-inference].
 
 ``` firrtl
 UInt
@@ -341,8 +360,8 @@ be applied to analog signals are casts to other signal types.
 When an analog signal appears as a field of an aggregate type, the aggregate
 cannot appear in a standard connection statement; however, the partial
 connection statement will `attach`{.firrtl} corresponding analog fields of its
-operands according to the partial connection algorithm described in Section
-[5.2.1](#partial_connection_algorithm).
+operands according to the partial connection algorithm described in
+[@sec:partial-connection-algorithm].
 
 As with integer types, an analog type can represent a multi-bit signal.  When
 analog signals are not given a concrete width, their widths are inferred
@@ -415,7 +434,7 @@ In a connection to the `a`{.firrtl} port, the data carried by the
 `word`{.firrtl} and `valid`{.firrtl} sub-fields will flow out of the module,
 while data carried by the `ready`{.firrtl} sub-field will flow into the
 module. More details about how the bundle field orientation affects connections
-are explained in section [5.1](#connects).
+are explained in [@sec:connects].
 
 As in the case of vector types, a bundle field may be declared with any type,
 including other aggregate types.
@@ -440,7 +459,7 @@ the module.  The `c`{.firrtl} sub-field contained in the `b`{.firrtl} sub-field
 flows into the module, and the `d`{.firrtl} sub-field contained in the
 `b`{.firrtl} sub-field flows out of the module.
 
-## Passive Types {#passive_types}
+## Passive Types
 
 It is inappropriate for some circuit components to be declared with a type that
 allows for data to flow in both directions. For example, all sub-elements in a
@@ -453,11 +472,11 @@ flipped orientations. Thus all ground types are passive types. Vector types are
 passive if their element type is passive. And bundle types are passive if no
 fields are flipped and if all field types are passive.
 
-## Type Equivalence {#type_equivalence}
+## Type Equivalence
 
 The type equivalence relation is used to determine whether a connection between
-two components is legal. See section [5.1](#connects) for further details about
-connect statements.
+two components is legal. See [@sec:connects] for further details about connect
+statements.
 
 An unsigned integer type is always equivalent to another unsigned integer type
 regardless of bit width, and is not equivalent to any other type. Similarly, a
@@ -480,11 +499,11 @@ equivalent types. Consequently, `{a:UInt, b:UInt}`{.firrtl} is not equivalent to
 `{b:UInt, a:UInt}`{.firrtl}, and `{a: {flip b:UInt}}`{.firrtl} is not equivalent
 to `{flip a: {b: UInt}}`{.firrtl}.
 
-## Weak Type Equivalence {#weak_type_equivalence}
+## Weak Type Equivalence
 
 The weak type equivalence relation is used to determine whether a partial
-connection between two components is legal. See section [5.2](#partial_connects)
-for further details about partial connect statements.
+connection between two components is legal. See [@sec:partial-connects] for
+further details about partial connect statements.
 
 Two types are weakly equivalent if their corresponding oriented types are
 equivalent.
@@ -556,13 +575,13 @@ module MyModule :
 In order for a connection to be legal the following conditions must hold:
 
 1.  The types of the left-hand and right-hand side expressions must be
-    equivalent (see section [4.5](#type_equivalence) for details).
+    equivalent (see [@sec:type-equivalence] for details).
 
 2.  The bit widths of the two expressions must allow for data to always flow
     from a smaller bit width to an equal size or larger bit width.
 
 3.  The flow of the left-hand side expression must be sink or duplex (see
-    section [8](#flows) for an explanation of flow).
+    [@sec:flows] for an explanation of flow).
 
 4.  Either the flow of the right-hand side expression is source or duplex, or
     the right-hand side expression has a passive type.
@@ -571,9 +590,9 @@ Connect statements from a narrower ground type component to a wider ground type
 component will have its value automatically sign-extended or zero-extended to
 the larger bit width. The behaviour of connect statements between two circuit
 components with aggregate types is defined by the connection algorithm in
-section [5.1.1](#connection_algorithm).
+[@sec:connection-algorithm].
 
-### The Connection Algorithm {#connection_algorithm}
+### The Connection Algorithm {#connection-algorithm}
 
 Connect statements between ground types cannot be expanded further.
 
@@ -588,7 +607,7 @@ connected to the left-hand side field.  Conversely, if the i'th field is
 flipped, then the left-hand side field is connected to the right-hand side
 field.
 
-## Partial Connects {#partial_connects}
+## Partial Connects
 
 Like the connect statement, the partial connect statement is also used to
 specify a physically wired connection between two circuit components.  However,
@@ -598,10 +617,10 @@ it connects.
 In order for a partial connect to be legal the following conditions must hold:
 
 1.  The types of the left-hand and right-hand side expressions must be weakly
-    equivalent (see section [4.6](#weak_type_equivalence) for details).
+    equivalent (see [@sec:weak-type-equivalence] for details).
 
 2.  The flow of the left-hand side expression must be sink or duplex (see
-    section [8](#flows) for an explanation of flow).
+    [@sec:flows] for an explanation of flow).
 
 3.  Either the flow of the right-hand side expression is source or duplex, or
     the right-hand side expression has a passive type.
@@ -616,7 +635,7 @@ Intuitively, bundle fields with matching names will be connected appropriately,
 while bundle fields not present in both types will be ignored. Similarly,
 vectors with mismatched lengths will be connected up to the shorter length, and
 the remaining sub-elements are ignored. The full algorithm is detailed in
-section [5.2.1](#partial_connection_algorithm).
+[@sec:partial-connection-algorithm].
 
 The following example demonstrates partially connecting a module's input port to
 its output port, where port `myinput`{.firrtl} is connected to port
@@ -641,10 +660,10 @@ module MyModule :
 ```
 
 For details on the syntax and semantics of the sub-field expression, sub-index
-expression, and statement groups, see sections [6.6](#subfields),
-[6.7](#subindices), and [5.3](#statement_groups).
+expression, and statement groups, see [@sec:sub-fields; @sec:sub-indices;
+@sec:statement-groups].
 
-### The Partial Connection Algorithm {#partial_connection_algorithm}
+### The Partial Connection Algorithm {#partial-connection-algorithm}
 
 A partial connect statement between two non-analog ground type components
 connects the right-hand side expression to the left-hand side
@@ -667,7 +686,7 @@ right-hand side field to the left-hand side field.  However, if the first field
 is flipped, then we apply a reverse partial (or partial) connect from the
 right-hand side field to the left-hand side field.
 
-## Statement Groups {#statement_groups}
+## Statement Groups
 
 An ordered sequence of one or more statements can be grouped into a single
 statement, called a statement group. The following example demonstrates a
@@ -684,7 +703,7 @@ module MyModule :
    myport2 <= a
 ```
 
-### Last Connect Semantics {#last_connect}
+### Last Connect Semantics
 
 Ordering of statements is significant in a statement group. Intuitively, during
 elaboration, statements execute in order, and the effects of later statements
@@ -695,8 +714,7 @@ circuit, port `b`{.firrtl} will be connected to `myport1`{.firrtl}, and port
 Note that connect and partial connect statements have equal priority, and later
 connect or partial connect statements always take priority over earlier connect
 or partial connect statements. Conditional statements are also affected by last
-connect semantics, and for details see section
-[5.10.5](#conditional_last_connect).
+connect semantics, and for details see [@sec:conditional-last-connect-semantics].
 
 In the case where a connection to a circuit component with an aggregate type is
 followed by a connection to a sub-element of that component, only the connection
@@ -749,7 +767,7 @@ module MyModule :
    myport <= portx
 ```
 
-See section [6.6](#subfields) for more details about sub-field expressions.
+See [@sec:sub-fields] for more details about sub-field expressions.
 
 ## Empty
 
@@ -773,8 +791,8 @@ c <= d
 
 The empty statement is most often used as the `else`{.firrtl} branch in a
 conditional statement, or as a convenient placeholder for removed components
-during transformational passes. See section [5.10](#conditionals) for details on
-the conditional statement.
+during transformational passes. See [@sec:conditionals] for details on the
+conditional statement.
 
 ## Wires
 
@@ -836,9 +854,8 @@ to be applied to any component, to explicitly ignore initialization coverage
 errors.
 
 The following example demonstrates the effect of invalidating a variety of
-circuit components with aggregate types. See section
-[5.7.1](#invalidate_algorithm) for details on the algorithm for determining what
-is invalidated.
+circuit components with aggregate types. See [@sec:invalidate-algorithm] for
+details on the algorithm for determining what is invalidated.
 
 ``` firrtl
 module MyModule :
@@ -867,11 +884,11 @@ For the purposes of simulation, invalidated components are initialized to random
 values, and operations involving indeterminate values produce undefined
 behaviour. This is useful for early detection of errors in simulation.
 
-### The Invalidate Algorithm {#invalidate_algorithm}
+### The Invalidate Algorithm {#invalidate-algorithm}
 
 Invalidating a component with a ground type indicates that the component's value
-is undetermined if the component has sink or duplex flow (see section
-[8](#flows)).  Otherwise, the component is unaffected.
+is undetermined if the component has sink or duplex flow (see [@sec:flows]).
+Otherwise, the component is unaffected.
 
 Invalidating a component with a vector type recursively invalidates each
 sub-element in the vector.
@@ -906,8 +923,8 @@ often used to split a complicated compound expression into named
 sub-expressions.
 
 The following example demonstrates instantiating a node with the given name
-`mynode`{.firrtl} initialized with the output of a multiplexer (see section
-[6.9](#multiplexers)).
+`mynode`{.firrtl} initialized with the output of a multiplexer (see
+[@sec:multiplexers]).
 
 ``` firrtl
 wire pred: UInt<1>
@@ -1102,19 +1119,19 @@ if unconnected.
 The conditional statement creates a new *scope* within each of its
 `when`{.firrtl} and `else`{.firrtl} branches. It is an error to refer to any
 component declared within a branch after the branch has ended. As mention in
-section [11](#namespaces), circuit component declarations in a module must be
-unique within the module's flat namespace; this means that shadowing a component
-in an enclosing scope with a component of the same name inside a conditional
-statement is not allowed.
+[@sec:namespaces], circuit component declarations in a module must be unique
+within the module's flat namespace; this means that shadowing a component in an
+enclosing scope with a component of the same name inside a conditional statement
+is not allowed.
 
-### Conditional Last Connect Semantics {#conditional_last_connect}
+### Conditional Last Connect Semantics
 
 In the case where a connection to a circuit component is followed by a
 conditional statement containing a connection to the same component, the
 connection is overwritten only when the condition holds. Intuitively, a
 multiplexer is generated such that when the condition is low, the multiplexer
 returns the old value, and otherwise returns the new value.  For details about
-the multiplexer, see section [6.9](#multiplexers).
+the multiplexer, see [@sec:multiplexers].
 
 The following example:
 
@@ -1141,8 +1158,8 @@ w <= mux(c, b, a)
 In the case where an invalid statement is followed by a conditional statement
 containing a connect to the invalidated component, the resulting connection to
 the component can be expressed using a conditionally valid expression. See
-section [6.10](#conditionally_valids) for more details about the conditionally
-valid expression.
+[@sec:conditionally-valids] for more details about the conditionally valid
+expression.
 
 ``` firrtl
 wire a: UInt
@@ -1164,9 +1181,9 @@ w <= validif(c, a)
 
 The behaviour of conditional connections to circuit components with aggregate
 types can be modeled by first expanding each connect into individual connect
-statements on its ground elements (see section [5.1.1](#connection_algorithm)
-and [5.2.1](#partial_connection_algorithm) for the connection and partial
-connection algorithms) and then applying the conditional last connect semantics.
+statements on its ground elements (see [@sec:connection-algorithm;
+@sec:partial-connection-algorithm] for the connection and partial connection
+algorithms) and then applying the conditional last connect semantics.
 
 For example, the following snippet:
 
@@ -1192,7 +1209,7 @@ w.b <= mux(c, y.b, x.b)
 ```
 
 Similar to the behavior of aggregate types under last connect semantics (see
-section [5.3.1](#last_connect)), the conditional connects to a sub-element of an
+[@sec:last-connect-semantics]), the conditional connects to a sub-element of an
 aggregate component only generates a multiplexer for the sub-element that is
 overwritten.
 
@@ -1412,7 +1429,7 @@ To disallow infinitely recursive hardware, modules cannot contain instances of
 itself, either directly, or indirectly through instances of other modules it
 instantiates.
 
-## Stops {#stop_stmt}
+## Stops
 
 The stop statement is used to halt simulations of the circuit. Backends are free
 to generate hardware to stop a running circuit for the purpose of debugging, but
@@ -1452,7 +1469,7 @@ single bit unsigned integer type, and the argument signals must each have a
 ground type.
 
 For information about execution ordering of clocked statements with observable
-environmental side effects, see section [5.13](#stop_stmt).
+environmental side effects, see [@sec:stops].
 
 The printf statement has an optional name attribute which can be used to attach
 metadata to the statement. The name is part of the module level
@@ -1514,7 +1531,7 @@ statements, but the Verilog emitter does not and instead warns the user if any
 verification statements are encountered.
 
 For information about execution ordering of clocked statements with observable
-environmental side effects, see section [5.13](#stop_stmt).
+environmental side effects, see [@sec:stops].
 
 Any verification statement has an optional name attribute which can be used to
 attach metadata to the statement. The name is part of the module level
@@ -1697,7 +1714,7 @@ to refer to a reference expression to that component. Thus, the above example
 will be rewritten as "the port `in`{.firrtl} is connected to the port
 `out`{.firrtl}".
 
-## Sub-fields {#subfields}
+## Sub-fields
 
 The sub-field expression refers to a sub-element of an expression with a bundle
 type.
@@ -1712,7 +1729,7 @@ module MyModule :
    out.a <= in
 ```
 
-## Sub-indices {#subindices}
+## Sub-indices
 
 The sub-index expression statically refers, by index, to a sub-element of an
 expression with a vector type. The index must be a non-negative integer and
@@ -1867,10 +1884,10 @@ A multiplexer expression is legal only if the following holds.
 
 1. The types of the two input expressions are equivalent.
 
-1. The types of the two input expressions are passive (see section
-   [4.4](#passive_types)).
+1. The types of the two input expressions are passive (see
+   [@sec:passive-types]).
 
-## Conditionally Valids {#conditionally_valids}
+## Conditionally Valids
 
 A conditionally valid expression is expressed as an input expression guarded
 with an unsigned single bit valid signal. It outputs the input expression when
@@ -1892,11 +1909,10 @@ A conditionally valid expression is legal only if the following holds.
 
 1.  The type of the valid signal is a single bit unsigned integer.
 
-2.  The type of the input expression is passive (see section
-    [4.4](#passive_types)).
+2.  The type of the input expression is passive (see [@sec:passive-types]).
 
 Conditional statements can be equivalently expressed as multiplexers and
-conditionally valid expressions. See section [5.10](#conditionals) for details.
+conditionally valid expressions. See [@sec:conditionals] for details.
 
 ## Primitive Operations
 
@@ -1923,10 +1939,10 @@ bits(a, 7, 4)
 asClock(x)
 ```
 
-Section [7](#primitives) will describe the format and semantics of each
+[@sec:primitive-operations] will describe the format and semantics of each
 primitive operation.
 
-# Primitive Operations {#primitives}
+# Primitive Operations
 
 The arguments of all primitive operations must be expressions with ground types,
 while their parameters are static integer literals. Each specific operation can
@@ -1937,33 +1953,33 @@ Notationally, the width of an argument e is represented as w~e~.
 
 ## Add Operation
 
-| Name | Arguments | Parmaeters | Arg Types     | Result Type | Result Width                   |
-|------|-----------|------------|---------------|-------------|--------------------------------|
-| add  | (e1,e2)   | ()         | (UInt,UInt)   | UInt        | max(w~e1~,w~e2~)+1             |
-|      |           |            | (SInt,SInt)   | SInt        | max(w~e1~,w~e2~)+1             |
-|      |           |            | (Fixed,Fixed) | Fixed       | see section [10](#fixed_rules) |
+| Name | Arguments | Parmaeters | Arg Types     | Result Type | Result Width                |
+|------|-----------|------------|---------------|-------------|-----------------------------|
+| add  | (e1,e2)   | ()         | (UInt,UInt)   | UInt        | max(w~e1~,w~e2~)+1          |
+|      |           |            | (SInt,SInt)   | SInt        | max(w~e1~,w~e2~)+1          |
+|      |           |            | (Fixed,Fixed) | Fixed       | see [@sec:fixed-point-math] |
 
 The add operation result is the sum of e1 and e2 without loss of precision.
 
 ## Subtract Operation
 
 
-| Name | Arguments | Parmaeters | Arg Types     | Result Type | Result Width                   |
-|------|-----------|------------|---------------|-------------|--------------------------------|
-| sub  | (e1,e2)   | ()         | (UInt,UInt)   | UInt        | max(w~e1~,w~e2~)+1             |
-|      |           |            | (SInt,SInt)   | SInt        | max(w~e1~,w~e2~)+1             |
-|      |           |            | (Fixed,Fixed) | Fixed       | see section [10](#fixed_rules) |
+| Name | Arguments | Parmaeters | Arg Types     | Result Type | Result Width                |
+|------|-----------|------------|---------------|-------------|-----------------------------|
+| sub  | (e1,e2)   | ()         | (UInt,UInt)   | UInt        | max(w~e1~,w~e2~)+1          |
+|      |           |            | (SInt,SInt)   | SInt        | max(w~e1~,w~e2~)+1          |
+|      |           |            | (Fixed,Fixed) | Fixed       | see [@sec:fixed-point-math] |
 
 The subtract operation result is e2 subtracted from e1, without loss of
 precision.
 
 ## Multiply Operation
 
-| Name | Arguments | Parmaeters | Arg Types     | Result Type | Result Width                   |
-|------|-----------|------------|---------------|-------------|--------------------------------|
-| mul  | (e1,e2)   | ()         | (UInt,UInt)   | UInt        | w~e1~+w~e2~                    |
-|      |           |            | (SInt,SInt)   | SInt        | w~e1~+w~e2~                    |
-|      |           |            | (Fixed,Fixed) | Fixed       | see section [10](#fixed_rules) |
+| Name | Arguments | Parmaeters | Arg Types     | Result Type | Result Width                |
+|------|-----------|------------|---------------|-------------|-----------------------------|
+| mul  | (e1,e2)   | ()         | (UInt,UInt)   | UInt        | w~e1~+w~e2~                 |
+|      |           |            | (SInt,SInt)   | SInt        | w~e1~+w~e2~                 |
+|      |           |            | (Fixed,Fixed) | Fixed       | see [@sec:fixed-point-math] |
 
 The multiply operation result is the product of e1 and e2, without loss of
 precision.
@@ -2008,11 +2024,11 @@ returns a value of zero otherwise.
 
 ## Padding Operations
 
-| Name | Arguments | Parmaeters | Arg Types | Result Type | Result Width                   |
-|------|-----------|------------|-----------|-------------|--------------------------------|
-| pad  | \(e\)     | \(n\)      | (UInt)    | UInt        | max(w~e~,n)                    |
-|      |           |            | (SInt)    | SInt        | max(w~e~,n)                    |
-|      |           |            | (Fixed)   | Fixed       | see section [10](#fixed_rules) |
+| Name | Arguments | Parmaeters | Arg Types | Result Type | Result Width                |
+|------|-----------|------------|-----------|-------------|-----------------------------|
+| pad  | \(e\)     | \(n\)      | (UInt)    | UInt        | max(w~e~,n)                 |
+|      |           |            | (SInt)    | SInt        | max(w~e~,n)                 |
+|      |           |            | (Fixed)   | Fixed       | see [@sec:fixed-point-math] |
 
 
 If e's bit width is smaller than n, then the pad operation zero-extends or
@@ -2072,22 +2088,22 @@ obtained from interpreting a single bit integer as a clock signal.
 
 ## Shift Left Operation
 
-| Name | Arguments | Parmaeters | Arg Types | Result Type | Result Width                   |
-|------|-----------|------------|-----------|-------------|--------------------------------|
-| shl  | \(e\)     | \(n\)      | (UInt)    | UInt        | w~e~+n                         |
-|      |           |            | (SInt)    | SInt        | w~e~+n                         |
-|      |           |            | (Fixed)   | Fixed       | see section [10](#fixed_rules) |
+| Name | Arguments | Parmaeters | Arg Types | Result Type | Result Width                |
+|------|-----------|------------|-----------|-------------|-----------------------------|
+| shl  | \(e\)     | \(n\)      | (UInt)    | UInt        | w~e~+n                      |
+|      |           |            | (SInt)    | SInt        | w~e~+n                      |
+|      |           |            | (Fixed)   | Fixed       | see [@sec:fixed-point-math] |
 
 The shift left operation concatenates n zero bits to the least significant end
 of e. n must be non-negative.
 
 ## Shift Right Operation
 
-| Name | Arguments | Parmaeters | Arg Types | Result Type | Result Width                   |
-|------|-----------|------------|-----------|-------------|--------------------------------|
-| shr  | \(e\)     | \(n\)      | (UInt)    | UInt        | max(w~e~-n, 1)                 |
-|      |           |            | (SInt)    | SInt        | max(w~e~-n, 1)                 |
-|      |           |            | (Fixed)   | Fixed       | see section [10](#fixed_rules) |
+| Name | Arguments | Parmaeters | Arg Types | Result Type | Result Width                |
+|------|-----------|------------|-----------|-------------|-----------------------------|
+| shr  | \(e\)     | \(n\)      | (UInt)    | UInt        | max(w~e~-n, 1)              |
+|      |           |            | (SInt)    | SInt        | max(w~e~-n, 1)              |
+|      |           |            | (Fixed)   | Fixed       | see [@sec:fixed-point-math] |
 
 The shift right operation truncates the least significant n bits from e.  If n
 is greater than or equal to the bit-width of e, the resulting value will be zero
@@ -2095,22 +2111,22 @@ for unsigned types and the sign bit for signed types. n must be non-negative.
 
 ## Dynamic Shift Left Operation
 
-| Name | Arguments | Parmaeters | Arg Types     | Result Type | Result Width                   |
-|------|-----------|------------|---------------|-------------|--------------------------------|
-| dshl | (e1, e2)  | ()         | (UInt, UInt)  | UInt        | w~e1~ + 2`^`w~e2~ - 1          |
-|      |           |            | (SInt, UInt)  | SInt        | w~e1~ + 2`^`w~e2~ - 1          |
-|      |           |            | (Fixed, UInt) | Fixed       | see section [10](#fixed_rules) |
+| Name | Arguments | Parmaeters | Arg Types     | Result Type | Result Width                |
+|------|-----------|------------|---------------|-------------|-----------------------------|
+| dshl | (e1, e2)  | ()         | (UInt, UInt)  | UInt        | w~e1~ + 2`^`w~e2~ - 1       |
+|      |           |            | (SInt, UInt)  | SInt        | w~e1~ + 2`^`w~e2~ - 1       |
+|      |           |            | (Fixed, UInt) | Fixed       | see [@sec:fixed-point-math] |
 
 The dynamic shift left operation shifts the bits in e1 e2 places towards the
 most significant bit. e2 zeroes are shifted in to the least significant bits.
 
 ## Dynamic Shift Right Operation
 
-| Name | Arguments | Parmaeters | Arg Types     | Result Type | Result Width                   |
-|------|-----------|------------|---------------|-------------|--------------------------------|
-| dshr | (e1, e2)  | ()         | (UInt, UInt)  | UInt        | w~e1~                          |
-|      |           |            | (SInt, UInt)  | SInt        | w~e1~                          |
-|      |           |            | (Fixed, UInt) | Fixed       | see section [10](#fixed_rules) |
+| Name | Arguments | Parmaeters | Arg Types     | Result Type | Result Width                |
+|------|-----------|------------|---------------|-------------|-----------------------------|
+| dshr | (e1, e2)  | ()         | (UInt, UInt)  | UInt        | w~e1~                       |
+|      |           |            | (SInt, UInt)  | SInt        | w~e1~                       |
+|      |           |            | (Fixed, UInt) | Fixed       | see [@sec:fixed-point-math] |
 
 The dynamic shift right operation shifts the bits in e1 e2 places towards the
 least significant bit. e2 signed or zeroed bits are shifted in to the most
@@ -2231,14 +2247,14 @@ The increase precision, decrease precision, and set precision operations are
 used to alter the number of bits that appear after the binary point in a
 fixed-point number. This will cause the binary point and consequently the total
 width of the fixed-point result type to differ from those of the fixed-point
-argument type. See section [10](#fixed_rules) for more detail.
+argument type. See [@sec:fixed-point-math] for more detail.
 
-# Flows {#flows}
+# Flows
 
 An expression's flow partially determines the legality of connecting to and from
 the expression. Every expression is classified as either *source*, *sink*, or
-*duplex*. For details on connection rules refer back to sections
-[5.1](#connects) and [5.2](#partial_connects).
+*duplex*. For details on connection rules refer back to [@sec:connects;
+@sec:partial-connects].
 
 The flow of a reference to a declared circuit component depends on the kind of
 circuit component. A reference to an input port, an instance, a memory, and a
@@ -2257,7 +2273,7 @@ remains duplex.
 
 The flow of all other expressions are source.
 
-# Width Inference {#width_inference}
+# Width Inference
 
 For all circuit components declared with unspecified widths, the FIRRTL compiler
 will infer the minimum possible width that maintains the legality of all its
@@ -2277,12 +2293,12 @@ two input leaf sub-element widths.
 The width of a conditionally valid expression is the width of its input
 expression.
 
-The width of each primitive operation is detailed in section [7](#primitives).
+The width of each primitive operation is detailed in [@sec:primitive-operations].
 
 The width of the integer literal expressions is detailed in their respective
 sections.
 
-# Fixed-Point Math {#fixed_rules}
+# Fixed-Point Math
 
 | Operator    | Result Width                                          | Result Binary Point |
 |-------------|-------------------------------------------------------|---------------------|
@@ -2329,8 +2345,8 @@ have a unique name.
 Each module has an identifier namespace containing the names of all port and
 circuit component declarations. Thus, all declarations within a module must have
 unique names. Furthermore, the set of component declarations within a module
-must be *prefix unique*. Please see section [11.2](#prefix_unique) for the
-definition of prefix uniqueness.
+must be *prefix unique*. Please see [@sec:prefix-uniqueness] for the definition
+of prefix uniqueness.
 
 Within a bundle type declaration, all field names must be unique.
 
@@ -2338,16 +2354,16 @@ Within a memory declaration, all port names must be unique.
 
 During the lowering transformation, all circuit component declarations with
 aggregate types are rewritten as a group of component declarations, each with a
-ground type. The name expansion algorithm in section
-[11.1](#expansion_algorithm) calculates the names of all replacement components
-derived from the original aggregate-typed component.
+ground type. The name expansion algorithm in [@sec:name-expansion-algorithm]
+calculates the names of all replacement components derived from the original
+aggregate-typed component.
 
 After the lowering transformation, the names of the lowered circuit components
 are guaranteed by the name expansion algorithm and thus can be reliably
 referenced by users to pair meta-data or other annotations with named circuit
 components.
 
-## Name Expansion Algorithm {#expansion_algorithm}
+## Name Expansion Algorithm
 
 Given a component with a ground type, the name of the component is returned.
 
@@ -2358,7 +2374,7 @@ Given a component with a bundle type, the suffix `$`*f* is appended to the
 expanded names of each sub-element, where *f* is the field name of each
 sub-element.
 
-## Prefix Uniqueness {#prefix_unique}
+## Prefix Uniqueness
 
 The *symbol sequence* of a name is the ordered list of strings that results from
 splitting the name at each occurrence of the '\$' character.
