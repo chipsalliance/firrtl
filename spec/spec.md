@@ -274,10 +274,11 @@ which represents an inverse power of two.
 
 The range of the value term is governed by a *width* an a manner analogous to
 integral types, with the additional restriction that all fixed-point number
-types are inherently signed in FIRRTL. Whenever an operation such as a `cat`
-operates on the "bits" of a fixed-point number, it operates on the string of
-bits that is the signed representation of the integer value term. The *width* of
-a fixed-point typed signal is the width of this string of bits.
+types are inherently signed in FIRRTL. Whenever an operation such as a
+`cat`{.firrtl} operates on the "bits" of a fixed-point number, it operates on
+the string of bits that is the signed representation of the integer value
+term. The *width* of a fixed-point typed signal is the width of this string of
+bits.
 
 $$\begin{aligned}
   \text{fixed-point quantity} &= \left( \text{integer value} \right) \times 2^{-\left(\text{binary point}\right)}\\
@@ -325,22 +326,22 @@ Clock
 ### Analog Type
 
 The analog type specifies that a wire or port can be attached to multiple
-drivers. `Analog` cannot be used as the type of a node or register, nor can it
-be used as the datatype of a memory. In this respect, it is similar to how
-`inout` ports are used in Verilog, and FIRRTL analog signals are often used to
-interface with external Verilog or VHDL IP.
+drivers. `Analog`{.firrtl} cannot be used as the type of a node or register, nor
+can it be used as the datatype of a memory. In this respect, it is similar to
+how `inout`{.firrtl} ports are used in Verilog, and FIRRTL analog signals are
+often used to interface with external Verilog or VHDL IP.
 
 In contrast with all other ground types, analog signals cannot appear on either
 side of a connection statement. Instead, analog signals are attached to each
-other with the commutative `attach` statement. An analog signal may appear in
-any number of attach statements, and a legal circuit may also contain analog
-signals that are never attached. The only primitive operations that may be
-applied to analog signals are casts to other signal types.
+other with the commutative `attach`{.firrtl} statement. An analog signal may
+appear in any number of attach statements, and a legal circuit may also contain
+analog signals that are never attached. The only primitive operations that may
+be applied to analog signals are casts to other signal types.
 
 When an analog signal appears as a field of an aggregate type, the aggregate
 cannot appear in a standard connection statement; however, the partial
-connection statement will `attach` corresponding analog fields of its operands
-according to the partial connection algorithm described in Section
+connection statement will `attach`{.firrtl} corresponding analog fields of its
+operands according to the partial connection algorithm described in Section
 [5.2.1](#partial_connection_algorithm).
 
 As with integer types, an analog type can represent a multi-bit signal.  When
@@ -387,7 +388,8 @@ A bundle type is used to express a collection of nested and named types.  All
 fields in a bundle type must have a given name, and type.
 
 The following is an example of a possible type for representing a complex
-number. It has two fields, `real`, and `imag`, both 10-bit signed integers.
+number. It has two fields, `real`{.firrtl}, and `imag`{.firrtl}, both 10-bit
+signed integers.
 
 ``` firrtl
 {real:SInt<10>, imag:SInt<10>}
@@ -409,10 +411,11 @@ As an example, consider a module output port declared with the following type:
 output a: {word:UInt<32>, valid:UInt<1>, flip ready:UInt<1>}
 ```
 
-In a connection to the `a` port, the data carried by the `word` and `valid`
-sub-fields will flow out of the module, while data carried by the `ready`
-sub-field will flow into the module. More details about how the bundle field
-orientation affects connections are explained in section [5.1](#connects).
+In a connection to the `a`{.firrtl} port, the data carried by the
+`word`{.firrtl} and `valid`{.firrtl} sub-fields will flow out of the module,
+while data carried by the `ready`{.firrtl} sub-field will flow into the
+module. More details about how the bundle field orientation affects connections
+are explained in section [5.1](#connects).
 
 As in the case of vector types, a bundle field may be declared with any type,
 including other aggregate types.
@@ -432,9 +435,10 @@ type.
 output myport: {a: UInt, flip b: {c: UInt, flip d:UInt}}
 ```
 
-In a connection to `myport`, the `a` sub-field flows out of the module.  The `c`
-sub-field contained in the `b` sub-field flows into the module, and the `d`
-sub-field contained in the `b` sub-field flows out of the module.
+In a connection to `myport`{.firrtl}, the `a`{.firrtl} sub-field flows out of
+the module.  The `c`{.firrtl} sub-field contained in the `b`{.firrtl} sub-field
+flows into the module, and the `d`{.firrtl} sub-field contained in the
+`b`{.firrtl} sub-field flows out of the module.
 
 ## Passive Types {#passive_types}
 
@@ -472,9 +476,9 @@ element types are equivalent.
 
 Two bundle types are equivalent if they have the same number of fields, and both
 the bundles' i'th fields have matching names and orientations, as well as
-equivalent types. Consequently, `{a:UInt, b:UInt}` is not equivalent to
-`{b:UInt, a:UInt}`, and `{a: {flip b:UInt}}` is not equivalent to `{flip a: {b:
-UInt}}`.
+equivalent types. Consequently, `{a:UInt, b:UInt}`{.firrtl} is not equivalent to
+`{b:UInt, a:UInt}`{.firrtl}, and `{a: {flip b:UInt}}`{.firrtl} is not equivalent
+to `{flip a: {b: UInt}}`{.firrtl}.
 
 ## Weak Type Equivalence {#weak_type_equivalence}
 
@@ -539,7 +543,8 @@ The connect statement is used to specify a physically wired connection between
 two circuit components.
 
 The following example demonstrates connecting a module's input port to its
-output port, where port `myinput` is connected to port `myoutput`.
+output port, where port `myinput`{.firrtl} is connected to port
+`myoutput`{.firrtl}.
 
 ``` firrtl
 module MyModule :
@@ -614,7 +619,8 @@ the remaining sub-elements are ignored. The full algorithm is detailed in
 section [5.2.1](#partial_connection_algorithm).
 
 The following example demonstrates partially connecting a module's input port to
-its output port, where port `myinput` is connected to port `myoutput`.
+its output port, where port `myinput`{.firrtl} is connected to port
+`myoutput`{.firrtl}.
 
 ``` firrtl
 module MyModule :
@@ -683,8 +689,8 @@ module MyModule :
 Ordering of statements is significant in a statement group. Intuitively, during
 elaboration, statements execute in order, and the effects of later statements
 take precedence over earlier ones. In the previous example, in the resultant
-circuit, port `b` will be connected to `myport1`, and port `a` will be connected
-to `myport2`.
+circuit, port `b`{.firrtl} will be connected to `myport1`{.firrtl}, and port
+`a`{.firrtl} will be connected to `myport2`{.firrtl}.
 
 Note that connect and partial connect statements have equal priority, and later
 connect or partial connect statements always take priority over earlier connect
@@ -695,9 +701,10 @@ connect semantics, and for details see section
 In the case where a connection to a circuit component with an aggregate type is
 followed by a connection to a sub-element of that component, only the connection
 to the sub-element is overwritten. Connections to the other sub-elements remain
-unaffected. In the following example, in the resultant circuit, the `c`
-sub-element of port `portx` will be connected to the `c` sub-element of
-`myport`, and port `porty` will be connected to the `b` sub-element of `myport`.
+unaffected. In the following example, in the resultant circuit, the `c`{.firrtl}
+sub-element of port `portx`{.firrtl} will be connected to the `c`{.firrtl}
+sub-element of `myport`{.firrtl}, and port `porty`{.firrtl} will be connected to
+the `b`{.firrtl} sub-element of `myport`{.firrtl}.
 
 ``` firrtl
 module MyModule :
@@ -747,7 +754,7 @@ See section [6.6](#subfields) for more details about sub-field expressions.
 ## Empty
 
 The empty statement does nothing and is used simply as a placeholder where a
-statement is expected. It is specified using the `skip` keyword.
+statement is expected. It is specified using the `skip`{.firrtl} keyword.
 
 The following example:
 
@@ -764,10 +771,10 @@ a <= b
 c <= d
 ```
 
-The empty statement is most often used as the `else` branch in a conditional
-statement, or as a convenient placeholder for removed components during
-transformational passes. See section [5.10](#conditionals) for details on the
-conditional statement.
+The empty statement is most often used as the `else`{.firrtl} branch in a
+conditional statement, or as a convenient placeholder for removed components
+during transformational passes. See section [5.10](#conditionals) for details on
+the conditional statement.
 
 ## Wires
 
@@ -775,7 +782,7 @@ A wire is a named combinational circuit component that can be connected to and
 from using connect and partial connect statements.
 
 The following example demonstrates instantiating a wire with the given name
-`mywire` and type `UInt`.
+`mywire`{.firrtl} and type `UInt`{.firrtl}.
 
 ``` firrtl
 wire mywire : UInt
@@ -786,7 +793,8 @@ wire mywire : UInt
 A register is a named stateful circuit component.
 
 The following example demonstrates instantiating a register with the given name
-`myreg`, type `SInt`, and is driven by the clock signal `myclock`.
+`myreg`{.firrtl}, type `SInt`{.firrtl}, and is driven by the clock signal
+`myclock`{.firrtl}.
 
 ``` firrtl
 wire myclock: Clock
@@ -795,8 +803,9 @@ reg myreg: SInt, myclock
 ```
 
 Optionally, for the purposes of circuit initialization, a register can be
-declared with a reset signal and value. In the following example, `myreg` is
-assigned the value `myinit` when the signal `myreset` is high.
+declared with a reset signal and value. In the following example,
+`myreg`{.firrtl} is assigned the value `myinit`{.firrtl} when the signal
+`myreset`{.firrtl} is high.
 
 ``` firrtl
 wire myclock: Clock
@@ -806,9 +815,9 @@ reg myreg: SInt, myclock with: (reset => (myreset, myinit))
 ; ...
 ```
 
-Note that the clock signal for a register must be of type `clock`, the reset
-signal must be a single bit `UInt`, and the type of initialization value must
-match the declared type of the register.
+Note that the clock signal for a register must be of type `clock`{.firrtl}, the
+reset signal must be a single bit `UInt`{.firrtl}, and the type of
+initialization value must match the declared type of the register.
 
 ## Invalidates
 
@@ -872,8 +881,8 @@ sub-element in the bundle.
 
 ## Attaches
 
-The `attach` statement is used to attach two or more analog signals, defining
-that their values be the same in a commutative fashion that lacks the
+The `attach`{.firrtl} statement is used to attach two or more analog signals,
+defining that their values be the same in a commutative fashion that lacks the
 directionality of a regular connection. It can only be applied to signals with
 analog type, and each analog signal may be attached zero or more times.
 
@@ -897,7 +906,7 @@ often used to split a complicated compound expression into named
 sub-expressions.
 
 The following example demonstrates instantiating a node with the given name
-`mynode` initialized with the output of a multiplexer (see section
+`mynode`{.firrtl} initialized with the output of a multiplexer (see section
 [6.9](#multiplexers)).
 
 ``` firrtl
@@ -913,8 +922,9 @@ Connections within a conditional statement that connect to previously declared
 components hold only when the given condition is high. The condition must have a
 1-bit unsigned integer type.
 
-In the following example, the wire `x` is connected to the input `a` only when
-the `en` signal is high. Otherwise, the wire `x` is connected to the input `b`.
+In the following example, the wire `x`{.firrtl} is connected to the input
+`a`{.firrtl} only when the `en`{.firrtl} signal is high. Otherwise, the wire
+`x`{.firrtl} is connected to the input `b`{.firrtl}.
 
 ``` firrtl
 module MyModule :
@@ -930,8 +940,9 @@ module MyModule :
 
 ### Syntactic Shorthands
 
-The `else` branch of a conditional statement may be omitted, in which case a
-default `else` branch is supplied consisting of the empty statement.
+The `else`{.firrtl} branch of a conditional statement may be omitted, in which
+case a default `else`{.firrtl} branch is supplied consisting of the empty
+statement.
 
 Thus the following example:
 
@@ -960,8 +971,8 @@ module MyModule :
 ```
 
 To aid readability of long chains of conditional statements, the colon following
-the `else` keyword may be omitted if the `else` branch consists of a single
-conditional statement.
+the `else`{.firrtl} keyword may be omitted if the `else`{.firrtl} branch
+consists of a single conditional statement.
 
 Thus the following example:
 
@@ -1010,9 +1021,9 @@ module MyModule :
 ```
 
 To additionally aid readability, a conditional statement where the contents of
-the `when` branch consist of a single line may be combined into a single
-line. If an `else` branch exists, then the `else` keyword must be included on
-the same line.
+the `when`{.firrtl} branch consist of a single line may be combined into a
+single line. If an `else`{.firrtl} branch exists, then the `else`{.firrtl}
+keyword must be included on the same line.
 
 The following statement:
 
@@ -1023,15 +1034,15 @@ else :
    e <= f
 ```
 
-can have the `when` keyword, the `when` branch, and the `else` keyword expressed
-as a single line:
+can have the `when`{.firrtl} keyword, the `when`{.firrtl} branch, and the
+`else`{.firrtl} keyword expressed as a single line:
 
 ``` firrtl
 when c : a <= b else :
   e <= f
 ```
 
-The `else` branch may also be added to the single line:
+The `else`{.firrtl} branch may also be added to the single line:
 
 ``` firrtl
 when c : a <= b else : e <= f
@@ -1041,8 +1052,8 @@ when c : a <= b else : e <= f
 
 If a component is declared within a conditional statement, connections to the
 component are unaffected by the condition. In the following example, register
-`myreg1` is always connected to `a`, and register `myreg2` is always connected
-to `b`.
+`myreg1`{.firrtl} is always connected to `a`{.firrtl}, and register
+`myreg2`{.firrtl} is always connected to `b`{.firrtl}.
 
 ``` firrtl
 module MyModule :
@@ -1067,8 +1078,9 @@ are crossed by the line apply to that connection (or partial connection).
 Because of the conditional statement, it is possible to syntactically express
 circuits containing wires that have not been connected to under all conditions.
 
-In the following example, the wire `a` is connected to the wire `w` when `en` is
-high, but it is not specified what is connected to `w` when `en` is low.
+In the following example, the wire `a`{.firrtl} is connected to the wire
+`w`{.firrtl} when `en`{.firrtl} is high, but it is not specified what is
+connected to `w`{.firrtl} when `en`{.firrtl} is low.
 
 ``` firrtl
 module MyModule :
@@ -1087,12 +1099,13 @@ if unconnected.
 
 ### Scoping
 
-The conditional statement creates a new *scope* within each of its `when` and
-`else` branches. It is an error to refer to any component declared within a
-branch after the branch has ended. As mention in section [11](#namespaces),
-circuit component declarations in a module must be unique within the module's
-flat namespace; this means that shadowing a component in an enclosing scope with
-a component of the same name inside a conditional statement is not allowed.
+The conditional statement creates a new *scope* within each of its
+`when`{.firrtl} and `else`{.firrtl} branches. It is an error to refer to any
+component declared within a branch after the branch has ended. As mention in
+section [11](#namespaces), circuit component declarations in a module must be
+unique within the module's flat namespace; this means that shadowing a component
+in an enclosing scope with a component of the same name inside a conditional
+statement is not allowed.
 
 ### Conditional Last Connect Semantics {#conditional_last_connect}
 
@@ -1231,9 +1244,10 @@ by the following parameters.
 
 The following example demonstrates instantiating a memory containing 256 complex
 numbers, each with 16-bit signed integer fields for its real and imaginary
-components. It has two read ports, `r1` and `r2`, and one write port, `w`. It is
-combinationally read (read latency is zero cycles) and has a write latency of
-one cycle. Finally, its read-under-write behavior is undefined.
+components. It has two read ports, `r1`{.firrtl} and `r2`{.firrtl}, and one
+write port, `w`{.firrtl}. It is combinationally read (read latency is zero
+cycles) and has a write latency of one cycle. Finally, its read-under-write
+behavior is undefined.
 
 ``` firrtl
 mem mymem :
@@ -1247,7 +1261,7 @@ mem mymem :
   read-under-write => undefined
 ```
 
-In the example above, the type of `mymem` is:
+In the example above, the type of `mymem`{.firrtl} is:
 
 ``` firrtl
 {flip r1: {addr: UInt<8>,
@@ -1270,39 +1284,41 @@ the behavior of each type of memory port.
 
 ### Read Ports
 
-If a memory is declared with element type `T`, has a size less than or equal to
-$2^N$, then its read ports have type:
+If a memory is declared with element type `T`{.firrtl}, has a size less than or
+equal to $2^N$, then its read ports have type:
 
 ``` firrtl
 {addr:UInt<N>, en:UInt<1>, clk:Clock, flip data:T}
 ```
 
-If the `en` field is high, then the element value associated with the address in
-the `addr` field can be retrieved by reading from the `data` field after the
-appropriate read latency. If the `en` field is low, then the value in the `data`
-field, after the appropriate read latency, is undefined. The port is driven by
-the clock signal in the `clk` field.
+If the `en`{.firrtl} field is high, then the element value associated with the
+address in the `addr`{.firrtl} field can be retrieved by reading from the
+`data`{.firrtl} field after the appropriate read latency. If the `en`{.firrtl}
+field is low, then the value in the `data`{.firrtl} field, after the appropriate
+read latency, is undefined. The port is driven by the clock signal in the
+`clk`{.firrtl} field.
 
 ### Write Ports
 
-If a memory is declared with element type `T`, has a size less than or equal to
-$2^N$, then its write ports have type:
+If a memory is declared with element type `T`{.firrtl}, has a size less than or
+equal to $2^N$, then its write ports have type:
 
 ``` firrtl
 {addr:UInt<N>, en:UInt<1>, clk:Clock, data:T, mask:M}
 ```
 
-where `M` is the mask type calculated from the element type `T`.  Intuitively,
-the mask type mirrors the aggregate structure of the element type except with
-all ground types replaced with a single bit unsigned integer type. The
-*non-masked portion* of the data value is defined as the set of data value leaf
-sub-elements where the corresponding mask leaf sub-element is high.
+where `M`{.firrtl} is the mask type calculated from the element type
+`T`{.firrtl}.  Intuitively, the mask type mirrors the aggregate structure of the
+element type except with all ground types replaced with a single bit unsigned
+integer type. The *non-masked portion* of the data value is defined as the set
+of data value leaf sub-elements where the corresponding mask leaf sub-element is
+high.
 
-If the `en` field is high, then the non-masked portion of the `data` field value
-is written, after the appropriate write latency, to the location indicated by
-the `addr` field. If the `en` field is low, then no value is written after the
-appropriate write latency. The port is driven by the clock signal in the `clk`
-field.
+If the `en`{.firrtl} field is high, then the non-masked portion of the
+`data`{.firrtl} field value is written, after the appropriate write latency, to
+the location indicated by the `addr`{.firrtl} field. If the `en`{.firrtl} field
+is low, then no value is written after the appropriate write latency. The port
+is driven by the clock signal in the `clk`{.firrtl} field.
 
 ### Readwrite Ports
 
@@ -1313,44 +1329,47 @@ Finally, the readwrite ports have type:
 ```
 
 A readwrite port is a single port that, on a given cycle, can be used either as
-a read or a write port. If the readwrite port is not in write mode (the `wmode`
-field is low), then the `rdata`, `addr`, `en`, and `clk` fields constitute its
-read port fields, and should be used accordingly. If the readwrite port is in
-write mode (the `wmode` field is high), then the `wdata`, `wmask`, `addr`, `en`,
-and `clk` fields constitute its write port fields, and should be used
-accordingly.
+a read or a write port. If the readwrite port is not in write mode (the
+`wmode`{.firrtl} field is low), then the `rdata`{.firrtl}, `addr`{.firrtl},
+`en`{.firrtl}, and `clk`{.firrtl} fields constitute its read port fields, and
+should be used accordingly. If the readwrite port is in write mode (the
+`wmode`{.firrtl} field is high), then the `wdata`{.firrtl}, `wmask`{.firrtl},
+`addr`{.firrtl}, `en`{.firrtl}, and `clk`{.firrtl} fields constitute its write
+port fields, and should be used accordingly.
 
 ### Read Under Write Behaviour
 
-The read-under-write flag indicates the value held on a read port's `data` field
-if its memory location is written to while it is reading.  The flag may take on
-three settings: `old`, `new`, and `undefined`.
+The read-under-write flag indicates the value held on a read port's
+`data`{.firrtl} field if its memory location is written to while it is reading.
+The flag may take on three settings: `old`{.firrtl}, `new`{.firrtl}, and
+`undefined`{.firrtl}.
 
-If the read-under-write flag is set to `old`, then a read port always returns
-the value existing in the memory on the same cycle that the read was requested.
+If the read-under-write flag is set to `old`{.firrtl}, then a read port always
+returns the value existing in the memory on the same cycle that the read was
+requested.
 
 Assuming that a combinational read always returns the value stored in the memory
 (no write forwarding), then intuitively, this is modeled as a combinational read
 from the memory that is then delayed by the appropriate read latency.
 
-If the read-under-write flag is set to `new`, then a read port always returns
-the value existing in the memory on the same cycle that the read was made
-available. Intuitively, this is modeled as a combinational read from the memory
-after delaying the read address by the appropriate read latency.
+If the read-under-write flag is set to `new`{.firrtl}, then a read port always
+returns the value existing in the memory on the same cycle that the read was
+made available. Intuitively, this is modeled as a combinational read from the
+memory after delaying the read address by the appropriate read latency.
 
-If the read-under-write flag is set to `undefined`, then the value held by the
-read port after the appropriate read latency is undefined.
+If the read-under-write flag is set to `undefined`{.firrtl}, then the value held
+by the read port after the appropriate read latency is undefined.
 
 For the purpose of defining such collisions, an "active write port" is a write
 port or a readwrite port that is used to initiate a write operation on a given
-clock edge, where `en` is set and, for a readwriter, `wmode` is set. An "active
-read port" is a read port or a readwrite port that is used to initiate a read
-operation on a given clock edge, where `en` is set and, for a readwriter,
-`wmode` is not set.  Each operation is defined to be "active" for the number of
-cycles set by its corresponding latency, starting from the cycle where its
-inputs were provided to its associated port. Note that this excludes
-combinational reads, which are simply modeled as combinationally selecting from
-stored values
+clock edge, where `en`{.firrtl} is set and, for a readwriter, `wmode`{.firrtl}
+is set. An "active read port" is a read port or a readwrite port that is used to
+initiate a read operation on a given clock edge, where `en`{.firrtl} is set and,
+for a readwriter, `wmode`{.firrtl} is not set.  Each operation is defined to be
+"active" for the number of cycles set by its corresponding latency, starting
+from the cycle where its inputs were provided to its associated port. Note that
+this excludes combinational reads, which are simply modeled as combinationally
+selecting from stored values
 
 For memories with independently clocked ports, a collision between a read
 operation and a write operation with independent clocks is defined to occur when
@@ -1367,8 +1386,8 @@ same cycle, the stored value is undefined.
 ## Instances
 
 FIRRTL modules are instantiated with the instance statement. The following
-example demonstrates creating an instance named `myinstance` of the `MyModule`
-module within the top level module `Top`.
+example demonstrates creating an instance named `myinstance`{.firrtl} of the
+`MyModule`{.firrtl} module within the top level module `Top`{.firrtl}.
 
 ``` firrtl
 circuit Top :
@@ -1383,8 +1402,8 @@ circuit Top :
 The resulting instance has a bundle type. Each port of the instantiated module
 is represented by a field in the bundle with the same name and type as the
 port. The fields corresponding to input ports are flipped to indicate their data
-flows in the opposite direction as the output ports.  The `myinstance` instance
-in the example above has type `{flip a:UInt, b:UInt}`.
+flows in the opposite direction as the output ports.  The `myinstance`{.firrtl}
+instance in the example above has type `{flip a:UInt, b:UInt}`.
 
 Modules have the property that instances can always be *inlined* into the parent
 module without affecting the semantics of the circuit.
@@ -1582,11 +1601,11 @@ representing its bit representation and an optional bit width.
 
 The following radices are supported:
 
-1.`b` : For representing binary numbers.
+1.`b`{.firrtl} : For representing binary numbers.
 
-2.`o` : For representing octal numbers.
+2.`o`{.firrtl} : For representing octal numbers.
 
-3.`h` : For representing hexadecimal numbers.
+3.`h`{.firrtl} : For representing hexadecimal numbers.
 
 If a bit width is not given, the number of bits in the bit representation is
 directly represented by the string. The following examples create a 8-bit
@@ -1662,9 +1681,9 @@ A reference is simply a name that refers to a previously declared circuit
 component. It may refer to a module port, node, wire, register, instance, or
 memory.
 
-The following example connects a reference expression `in`, referring to the
-previously declared port `in`, to the reference expression `out`, referring to
-the previously declared port `out`.
+The following example connects a reference expression `in`{.firrtl}, referring
+to the previously declared port `in`{.firrtl}, to the reference expression
+`out`{.firrtl}, referring to the previously declared port `out`{.firrtl}.
 
 ``` firrtl
 module MyModule :
@@ -1675,15 +1694,16 @@ module MyModule :
 
 In the rest of the document, for brevity, the names of components will be used
 to refer to a reference expression to that component. Thus, the above example
-will be rewritten as "the port `in` is connected to the port `out`".
+will be rewritten as "the port `in`{.firrtl} is connected to the port
+`out`{.firrtl}".
 
 ## Sub-fields {#subfields}
 
 The sub-field expression refers to a sub-element of an expression with a bundle
 type.
 
-The following example connects the `in` port to the `a` sub-element of the `out`
-port.
+The following example connects the `in`{.firrtl} port to the `a`{.firrtl}
+sub-element of the `out`{.firrtl} port.
 
 ``` firrtl
 module MyModule :
@@ -1698,8 +1718,8 @@ The sub-index expression statically refers, by index, to a sub-element of an
 expression with a vector type. The index must be a non-negative integer and
 cannot be equal to or exceed the length of the vector it indexes.
 
-The following example connects the `in` port to the fifth sub-element of the
-`out` port.
+The following example connects the `in`{.firrtl} port to the fifth sub-element
+of the `out`{.firrtl} port.
 
 ``` firrtl
 module MyModule :
@@ -1714,8 +1734,8 @@ The sub-access expression dynamically refers to a sub-element of a vector-typed
 expression using a calculated index. The index must be an expression with an
 unsigned integer type.
 
-The following example connects the n'th sub-element of the `in` port to the
-`out` port.
+The following example connects the n'th sub-element of the `in`{.firrtl} port to
+the `out`{.firrtl} port.
 
 ``` firrtl
 module MyModule :
@@ -1744,9 +1764,9 @@ module MyModule :
       out is invalid
 ```
 
-The following example connects the `in` port to the n'th sub-element of the
-`out` port. All other sub-elements of the `out` port are connected from the
-corresponding sub-elements of the `default` port.
+The following example connects the `in`{.firrtl} port to the n'th sub-element of
+the `out`{.firrtl} port. All other sub-elements of the `out`{.firrtl} port are
+connected from the corresponding sub-elements of the `default`{.firrtl} port.
 
 ``` firrtl
 module MyModule :
@@ -1777,10 +1797,10 @@ module MyModule :
       out[2] <= in
 ```
 
-The following example connects the `in` port to the m'th `UInt` sub-element of
-the n'th vector-typed sub-element of the `out` port. All other sub-elements of
-the `out` port are connected from the corresponding sub-elements of the
-`default` port.
+The following example connects the `in`{.firrtl} port to the m'th
+`UInt`{.firrtl} sub-element of the n'th vector-typed sub-element of the
+`out`{.firrtl} port. All other sub-elements of the `out`{.firrtl} port are
+connected from the corresponding sub-elements of the `default`{.firrtl} port.
 
 ``` firrtl
 module MyModule :
@@ -1821,9 +1841,10 @@ module MyModule :
 A multiplexer outputs one of two input expressions depending on the value of an
 unsigned selection signal.
 
-The following example connects to the `c` port the result of selecting between
-the `a` and `b` ports. The `a` port is selected when the `sel` signal is high,
-otherwise the `b` port is selected.
+The following example connects to the `c`{.firrtl} port the result of selecting
+between the `a`{.firrtl} and `b`{.firrtl} ports. The `a`{.firrtl} port is
+selected when the `sel`{.firrtl} signal is high, otherwise the `b`{.firrtl} port
+is selected.
 
 ``` firrtl
 module MyModule :
@@ -1855,8 +1876,9 @@ A conditionally valid expression is expressed as an input expression guarded
 with an unsigned single bit valid signal. It outputs the input expression when
 the valid signal is high, otherwise the result is undefined.
 
-The following example connects the `a` port to the `c` port when the `valid`
-signal is high. Otherwise, the value of the `c` port is undefined.
+The following example connects the `a`{.firrtl} port to the `c`{.firrtl} port
+when the `valid`{.firrtl} signal is high. Otherwise, the value of the
+`c`{.firrtl} port is undefined.
 
 ``` firrtl
 module MyModule :
@@ -1889,9 +1911,10 @@ op(arg0, arg1, ..., argn, int0, int1, ..., intm)
 ```
 
 The following examples of primitive operations demonstrate adding two
-expressions, `a` and `b`, shifting expression `a` left by 3 bits, selecting the
-fourth bit through and including the seventh bit in the `a` expression, and
-interpreting the expression `x` as a Clock typed signal.
+expressions, `a`{.firrtl} and `b`{.firrtl}, shifting expression `a`{.firrtl}
+left by 3 bits, selecting the fourth bit through and including the seventh bit
+in the `a`{.firrtl} expression, and interpreting the expression `x`{.firrtl} as
+a Clock typed signal.
 
 ``` firrtl
 add(a, b)
@@ -2347,8 +2370,9 @@ A set of names are defined to be *prefix unique* if there exists no two names
 such that the symbol sequence of one is a prefix of the symbol sequence of the
 other.
 
-As an example `firetruck$y$z` shares a prefix with `firetruck$y` and
-`firetruck`, but does not share a prefix with `fire`.
+As an example `firetruck$y$z`{.firrtl} shares a prefix with
+`firetruck$y`{.firrtl} and `firetruck`{.firrtl}, but does not share a prefix
+with `fire`{.firrtl}.
 
 # The Lowered FIRRTL Forms
 
@@ -2441,7 +2465,7 @@ FIRRTL's syntax is designed to be human-readable but easily algorithmically
 parsed.
 
 The following characters are allowed in identifiers: upper and lower case
-letters, digits, and `_`. Identifiers cannot begin with a digit.
+letters, digits, and `_`{.firrtl}. Identifiers cannot begin with a digit.
 
 An integer literal in FIRRTL begins with one of the following, where '\#'
 represents a digit between 0 and 9.
@@ -2468,27 +2492,27 @@ are treated as whitespace, and may be used by the user for clarity if desired.
 In FIRRTL, indentation is significant. Indentation must consist of spaces
 only---tabs are illegal characters. The number of spaces appearing before a
 FIRRTL IR statement is used to establish its *indent level*. Statements with the
-same indent level have the same context. The indent level of the `circuit`
-declaration must be zero.
+same indent level have the same context. The indent level of the
+`circuit`{.firrtl} declaration must be zero.
 
-Certain constructs (`circuit`, `module`, `when`, and `else`) create a new
-sub-context. The indent used on the first line of the sub-context establishes
-the indent level. The indent level of a sub-context is one higher than the
-parent. All statements in the sub-context must be indented by the same number of
-spaces. To end the sub-context, a line must return to the indent level of the
-parent.
+Certain constructs (`circuit`{.firrtl}, `module`{.firrtl}, `when`{.firrtl}, and
+`else`{.firrtl}) create a new sub-context. The indent used on the first line of
+the sub-context establishes the indent level. The indent level of a sub-context
+is one higher than the parent. All statements in the sub-context must be
+indented by the same number of spaces. To end the sub-context, a line must
+return to the indent level of the parent.
 
-Since conditional statements (`when` and `else`) may be nested, it is possible
-to create a hierarchy of indent levels, each with its own number of preceding
-spaces that must be larger than its parent's and consistent among all direct
-child statements (those that are not children of an even deeper conditional
-statement).
+Since conditional statements (`when`{.firrtl} and `else`{.firrtl}) may be
+nested, it is possible to create a hierarchy of indent levels, each with its own
+number of preceding spaces that must be larger than its parent's and consistent
+among all direct child statements (those that are not children of an even deeper
+conditional statement).
 
 As a concrete guide, a few consequences of these rules are summarized below:
 
-- The `circuit` keyword must not be indented.
+- The `circuit`{.firrtl} keyword must not be indented.
 
-- All `module` keywords must be indented by the same number of spaces.
+- All `module`{.firrtl} keywords must be indented by the same number of spaces.
 
 - In a module, all port declarations and all statements (that are not children
   of other statements) must be indented by the same number of spaces.
@@ -2502,8 +2526,8 @@ As a concrete guide, a few consequences of these rules are summarized below:
 - The statements of nested conditional statements establish their own, deeper
   indent level.
 
-- Each `when` and each `else` context may have a different number of non-zero
-  spaces in its indent level.
+- Each `when`{.firrtl} and each `else`{.firrtl} context may have a different
+  number of non-zero spaces in its indent level.
 
 As an example illustrating some of these points, the following is a legal FIRRTL
 circuit:
