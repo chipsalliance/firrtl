@@ -361,7 +361,7 @@ When an analog signal appears as a field of an aggregate type, the aggregate
 cannot appear in a standard connection statement; however, the partial
 connection statement will `attach`{.firrtl} corresponding analog fields of its
 operands according to the partial connection algorithm described in
-[@sec:partial-connection-algorithm].
+[@sec:the-partial-connection-algorithm].
 
 As with integer types, an analog type can represent a multi-bit signal.  When
 analog signals are not given a concrete width, their widths are inferred
@@ -590,9 +590,9 @@ Connect statements from a narrower ground type component to a wider ground type
 component will have its value automatically sign-extended or zero-extended to
 the larger bit width. The behaviour of connect statements between two circuit
 components with aggregate types is defined by the connection algorithm in
-[@sec:connection-algorithm].
+[@sec:the-connection-algorithm].
 
-### The Connection Algorithm {#connection-algorithm}
+### The Connection Algorithm
 
 Connect statements between ground types cannot be expanded further.
 
@@ -635,7 +635,7 @@ Intuitively, bundle fields with matching names will be connected appropriately,
 while bundle fields not present in both types will be ignored. Similarly,
 vectors with mismatched lengths will be connected up to the shorter length, and
 the remaining sub-elements are ignored. The full algorithm is detailed in
-[@sec:partial-connection-algorithm].
+[@sec:the-partial-connection-algorithm].
 
 The following example demonstrates partially connecting a module's input port to
 its output port, where port `myinput`{.firrtl} is connected to port
@@ -663,7 +663,7 @@ For details on the syntax and semantics of the sub-field expression, sub-index
 expression, and statement groups, see [@sec:sub-fields; @sec:sub-indices;
 @sec:statement-groups].
 
-### The Partial Connection Algorithm {#partial-connection-algorithm}
+### The Partial Connection Algorithm
 
 A partial connect statement between two non-analog ground type components
 connects the right-hand side expression to the left-hand side
@@ -854,7 +854,7 @@ to be applied to any component, to explicitly ignore initialization coverage
 errors.
 
 The following example demonstrates the effect of invalidating a variety of
-circuit components with aggregate types. See [@sec:invalidate-algorithm] for
+circuit components with aggregate types. See [@sec:the-invalidate-algorithm] for
 details on the algorithm for determining what is invalidated.
 
 ``` firrtl
@@ -884,7 +884,7 @@ For the purposes of simulation, invalidated components are initialized to random
 values, and operations involving indeterminate values produce undefined
 behaviour. This is useful for early detection of errors in simulation.
 
-### The Invalidate Algorithm {#invalidate-algorithm}
+### The Invalidate Algorithm
 
 Invalidating a component with a ground type indicates that the component's value
 is undetermined if the component has sink or duplex flow (see [@sec:flows]).
@@ -1181,8 +1181,8 @@ w <= validif(c, a)
 
 The behaviour of conditional connections to circuit components with aggregate
 types can be modeled by first expanding each connect into individual connect
-statements on its ground elements (see [@sec:connection-algorithm;
-@sec:partial-connection-algorithm] for the connection and partial connection
+statements on its ground elements (see [@sec:the-connection-algorithm;
+@sec:the-partial-connection-algorithm] for the connection and partial connection
 algorithms) and then applying the conditional last connect semantics.
 
 For example, the following snippet:
