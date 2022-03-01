@@ -2585,11 +2585,6 @@ digit_dec = digit_oct | "8" | "9" ;
 digit_hex = digit_dec
           | "A" | "B" | "C" | "D" | "E" | "F"
           | "a" | "b" | "c" | "d" | "e" | "f" ;
-(* A natural number including zero *)
-nat = '"' , "b" , { digit_bin } , '"'
-    | '"' , "o" , { digit_oct } , '"'
-    | '"' , "h" , { digit_hex } , '"'
-    |             { digit_bin } ;
 (* An integer *)
 int = '"' , "b" , [ "-" ] , { digit_bin } , '"'
     | '"' , "o" , [ "-" ] , { digit_oct } , '"'
@@ -2612,7 +2607,7 @@ linecol = digit_dec , { digit_dec } , ":" , digit_dec , { digit_dec } ;
 info = "@" , "[" , { string , " " , linecol } , "]" ;
 
 (* Type definitions *)
-width = "<" , nat , ">" ;
+width = "<" , int , ">" ;
 binarypoint = "<<" , int , ">>" ;
 type_ground = "Clock"
             | ( "UInt" | "SInt" | "Analog" ) , [ width ]
@@ -2640,11 +2635,11 @@ primop_1expr =
 primop_1expr1int_keyword =
     "pad" | "shl" | "shr" ;
 primop_1expr1int =
-    primop_1exrp1int_keywork , "(", expr , "," , nat , ")" ;
+    primop_1exrp1int_keywork , "(", expr , "," , int , ")" ;
 primop_1expr2int_keyword =
     "bits" ;
 primop_1expr2int =
-    primop_1expr2int_keywork , "(" , expr , "," , nat , "," , nat , ")" ;
+    primop_1expr2int_keywork , "(" , expr , "," , int , "," , int , ")" ;
 primop = primop_2expr | primop_1expr | primop_1expr1int | primop_1expr2int ;
 
 (* Expression definitions *)
