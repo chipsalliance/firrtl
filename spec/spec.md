@@ -411,13 +411,13 @@ number. It has two fields, `real`{.firrtl}, and `imag`{.firrtl}, both 10-bit
 signed integers.
 
 ``` firrtl
-{real:SInt<10>, imag:SInt<10>}
+{real: SInt<10>, imag: SInt<10>}
 ```
 
 Additionally, a field may optionally be declared with a *flipped* orientation.
 
 ``` firrtl
-{word:UInt<32>, valid:UInt<1>, flip ready:UInt<1>}
+{word: UInt<32>, valid: UInt<1>, flip ready: UInt<1>}
 ```
 
 In a connection between circuit components with bundle types, the data carried
@@ -427,7 +427,7 @@ non-flipped fields.
 As an example, consider a module output port declared with the following type:
 
 ``` firrtl
-output a: {word:UInt<32>, valid:UInt<1>, flip ready:UInt<1>}
+output a: {word: UInt<32>, valid: UInt<1>, flip ready: UInt<1>}
 ```
 
 In a connection to the `a`{.firrtl} port, the data carried by the
@@ -440,8 +440,8 @@ As in the case of vector types, a bundle field may be declared with any type,
 including other aggregate types.
 
 ``` firrtl
-{real: {word:UInt<32>, valid:UInt<1>, flip ready:UInt<1>}
- imag: {word:UInt<32>, valid:UInt<1>, flip ready:UInt<1>}}
+{real: {word: UInt<32>, valid: UInt<1>, flip ready: UInt<1>}
+ imag: {word: UInt<32>, valid: UInt<1>, flip ready: UInt<1>}}
 
 ```
 
@@ -451,7 +451,7 @@ the following module port declared with a bundle type containing a nested bundle
 type.
 
 ``` firrtl
-output myport: {a: UInt, flip b: {c: UInt, flip d:UInt}}
+output myport: {a: UInt, flip b: {c: UInt, flip d: UInt}}
 ```
 
 In a connection to `myport`{.firrtl}, the `a`{.firrtl} sub-field flows out of
@@ -643,8 +643,8 @@ its output port, where port `myinput`{.firrtl} is connected to port
 
 ``` firrtl
 module MyModule :
-   input myinput: {flip a:UInt, b:UInt[2]}
-   output myoutput: {flip a:UInt, b:UInt[3], c:UInt}
+   input myinput: {flip a: UInt, b: UInt[2]}
+   output myoutput: {flip a: UInt, b: UInt[3], c: UInt}
    myoutput <- myinput
 ```
 
@@ -652,8 +652,8 @@ The above example is equivalent to the following:
 
 ``` firrtl
 module MyModule :
-   input myinput: {flip a:UInt, b:UInt[2]}
-   output myoutput: {flip a:UInt, b:UInt[3], c:UInt}
+   input myinput: {flip a: UInt, b: UInt[2]}
+   output myoutput: {flip a: UInt, b: UInt[3], c: UInt}
    myinput.a <- myoutput.a
    myoutput.b[0] <- myinput.b[0]
    myoutput.b[1] <- myinput.b[1]
@@ -726,9 +726,9 @@ the `b`{.firrtl} sub-element of `myport`{.firrtl}.
 
 ``` firrtl
 module MyModule :
-   input portx: {b:UInt, c:UInt}
+   input portx: {b: UInt, c: UInt}
    input porty: UInt
-   output myport: {b:UInt, c:UInt}
+   output myport: {b: UInt, c: UInt}
    myport <= portx
    myport.b <= porty
 ```
@@ -737,9 +737,9 @@ The above circuit can be rewritten equivalently as follows.
 
 ``` firrtl
 module MyModule :
-   input portx: {b:UInt, c:UInt}
+   input portx: {b: UInt, c: UInt}
    input porty: UInt
-   output myport: {b:UInt, c:UInt}
+   output myport: {b: UInt, c: UInt}
    myport.b <= porty
    myport.c <= portx.c
 ```
@@ -750,9 +750,9 @@ connection overwrites the earlier connections completely.
 
 ``` firrtl
 module MyModule :
-   input portx: {b:UInt, c:UInt}
+   input portx: {b: UInt, c: UInt}
    input porty: UInt
-   output myport: {b:UInt, c:UInt}
+   output myport: {b: UInt, c: UInt}
    myport.b <= porty
    myport <= portx
 ```
@@ -761,9 +761,9 @@ The above circuit can be rewritten equivalently as follows.
 
 ``` firrtl
 module MyModule :
-   input portx: {b:UInt, c:UInt}
+   input portx: {b: UInt, c: UInt}
    input porty: UInt
-   output myport: {b:UInt, c:UInt}
+   output myport: {b: UInt, c: UInt}
    myport <= portx
 ```
 
@@ -803,7 +803,7 @@ The following example demonstrates instantiating a wire with the given name
 `mywire`{.firrtl} and type `UInt`{.firrtl}.
 
 ``` firrtl
-wire mywire : UInt
+wire mywire: UInt
 ```
 
 ## Registers
@@ -843,7 +843,7 @@ An invalidate statement is used to indicate that a circuit component contains
 indeterminate values. It is specified as follows:
 
 ``` firrtl
-wire w:UInt
+wire w: UInt
 w is invalid
 ```
 
@@ -859,9 +859,9 @@ details on the algorithm for determining what is invalidated.
 
 ``` firrtl
 module MyModule :
-   input in: {flip a:UInt, b:UInt}
-   output out: {flip a:UInt, b:UInt}
-   wire w: {flip a:UInt, b:UInt}
+   input in: {flip a: UInt, b: UInt}
+   output out: {flip a: UInt, b: UInt}
+   wire w: {flip a: UInt, b: UInt}
    in is invalid
    out is invalid
    w is invalid
@@ -871,9 +871,9 @@ is equivalent to the following:
 
 ``` firrtl
 module MyModule :
-   input in: {flip a:UInt, b:UInt}
-   output out: {flip a:UInt, b:UInt}
-   wire w: {flip a:UInt, b:UInt}
+   input in: {flip a: UInt, b: UInt}
+   output out: {flip a: UInt, b: UInt}
+   wire w: {flip a: UInt, b: UInt}
    in.a is invalid
    out.b is invalid
    w.a is invalid
@@ -1188,10 +1188,10 @@ algorithms) and then applying the conditional last connect semantics.
 For example, the following snippet:
 
 ``` firrtl
-wire x: {a:UInt, b:UInt}
-wire y: {a:UInt, b:UInt}
+wire x: {a: UInt, b: UInt}
+wire y: {a: UInt, b: UInt}
 wire c: UInt<1>
-wire w: {a:UInt, b:UInt}
+wire w: {a: UInt, b: UInt}
 w <= x
 when c :
    w <= y
@@ -1216,10 +1216,10 @@ overwritten.
 For example, the following snippet:
 
 ``` firrtl
-wire x: {a:UInt, b:UInt}
+wire x: {a: UInt, b: UInt}
 wire y: UInt
 wire c: UInt<1>
-wire w: {a:UInt, b:UInt}
+wire w: {a: UInt, b: UInt}
 w <= x
 when c :
    w.a <= y
@@ -1228,10 +1228,10 @@ when c :
 can be rewritten equivalently as follows:
 
 ``` firrtl
-wire x: {a:UInt, b:UInt}
+wire x: {a: UInt, b: UInt}
 wire y: UInt
 wire c: UInt<1>
-wire w: {a:UInt, b:UInt}
+wire w: {a: UInt, b: UInt}
 w.a <= mux(c, y, x.a)
 w.b <= x.b
 ```
@@ -1284,16 +1284,16 @@ In the example above, the type of `mymem`{.firrtl} is:
 {flip r1: {addr: UInt<8>,
            en: UInt<1>,
            clk: Clock,
-           flip data: {real:SInt<16>, imag:SInt<16>}}
+           flip data: {real: SInt<16>, imag: SInt<16>}}
  flip r2: {addr: UInt<8>,
            en: UInt<1>,
            clk: Clock,
-           flip data: {real:SInt<16>, imag:SInt<16>}}
+           flip data: {real: SInt<16>, imag: SInt<16>}}
  flip w: {addr: UInt<8>,
           en: UInt<1>,
           clk: Clock,
-          data: {real:SInt<16>, imag:SInt<16>},
-          mask: {real:UInt<1>, imag:UInt<1>}}}
+          data: {real: SInt<16>, imag: SInt<16>},
+          mask: {real: UInt<1>, imag: UInt<1>}}}
 ```
 
 The following sections describe how a memory's field types are calculated and
@@ -1305,7 +1305,7 @@ If a memory is declared with element type `T`{.firrtl}, has a size less than or
 equal to $2^N$, then its read ports have type:
 
 ``` firrtl
-{addr:UInt<N>, en:UInt<1>, clk:Clock, flip data:T}
+{addr: UInt<N>, en: UInt<1>, clk: Clock, flip data: T}
 ```
 
 If the `en`{.firrtl} field is high, then the element value associated with the
@@ -1321,7 +1321,7 @@ If a memory is declared with element type `T`{.firrtl}, has a size less than or
 equal to $2^N$, then its write ports have type:
 
 ``` firrtl
-{addr:UInt<N>, en:UInt<1>, clk:Clock, data:T, mask:M}
+{addr: UInt<N>, en: UInt<1>, clk: Clock, data: T, mask: M}
 ```
 
 where `M`{.firrtl} is the mask type calculated from the element type
@@ -1342,7 +1342,8 @@ is driven by the clock signal in the `clk`{.firrtl} field.
 Finally, the readwrite ports have type:
 
 ``` firrtl
-{addr:UInt<N>, en:UInt<1>, clk:Clock, flip rdata:T, wmode:UInt<1>, wdata:T, wmask:M}
+{addr: UInt<N>, en: UInt<1>, clk: Clock, flip rdata: T, wmode: UInt<1>,
+ wdata: T, wmask: M}
 ```
 
 A readwrite port is a single port that, on a given cycle, can be used either as
@@ -1451,9 +1452,9 @@ namespace. However it can never be used in a reference since it is not of any
 valid type.
 
 ``` firrtl
-wire clk:Clock
-wire halt:UInt<1>
-stop(clk,halt,42) : optional_name
+wire clk: Clock
+wire halt: UInt<1>
+stop(clk, halt, 42) : optional_name
 ```
 
 ## Formatted Prints
@@ -1477,11 +1478,11 @@ namespace. However it can never be used in a reference since it is not of any
 valid type.
 
 ``` firrtl
-wire clk:Clock
-wire condition:UInt<1>
-wire a:UInt
-wire b:UInt
-printf(clk, condition, "a in hex: %x, b in decimal:%d.\n", a, b) : optional_name
+wire clk: Clock
+wire cond: UInt<1>
+wire a: UInt
+wire b: UInt
+printf(clk, cond, "a in hex: %x, b in decimal:%d.\n", a, b) : optional_name
 ```
 
 On each positive clock edge, when the condition signal is high, the printf
@@ -1545,9 +1546,9 @@ any clock cycle when the enable is true. In other words, it verifies that enable
 implies predicate.
 
 ``` firrtl
-wire clk:Clock
-wire pred:UInt<1>
-wire en:UInt<1>
+wire clk: Clock
+wire pred: UInt<1>
+wire en: UInt<1>
 pred <= eq(X, Y)
 en <= Z_valid
 assert(clk, pred, en, "X equals Y when Z is valid") : optional_name
@@ -1562,9 +1563,9 @@ enable implies predicate is true by definition. In simulation, assume is treated
 as an assert.
 
 ``` firrtl
-wire clk:Clock
-wire pred:UInt<1>
-wire en:UInt<1>
+wire clk: Clock
+wire pred: UInt<1>
+wire en: UInt<1>
 pred <= eq(X, Y)
 en <= Z_valid
 assume(clk, pred, en, "X equals Y when Z is valid") : optional_name
@@ -1578,9 +1579,9 @@ checker to find some way to make enable implies predicate true at some time
 step.
 
 ``` firrtl
-wire clk:Clock
-wire pred:UInt<1>
-wire en:UInt<1>
+wire clk: Clock
+wire pred: UInt<1>
+wire en: UInt<1>
 pred <= eq(X, Y)
 en <= Z_valid
 cover(clk, pred, en, "X equals Y when Z is valid") : optional_name
@@ -1725,7 +1726,7 @@ sub-element of the `out`{.firrtl} port.
 ``` firrtl
 module MyModule :
    input in: UInt
-   output out: {a:UInt, b:UInt}
+   output out: {a: UInt, b: UInt}
    out.a <= in
 ```
 
@@ -2441,7 +2442,7 @@ The following module:
 
 ``` firrtl
 module MyModule :
-   input in: {a:UInt<1>, b:UInt<2>[3]}
+   input in: {a: UInt<1>, b: UInt<2>[3]}
    input clk: Clock
    output out: UInt
    wire c: UInt
@@ -2572,11 +2573,11 @@ The following example shows the info tokens included:
 ``` firrtl
 circuit Top : @[myfile.txt 14:8]
    module Top : @[myfile.txt 15:2]
-     output out:UInt @[myfile.txt 16:3]
-     input b:UInt<32> @[myfile.txt 17:3]
-     input c:UInt<1> @[myfile.txt 18:3]
-     input d:UInt<16> @[myfile.txt 19:3]
-     wire a:UInt @[myfile.txt 21:8]
+     output out: UInt @[myfile.txt 16:3]
+     input b: UInt<32> @[myfile.txt 17:3]
+     input c: UInt<1> @[myfile.txt 18:3]
+     input d: UInt<16> @[myfile.txt 19:3]
+     wire a: UInt @[myfile.txt 21:8]
      when c : @[myfile.txt 24:8]
        a <= b @[myfile.txt 27:16]
      else :
