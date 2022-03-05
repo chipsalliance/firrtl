@@ -313,6 +313,7 @@ object FixFalseCombLoops {
 
   //Assigns bitwise by wrapping in bits()
   def bitwiseAssignment(
+    ctx:   ModuleContext,
     expr:  ir.Expression,
     name:  String,
     width: Int
@@ -321,14 +322,12 @@ object FixFalseCombLoops {
 
     val widthLimit = math.min(width, getWidth(expr.tpe))
     for (i <- 0 until widthLimit) {
-      //TODO: add genName
-      bitwiseMapping(name + i.toString) = ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(i, i), Utils.BoolType)
+      bitwiseMapping(genName(ctx, name, i)) = ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(i, i), Utils.BoolType)
     }
 
     if (width > widthLimit) {
       for (i <- widthLimit until width) {
-        //TODO: add genName
-        bitwiseMapping(name + i.toString) = ir.UIntLiteral(0)
+        bitwiseMapping(genName(ctx, name, i)) = ir.UIntLiteral(0)
       }
     }
 
