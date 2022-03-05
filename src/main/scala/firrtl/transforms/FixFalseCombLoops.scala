@@ -109,7 +109,11 @@ object FixFalseCombLoops {
       block.foreach(onStmt(_, ctx))
 
     case node: ir.DefNode =>
-      val newNode = ir.DefNode(ir.NoInfo, node.name, onExpr(node.value, ctx))
+      var (newExpr, modified) = loopVarsToCats(node.value, ctx)
+      if (modified) {
+        newExpr = simplifyExpr(newExpr)
+      }
+      val newNode = ir.DefNode(ir.NoInfo, node.name, newExpr)
       if (ctx.combLoopVars.contains(node.name)) {
         if (getWidth(node.value.tpe) == 1) {
           //Removes 1 bit nodes from combLoopVars to avoid unnecessary computation
@@ -202,62 +206,6 @@ object FixFalseCombLoops {
 
     //TODO: See if other cases exist
     case other => (other, false)
-  }
-
-  //TODO: replace this function
-  private def onExpr(s: ir.Expression, ctx: ModuleContext, high: Int = -1, low: Int = -1): ir.Expression = s match {
-
-    // flattencats cat(cat(a, b), cat(c, d)) => (cat(a, cat(b, (cat(c, cat(d)))))
-    case prim: ir.DoPrim =>
-      prim.op match {
-        //Summary: Replaces bits(a, i, j) with (aj # ... # ai)
-        case PrimOps.Bits =>
-          //TODO: what if high and low are already set?
-          val leftIndex = prim.consts.head
-          val rightIndex = prim.consts(1)
-          val arg = onExpr(prim.args.head, ctx, leftIndex.toInt, rightIndex.toInt)
-          val returnWidth = leftIndex - rightIndex + 1
-          if (getWidth(arg.tpe) == returnWidth) {
-            arg
-          } else {
-            ir.DoPrim(PrimOps.Bits, Seq(arg), prim.consts, s.tpe)
-          }
-
-        case PrimOps.AsUInt =>
-          val processedArg = onExpr(prim.args.head, ctx, high, low)
-          val newWidth = getWidth(processedArg.tpe)
-          ir.DoPrim(PrimOps.AsUInt, Seq(processedArg), prim.consts, UIntType(IntWidth(newWidth)))
-
-        case _ =>
-          //Summary: Recursively calls onExpr on each of the arguments to DoPrim
-          var newPrimArgs = Seq[ir.Expression]()
-          for (arg <- prim.args) {
-            arg match {
-              case ref: ir.Reference =>
-                newPrimArgs = newPrimArgs :+ ref
-              case other =>
-                newPrimArgs = newPrimArgs :+ onExpr(other, ctx, high, low)
-            }
-          }
-          ir.DoPrim(prim.op, newPrimArgs, prim.consts, prim.tpe)
-      }
-
-    case ref: ir.Reference =>
-      val name = ref.name
-      if (ctx.combLoopVars.contains(name)) {
-        //Summary: replaces loop var a with a_high # ... # a_low
-        var hi = high
-        var lo = low
-        if (high == -1) {
-          hi = getWidth(ref.tpe) - 1
-          lo = 0
-        }
-        convertToCats(ctx, name, hi, lo)
-      } else {
-        ref
-      }
-
-    case other => other
   }
 
   //Creates a reference to the bitWire for a given variable
