@@ -109,17 +109,14 @@ object FixFalseCombLoops {
       block.foreach(onStmt(_, ctx))
 
     case node: ir.DefNode =>
-      val newNode =
-        ir.DefNode(ir.NoInfo, node.name, onExpr(node.value, ctx))
+      val newNode = ir.DefNode(ir.NoInfo, node.name, onExpr(node.value, ctx))
+      if (ctx.combLoopVars.contains(node.name)) {
+        if (getWidth(node.value.tpe) == 1) {
+          //Removes 1 bit nodes from combLoopVars to avoid unnecessary computation
+          ctx.combLoopVars -= node.name
+        }
+      }
       ctx.resultCircuit += newNode
-    //TODO: Figure out why we added this
-    //        if (ctx.combLoopVars.contains(node.name)) {
-    //          if (getWidth(node.value.tpe) == 1) {
-    //            //Removes 1 bit nodes from combLoopVars to avoid unnecessary computation
-    //            ctx.combLoopVars -= node.name
-    //          }
-    //        }
-    //        resultCircuit(node.serialize) = node
 
     case wire: ir.DefWire =>
       //Summary: Splits wire into individual bits (wire x -> wire x_0, ..., wire x_n)
@@ -210,58 +207,58 @@ object FixFalseCombLoops {
   //TODO: replace this function
   private def onExpr(s: ir.Expression, ctx: ModuleContext, high: Int = -1, low: Int = -1): ir.Expression = s match {
 
-      // flattencats cat(cat(a, b), cat(c, d)) => (cat(a, cat(b, (cat(c, cat(d)))))
-      case prim: ir.DoPrim =>
-        prim.op match {
-          //Summary: Replaces bits(a, i, j) with (aj # ... # ai)
-          case PrimOps.Bits =>
-            //TODO: what if high and low are already set?
-            val leftIndex = prim.consts(0)
-            val rightIndex = prim.consts(1)
-            val arg = onExpr(prim.args(0), ctx, leftIndex.toInt, rightIndex.toInt)
-            val returnWidth = leftIndex - rightIndex + 1
-            if (getWidth(arg.tpe) == returnWidth) {
-              arg
-            } else {
-              ir.DoPrim(PrimOps.Bits, Seq(arg), prim.consts, s.tpe)
-            }
-
-          case PrimOps.AsUInt =>
-            val processedArg = onExpr(prim.args(0), ctx, high, low)
-            val newWidth = getWidth(processedArg.tpe)
-            ir.DoPrim(PrimOps.AsUInt, Seq(processedArg), prim.consts, UIntType(IntWidth(newWidth)))
-
-          case _ =>
-            //Summary: Recursively calls onExpr on each of the arguments to DoPrim
-            var newPrimArgs = Seq[ir.Expression]()
-            for (arg <- prim.args) {
-              arg match {
-                case ref: ir.Reference =>
-                  newPrimArgs = newPrimArgs :+ ref
-                case other =>
-                  newPrimArgs = newPrimArgs :+ onExpr(other, ctx, high, low)
-              }
-            }
-            ir.DoPrim(prim.op, newPrimArgs, prim.consts, prim.tpe)
-        }
-
-      case ref: ir.Reference =>
-        val name = ref.name
-        if (ctx.combLoopVars.contains(name)) {
-          //Summary: replaces loop var a with a_high # ... # a_low
-          var hi = high
-          var lo = low
-          if (high == -1) {
-            hi = getWidth(ref.tpe) - 1
-            lo = 0
+    // flattencats cat(cat(a, b), cat(c, d)) => (cat(a, cat(b, (cat(c, cat(d)))))
+    case prim: ir.DoPrim =>
+      prim.op match {
+        //Summary: Replaces bits(a, i, j) with (aj # ... # ai)
+        case PrimOps.Bits =>
+          //TODO: what if high and low are already set?
+          val leftIndex = prim.consts.head
+          val rightIndex = prim.consts(1)
+          val arg = onExpr(prim.args.head, ctx, leftIndex.toInt, rightIndex.toInt)
+          val returnWidth = leftIndex - rightIndex + 1
+          if (getWidth(arg.tpe) == returnWidth) {
+            arg
+          } else {
+            ir.DoPrim(PrimOps.Bits, Seq(arg), prim.consts, s.tpe)
           }
-          convertToCats(ctx, name, hi, lo)
-        } else {
-          ref
-        }
 
-      case other => other
-    }
+        case PrimOps.AsUInt =>
+          val processedArg = onExpr(prim.args.head, ctx, high, low)
+          val newWidth = getWidth(processedArg.tpe)
+          ir.DoPrim(PrimOps.AsUInt, Seq(processedArg), prim.consts, UIntType(IntWidth(newWidth)))
+
+        case _ =>
+          //Summary: Recursively calls onExpr on each of the arguments to DoPrim
+          var newPrimArgs = Seq[ir.Expression]()
+          for (arg <- prim.args) {
+            arg match {
+              case ref: ir.Reference =>
+                newPrimArgs = newPrimArgs :+ ref
+              case other =>
+                newPrimArgs = newPrimArgs :+ onExpr(other, ctx, high, low)
+            }
+          }
+          ir.DoPrim(prim.op, newPrimArgs, prim.consts, prim.tpe)
+      }
+
+    case ref: ir.Reference =>
+      val name = ref.name
+      if (ctx.combLoopVars.contains(name)) {
+        //Summary: replaces loop var a with a_high # ... # a_low
+        var hi = high
+        var lo = low
+        if (high == -1) {
+          hi = getWidth(ref.tpe) - 1
+          lo = 0
+        }
+        convertToCats(ctx, name, hi, lo)
+      } else {
+        ref
+      }
+
+    case other => other
+  }
 
   //Creates a reference to the bitWire for a given variable
   private def genRef(ctx: ModuleContext, name: String, index: Int): ir.Reference = {
@@ -322,30 +319,30 @@ object FixFalseCombLoops {
   //Desired input: some expression
   //Deisred output: equivalent expression with as many unnecessary variables removed
   private def simplifyBits(expr: ir.DoPrim): ir.Expression = {
-    val high = expr.consts(0)
+    val high = expr.consts.head
     val low = expr.consts(1)
 
-    expr.args(0) match {
+    expr.args.head match {
       case noop: ir.Expression if low == 0 && high == getWidth(noop.tpe) - 1 => noop
 
       case prim: ir.DoPrim =>
         prim.op match {
           case PrimOps.Bits =>
-            val innerLow = prim.consts(0)
-            simplifyExpr(combineBits(prim.args(0), innerLow, high, low))
+            val innerLow = prim.consts.head
+            simplifyExpr(combineBits(prim.args.head, innerLow, high, low))
 
           case PrimOps.Cat =>
-            simplifyExpr(pushDownBits(prim.args(0), prim.args(1), high, low))
+            simplifyExpr(pushDownBits(prim.args.head, prim.args(1), high, low))
 
           case PrimOps.AsUInt =>
             //TODO
-            expr
-//            ir.DoPrim(PrimOps.AsUInt, Seq(simplifyExpr(createBits(prim, high, low))), prim.consts, prim.tpe)
+//            expr
+            ir.DoPrim(PrimOps.AsUInt, Seq(simplifyExpr(createBits(prim.args.head, high, low))), prim.consts, prim.tpe)
 
           case PrimOps.AsSInt =>
             //TODO
             expr
-          //            ir.DoPrim(PrimOps.AsSInt, Seq(simplifyExpr(createBits(prim, high, low))), prim.consts, prim.tpe)
+//            ir.DoPrim(PrimOps.AsSInt, Seq(simplifyExpr(createBits(prim.args.head, high, low))), prim.consts, prim.tpe)
 
           case _ =>
             createBits(simplifyExpr(expr.args.head), high, low)
@@ -355,16 +352,16 @@ object FixFalseCombLoops {
   }
 
   private def simplifyCat(expr: ir.DoPrim): ir.Expression = {
-    expr.args(0) match {
+    expr.args.head match {
       case prim1: DoPrim if expr.args(1).isInstanceOf[DoPrim] =>
         val prim2 = expr.args(1).asInstanceOf[DoPrim]
         if (prim1.op == PrimOps.Bits && prim2.op == PrimOps.Bits) {
-          val hi1 = prim1.consts(0)
+          val hi1 = prim1.consts.head
           val lo1 = prim1.consts(1)
-          val hi2 = prim2.consts(0)
+          val hi2 = prim2.consts.head
           val lo2 = prim2.consts(1)
-          val e1 = prim1.args(0)
-          val e2 = prim2.args(0)
+          val e1 = prim1.args.head
+          val e2 = prim2.args.head
           if (lo1 == hi2 + 1 && e1.serialize == e2.serialize) {
             simplifyBits(createBits(e1, hi1, lo2))
           } else {
@@ -381,7 +378,7 @@ object FixFalseCombLoops {
   private def createBits(expr: ir.Expression, high: BigInt, low: BigInt): ir.DoPrim = {
     ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(high, low), UIntType(IntWidth(high - low + 1)))
   }
-  
+
   private def createCat(msb: ir.Expression, lsb: ir.Expression): ir.DoPrim = {
     ir.DoPrim(PrimOps.Cat, Seq(msb, lsb), Seq(), UIntType(IntWidth(getWidth(msb.tpe) + getWidth(lsb.tpe))))
   }
