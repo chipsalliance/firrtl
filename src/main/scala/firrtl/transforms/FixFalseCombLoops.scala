@@ -160,15 +160,15 @@ object FixFalseCombLoops {
 
       //At this point, it is certain: a -> (an # ... # a0)
 
+      //Check if lhs is a loop var
       newConnect.loc match {
         case ref: ir.Reference =>
           if (ctx.combLoopVars.contains(ref.name)) {
             val bitMappings =
-              bitwiseAssignment(newConnect.expr, ref.name, getWidth(ref.tpe))
+              bitwiseAssignment(ctx, newConnect.expr, ref.name, getWidth(ref.tpe))
             for (key <- bitMappings.keys) {
               bitMappings(key) = simplifyBits(bitMappings(key))
-              //TODO: fix param for genref
-              ctx.resultCircuit += ir.Connect(ir.NoInfo, genRef(ctx, key, 0), bitMappings(key))
+              ctx.resultCircuit += ir.Connect(ir.NoInfo, key, bitMappings(key))
             }
           } else {
             //If lhs is ir.Reference, but isn't in combLoopVars
@@ -317,17 +317,17 @@ object FixFalseCombLoops {
     expr:  ir.Expression,
     name:  String,
     width: Int
-  ): mutable.Map[String, ir.Expression] = {
-    val bitwiseMapping = mutable.Map[String, ir.Expression]()
+  ): mutable.Map[ir.Reference, ir.Expression] = {
+    val bitwiseMapping = mutable.Map[ir.Reference, ir.Expression]()
 
     val widthLimit = math.min(width, getWidth(expr.tpe))
     for (i <- 0 until widthLimit) {
-      bitwiseMapping(genName(ctx, name, i)) = ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(i, i), Utils.BoolType)
+      bitwiseMapping(genRef(ctx, name, i)) = ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(i, i), Utils.BoolType)
     }
 
     if (width > widthLimit) {
       for (i <- widthLimit until width) {
-        bitwiseMapping(genName(ctx, name, i)) = ir.UIntLiteral(0)
+        bitwiseMapping(genRef(ctx, name, i)) = ir.UIntLiteral(0)
       }
     }
 
