@@ -85,10 +85,10 @@ object FixFalseCombLoops {
     combLoopVars:  ListBuffer[String])
 
   private def onModule(
-      m:                ir.DefModule,
-      resultCircuit:    ListBuffer[ir.Statement],
-      moduleToLoopVars: Map[String, ListBuffer[String]]
-    ): ir.DefModule = m match {
+    m:                ir.DefModule,
+    resultCircuit:    ListBuffer[ir.Statement],
+    moduleToLoopVars: Map[String, ListBuffer[String]]
+  ): ir.DefModule = m match {
     case mod: ir.Module =>
       if (moduleToLoopVars.contains(mod.name)) {
         //Stores memoized namespace for repeated references
@@ -313,9 +313,9 @@ object FixFalseCombLoops {
 
   //Assigns bitwise by wrapping in bits()
   def bitwiseAssignment(
-    expr:           ir.Expression,
-    name:           String,
-    width:          Int
+    expr:  ir.Expression,
+    name:  String,
+    width: Int
   ): mutable.Map[String, ir.Expression] = {
     val bitwiseMapping = mutable.Map[String, ir.Expression]()
 
