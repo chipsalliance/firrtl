@@ -2,7 +2,7 @@ package firrtl
 package transforms
 
 import firrtl.annotations.NoTargetAnnotation
-import firrtl.ir.{IntWidth, UIntType}
+import firrtl.ir.{DoPrim, IntWidth, UIntType}
 import firrtl.options.{HasShellOptions, ShellOption}
 
 import scala.collection.mutable
@@ -152,7 +152,7 @@ object FixFalseCombLoops {
         var (newExpr, modified) = loopVarsToCats(newConnect.expr, ctx)
         //Motivation: don't want to unnecessarily modify expr's without loop vars
         if (modified) {
-          newExpr = simplifyBits(newExpr)
+          newExpr = simplifyExpr(newExpr)
         }
 
         newConnect = ir.Connect(ir.NoInfo, newConnect.loc, newExpr)
@@ -167,7 +167,7 @@ object FixFalseCombLoops {
             val bitMappings =
               bitwiseAssignment(ctx, newConnect.expr, ref.name, getWidth(ref.tpe))
             for (key <- bitMappings.keys) {
-              bitMappings(key) = simplifyBits(bitMappings(key))
+              bitMappings(key) = simplifyExpr(bitMappings(key))
               ctx.resultCircuit += ir.Connect(ir.NoInfo, key, bitMappings(key))
             }
           } else {
@@ -188,16 +188,17 @@ object FixFalseCombLoops {
   def loopVarsToCats(s: ir.Expression, ctx: ModuleContext): (ir.Expression, Boolean) = s match {
     case ref: ir.Reference =>
       if (ctx.combLoopVars.contains(ref.name)) {
-        return (convertToCats(ctx, ref.name, getWidth(ref.tpe) - 1, 0), true)
+        (convertToCats(ctx, ref.name, getWidth(ref.tpe) - 1, 0), true)
+      } else {
+        (ref, false)
       }
-      (ref, false)
 
     case prim: ir.DoPrim =>
-      val newArgs = Seq[ir.Expression]()
+      var newArgs = Seq[ir.Expression]()
       var modified = false
       for (arg <- prim.args) {
         val (newArg, newModified) = loopVarsToCats(arg, ctx)
-        newArgs :+ newArg
+        newArgs = newArgs :+ newArg
         modified = modified || newModified
       }
       (ir.DoPrim(prim.op, newArgs, prim.consts, prim.tpe), modified)
@@ -299,17 +300,104 @@ object FixFalseCombLoops {
     }
   }
 
-  //TODO: fill in function, reference from onExpr
+  //Source: https://github.com/ucb-bar/maltese-smt/blob/main/src/maltese/smt/SMTSimplifier.scala
+  private def simplifyExpr(expr: ir.Expression): ir.Expression = expr match {
+    case prim: ir.DoPrim =>
+      prim.op match {
+        case PrimOps.Bits =>
+          simplifyBits(prim)
+        case PrimOps.Cat =>
+          simplifyCat(prim)
+        case _ =>
+          var newArgs = Seq[ir.Expression]()
+          for (arg <- prim.args) {
+            newArgs = newArgs :+ simplifyExpr(arg)
+          }
+          ir.DoPrim(prim.op, newArgs, prim.consts, prim.tpe)
+      }
+    case _ => expr
+  }
+
+  //TODO: fill in function, reference from onExpr / original bitwiseAssignment
   //Desired input: some expression
   //Deisred output: equivalent expression with as many unnecessary variables removed
-  private def simplifyBits(expr: ir.Expression): ir.Expression = {
-    // a <= sldkjflaskjf
-    // a0 <= bits(sldkjflaskjf, 0, 0)
-    // a1 <= bits(sldkjflaskjf, 1, 1)
-    // a2 <= bits(sldkjflaskjf, 2, 2)
+  private def simplifyBits(expr: ir.DoPrim): ir.Expression = {
+    val high = expr.consts(0)
+    val low = expr.consts(1)
 
-    expr
+    expr.args(0) match {
+      case noop: ir.Expression if low == 0 && high == getWidth(noop.tpe) - 1 => noop
 
+      case prim: ir.DoPrim =>
+        prim.op match {
+          case PrimOps.Bits =>
+            val innerLow = prim.consts(0)
+            simplifyExpr(combineBits(prim.args(0), innerLow, high, low))
+
+          case PrimOps.Cat =>
+            simplifyExpr(pushDownBits(prim.args(0), prim.args(1), high, low))
+
+          case PrimOps.AsUInt =>
+            //TODO
+            expr
+//            ir.DoPrim(PrimOps.AsUInt, Seq(simplifyExpr(createBits(prim, high, low))), prim.consts, prim.tpe)
+
+          case PrimOps.AsSInt =>
+            //TODO
+            expr
+          //            ir.DoPrim(PrimOps.AsSInt, Seq(simplifyExpr(createBits(prim, high, low))), prim.consts, prim.tpe)
+
+          case _ =>
+            createBits(simplifyExpr(expr.args.head), high, low)
+        }
+      case _ => expr
+    }
+  }
+
+  private def simplifyCat(expr: ir.DoPrim): ir.Expression = {
+    expr.args(0) match {
+      case prim1: DoPrim if expr.args(1).isInstanceOf[DoPrim] =>
+        val prim2 = expr.args(1).asInstanceOf[DoPrim]
+        if (prim1.op == PrimOps.Bits && prim2.op == PrimOps.Bits) {
+          val hi1 = prim1.consts(0)
+          val lo1 = prim1.consts(1)
+          val hi2 = prim2.consts(0)
+          val lo2 = prim2.consts(1)
+          val e1 = prim1.args(0)
+          val e2 = prim2.args(0)
+          if (lo1 == hi2 + 1 && e1.serialize == e2.serialize) {
+            simplifyBits(createBits(e1, hi1, lo2))
+          } else {
+            createCat(simplifyExpr(prim1), simplifyExpr(prim2))
+          }
+        } else {
+          createCat(simplifyExpr(expr.args.head), simplifyExpr(expr.args(1)))
+        }
+      case _ =>
+        createCat(simplifyExpr(expr.args.head), simplifyExpr(expr.args(1)))
+    }
+  }
+
+  private def createBits(expr: ir.Expression, high: BigInt, low: BigInt): ir.DoPrim = {
+    ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(high, low), UIntType(IntWidth(high - low + 1)))
+  }
+  
+  private def createCat(msb: ir.Expression, lsb: ir.Expression): ir.DoPrim = {
+    ir.DoPrim(PrimOps.Cat, Seq(msb, lsb), Seq(), UIntType(IntWidth(getWidth(msb.tpe) + getWidth(lsb.tpe))))
+  }
+
+  private def combineBits(expr: ir.Expression, innerLow: BigInt, high: BigInt, low: BigInt): ir.DoPrim = {
+    val combinedLow = low + innerLow
+    val combinedHigh = high + innerLow
+    createBits(expr, combinedHigh, combinedLow)
+  }
+
+  private def pushDownBits(msb: ir.Expression, lsb: ir.Expression, high: BigInt, low: BigInt): ir.Expression = {
+    if (getWidth(lsb.tpe) > high) { createBits(lsb, high, low) }
+    else if (low >= getWidth(lsb.tpe)) { createBits(msb, high - getWidth(lsb.tpe), low - getWidth(lsb.tpe)) }
+    else {
+      createCat(createBits(msb, high - getWidth(lsb.tpe), 0), createBits(lsb, getWidth(lsb.tpe) - 1, low))
+    }
   }
 
   //Assigns bitwise by wrapping in bits()
