@@ -207,11 +207,7 @@ object FixFalseCombLoops {
   }
 
   //TODO: replace this function
-  private def onExpr(s: ir.Expression, ctx: ModuleContext, high: Int = -1, low: Int = -1): ir.Expression = {
-
-//    var expr = replaceLoopVars(s)
-
-    return s match {
+  private def onExpr(s: ir.Expression, ctx: ModuleContext, high: Int = -1, low: Int = -1): ir.Expression = s match {
 
       // flattencats cat(cat(a, b), cat(c, d)) => (cat(a, cat(b, (cat(c, cat(d)))))
       case prim: ir.DoPrim =>
@@ -265,7 +261,6 @@ object FixFalseCombLoops {
 
       case other => other
     }
-  }
 
   //Creates a reference to the bitWire for a given variable
   private def genRef(ctx: ModuleContext, name: String, index: Int): ir.Reference = {
@@ -305,14 +300,20 @@ object FixFalseCombLoops {
   }
 
   //TODO: fill in function, reference from onExpr
-  def simplifyBits(expr: ir.Expression): ir.Expression = {
+  //Desired input: some expression
+  //Deisred output: equivalent expression with as many unnecessary variables removed
+  private def simplifyBits(expr: ir.Expression): ir.Expression = {
+    // a <= sldkjflaskjf
+    // a0 <= bits(sldkjflaskjf, 0, 0)
+    // a1 <= bits(sldkjflaskjf, 1, 1)
+    // a2 <= bits(sldkjflaskjf, 2, 2)
 
     expr
 
   }
 
   //Assigns bitwise by wrapping in bits()
-  def bitwiseAssignment(
+  private def bitwiseAssignment(
     ctx:   ModuleContext,
     expr:  ir.Expression,
     name:  String,
