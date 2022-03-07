@@ -356,9 +356,9 @@ object FixFalseCombLoops {
 
     if (width > widthLimit) {
       val extendBits = expr.tpe match {
-        case _ : ir.UIntType =>
+        case _: ir.UIntType =>
           ir.UIntLiteral(0)
-        case _ : ir.SIntType =>
+        case _: ir.SIntType =>
           bitwiseMapping(genRef(ctx, name, widthLimit - 1))
       }
 

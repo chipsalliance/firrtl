@@ -325,7 +325,6 @@ class CheckCombLoops extends Transform with RegisteredTransform with DependencyA
           val fixedFalseLoop = FixFalseCombLoops.fixFalseCombLoops(result, errors.errors(0).getMessage)
           //If false loop fix cannot fix circuit, it is a real error
           if (result.circuit.serialize == fixedFalseLoop.circuit.serialize) {
-            print(result.circuit.serialize)
             errors.trigger()
           }
           //If false loop had changed circuit, iterate again on result
