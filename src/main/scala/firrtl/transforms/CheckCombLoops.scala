@@ -337,8 +337,8 @@ class CheckCombLoops extends Transform with RegisteredTransform with DependencyA
 
       if (loopFixed) {
         logger.warn(
-          "Detected word level combinational loop; Transformed involved logic into equivalent bit level " +
-            "representation."
+          "WARNING: Detected word-level combinational loop; Automatically transformed involved logic into equivalent " +
+            "bit-level representation with combinational loops removed!"
         )
       }
       errors.trigger()
