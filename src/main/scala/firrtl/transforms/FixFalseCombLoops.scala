@@ -2,7 +2,6 @@ package firrtl
 package transforms
 
 import firrtl.annotations.NoTargetAnnotation
-import firrtl.ir.{DoPrim, IntWidth, UIntType}
 import firrtl.options.{HasShellOptions, ShellOption}
 
 import scala.collection.mutable
@@ -149,7 +148,6 @@ object FixFalseCombLoops {
       var newConnect = connect
       if (newConnect.expr.isInstanceOf[ir.Expression]) {
         //Summary: Process expr (rhs) of Connect
-        //TODO: add flattenCats?
         var (newExpr, modified) = loopVarsToCats(newConnect.expr, ctx)
         //Motivation: don't want to unnecessarily modify expr's without loop vars
         if (modified) {
@@ -184,9 +182,9 @@ object FixFalseCombLoops {
       ctx.resultCircuit += other
   }
 
-  //Replaces loop vars in expr s with equivalent concats (a => an # an-1 # ... # a0). Returns transformed expr
-  // & boolean flag of whether anything was modified
-  def loopVarsToCats(s: ir.Expression, ctx: ModuleContext): (ir.Expression, Boolean) = s match {
+  //Replaces loop vars in expr s with equivalent concats (a => an # an-1 # ... # a0).
+  // Returns transformed expr and boolean flag of whether anything was modified
+  private def loopVarsToCats(s: ir.Expression, ctx: ModuleContext): (ir.Expression, Boolean) = s match {
     case ref: ir.Reference =>
       if (ctx.combLoopVars.contains(ref.name)) {
         (convertToCats(ctx, ref.name, getWidth(ref.tpe) - 1, 0), true)
@@ -223,7 +221,7 @@ object FixFalseCombLoops {
   }
 
   //Returns width associated with inputted statement
-  def getWidth(stmt: ir.Type): Int = stmt match {
+  private def getWidth(stmt: ir.Type): Int = stmt match {
     case uint: ir.UIntType =>
       uint.width.asInstanceOf[ir.IntWidth].width.toInt
     case sint: ir.SIntType =>
@@ -240,7 +238,7 @@ object FixFalseCombLoops {
         PrimOps.Cat,
         Seq(genRef(ctx, name, high), convertToCats(ctx, name, high - 1, low)),
         Seq.empty,
-        UIntType(IntWidth(high - low + 1))
+        ir.UIntType(ir.IntWidth(high - low + 1))
       )
     }
   }
@@ -263,7 +261,6 @@ object FixFalseCombLoops {
     case _ => expr
   }
 
-  //TODO: fill in function, reference from onExpr / original bitwiseAssignment
   //Desired input: some expression
   //Deisred output: equivalent expression with as many unnecessary variables removed
   private def simplifyBits(expr: ir.DoPrim): ir.Expression = {
@@ -299,8 +296,8 @@ object FixFalseCombLoops {
 
   private def simplifyCat(expr: ir.DoPrim): ir.Expression = {
     expr.args.head match {
-      case prim1: DoPrim if expr.args(1).isInstanceOf[DoPrim] =>
-        val prim2 = expr.args(1).asInstanceOf[DoPrim]
+      case prim1: ir.DoPrim if expr.args(1).isInstanceOf[ir.DoPrim] =>
+        val prim2 = expr.args(1).asInstanceOf[ir.DoPrim]
         if (prim1.op == PrimOps.Bits && prim2.op == PrimOps.Bits) {
           val hi1 = prim1.consts.head
           val lo1 = prim1.consts(1)
@@ -322,11 +319,11 @@ object FixFalseCombLoops {
   }
 
   private def createBits(expr: ir.Expression, high: BigInt, low: BigInt): ir.DoPrim = {
-    ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(high, low), UIntType(IntWidth(high - low + 1)))
+    ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(high, low), ir.UIntType(ir.IntWidth(high - low + 1)))
   }
 
   private def createCat(msb: ir.Expression, lsb: ir.Expression): ir.DoPrim = {
-    ir.DoPrim(PrimOps.Cat, Seq(msb, lsb), Seq(), UIntType(IntWidth(getWidth(msb.tpe) + getWidth(lsb.tpe))))
+    ir.DoPrim(PrimOps.Cat, Seq(msb, lsb), Seq(), ir.UIntType(ir.IntWidth(getWidth(msb.tpe) + getWidth(lsb.tpe))))
   }
 
   private def combineBits(expr: ir.Expression, innerLow: BigInt, high: BigInt, low: BigInt): ir.DoPrim = {
@@ -358,8 +355,15 @@ object FixFalseCombLoops {
     }
 
     if (width > widthLimit) {
+      val extendBits = expr.tpe match {
+        case _ : ir.UIntType =>
+          ir.UIntLiteral(0)
+        case _ : ir.SIntType =>
+          bitwiseMapping(genRef(ctx, name, widthLimit - 1))
+      }
+
       for (i <- widthLimit until width) {
-        bitwiseMapping(genRef(ctx, name, i)) = ir.UIntLiteral(0)
+        bitwiseMapping(genRef(ctx, name, i)) = extendBits
       }
     }
 
