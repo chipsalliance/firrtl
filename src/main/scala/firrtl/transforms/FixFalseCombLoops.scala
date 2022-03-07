@@ -262,7 +262,8 @@ object FixFalseCombLoops {
   }
 
   //Desired input: some expression
-  //Deisred output: equivalent expression with as many unnecessary variables removed
+  //Desired output: equivalent expression with as many unnecessary variables removed
+
   private def simplifyBits(expr: ir.DoPrim): ir.Expression = {
     val high = expr.consts.head
     val low = expr.consts(1)
@@ -273,7 +274,8 @@ object FixFalseCombLoops {
       case prim: ir.DoPrim =>
         prim.op match {
           case PrimOps.Bits =>
-            val innerLow = prim.consts.head
+            //Handles bits(bits()
+            val innerLow = prim.consts(1)
             simplifyExpr(combineBits(prim.args.head, innerLow, high, low))
 
           case PrimOps.Cat =>
@@ -326,6 +328,7 @@ object FixFalseCombLoops {
     ir.DoPrim(PrimOps.Cat, Seq(msb, lsb), Seq(), ir.UIntType(ir.IntWidth(getWidth(msb.tpe) + getWidth(lsb.tpe))))
   }
 
+  //Simplifies nested bits: (x[a:b])[c:d] -> x[c+b:d+b]
   private def combineBits(expr: ir.Expression, innerLow: BigInt, high: BigInt, low: BigInt): ir.DoPrim = {
     val combinedLow = low + innerLow
     val combinedHigh = high + innerLow

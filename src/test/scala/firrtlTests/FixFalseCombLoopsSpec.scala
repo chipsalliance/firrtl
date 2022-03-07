@@ -240,7 +240,6 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
     runTest(firrtlInput, expectedOut)
   }
 
-  //TODO: This output is wrong
   "False loop where output uses subword" should "not throw an exception" in {
     val firrtlInput = """circuit hasloops :
                         |  module hasloops :
@@ -264,8 +263,8 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
                         |    input clk : Clock
                         |    input c : UInt<1>
                         |    input d : UInt<1>
-                        |    output a_output : UInt<2>
-                        |    output b_output : UInt<1>
+                        |    output a_output : UInt<3>
+                        |    output b_output : UInt<2>
                         |
                         |    wire a0 : UInt<1>
                         |    wire a1 : UInt<1>
@@ -273,9 +272,9 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
                         |    wire b : UInt<1>
                         |    a_output <= a0
                         |    b_output <= b
-                        |    a0 <= c
                         |    a1 <= b
-                        |    b <= xor(a0, d)
+                        |    a0 <= c
+                        |    b <= cat(a0, d)
                         |""".stripMargin
 
     runTest(firrtlInput, expectedOut)
@@ -525,6 +524,7 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
     runTest(firrtlInput, expectedOut)
   }
 
+  //TODO: Output incorrect
   "False loop where a wider wire is assigned to a narrower value SInt variation" should "not throw an exception" in {
     val firrtlInput = """circuit hasloops :
                         |  module hasloops :
@@ -787,6 +787,7 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
 
     val expectedOut = """circuit hasloops :
                         |  module hasloops :
+                        |
                         |    wire x_sign : UInt<1>
                         |    wire x_exponent : UInt<8>
                         |    wire x_significand : UInt<23>
@@ -798,7 +799,6 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
     runTest(firrtlInput, expectedOut)
   }
 
-  //TODO: This test is currently failing
   "False loop where there is a bits within a bits" should "not throw an exception" in {
     val firrtlInput = """circuit hasloops :
                         |  module hasloops :
@@ -835,6 +835,47 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
                         |    a2 <= UInt<1>("h0")
                         |    a0 <= c
                         |    b <= xor(a0, d)
+                        |""".stripMargin
+
+    runTest(firrtlInput, expectedOut)
+  }
+
+  "False loop where there is a triple nested bits" should "not throw an exception" in {
+    val firrtlInput = """circuit hasloops :
+                        |  module hasloops :
+                        |    input clk : Clock
+                        |    input c : UInt<2>
+                        |    input d : UInt<1>
+                        |    output a_output : UInt<3>
+                        |    output b_output : UInt<1>
+                        |    wire a : UInt<3>
+                        |    wire b : UInt<1>
+                        |
+                        |    a <= cat(b, c)
+                        |    b <= xor(bits(bits(bits(a, 2, 0), 1, 0), 1, 1), d)
+                        |    a_output <= a
+                        |    b_output <= b
+                        |""".stripMargin
+
+    val expectedOut = """circuit hasloops :
+                        |  module hasloops :
+                        |    input clk : Clock
+                        |    input c : UInt<2>
+                        |    input d : UInt<1>
+                        |    output a_output : UInt<3>
+                        |    output b_output : UInt<1>
+                        |
+                        |    wire a0 : UInt<1>
+                        |    wire a1 : UInt<1>
+                        |    wire a2 : UInt<1>
+                        |    node a = cat(a2, cat(a1, a0))
+                        |    wire b : UInt<1>
+                        |    a_output <= cat(a2, cat(a1, a0))
+                        |    b_output <= b
+                        |    a1 <= bits(c, 1, 1)
+                        |    a2 <= b
+                        |    a0 <= bits(c, 0, 0)
+                        |    b <= xor(a1, d)
                         |""".stripMargin
 
     runTest(firrtlInput, expectedOut)
