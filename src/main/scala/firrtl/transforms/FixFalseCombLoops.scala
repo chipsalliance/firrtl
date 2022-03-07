@@ -284,11 +284,11 @@ object FixFalseCombLoops {
 
           case PrimOps.AsUInt =>
             //TODO
-            ir.DoPrim(PrimOps.AsUInt, Seq(simplifyExpr(createBits(prim.args.head, high, low))), prim.consts, prim.tpe)
+            simplifyExpr(createBits(prim.args.head, high, low))
 
           case PrimOps.AsSInt =>
             //TODO Sign Extend if necessary
-            ir.DoPrim(PrimOps.AsUInt, Seq(simplifyExpr(createBits(prim.args.head, high, low))), prim.consts, prim.tpe)
+            simplifyExpr(createBits(prim.args.head, high, low))
 
           case _ =>
             createBits(simplifyExpr(expr.args.head), high, low)

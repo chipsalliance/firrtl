@@ -319,7 +319,7 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
                   |    wire b : UInt<2>
                   |
                   |    a <= asSInt(cat(b, c))
-                  |    b <= cat(bits(asUInt(a), 0, 0), d)
+                  |    b <= cat(bits(a, 0, 0), d)
                   |    a_output <= asSInt(a)
                   |    b_output <= b
                   |""".stripMargin
