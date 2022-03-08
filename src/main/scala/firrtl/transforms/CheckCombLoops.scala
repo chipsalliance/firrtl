@@ -184,6 +184,7 @@ class CheckCombLoops extends Transform with RegisteredTransform with DependencyA
         if (lhs.inst.isDefined && !lhs.memport.isDefined && lhs.inst == rhs.inst) {
           val child = moduleDeps(m)(lhs.inst.get)
           val newHierPrefix = hierPrefix :+ lhs.inst.get
+          //TODO: This should probably handle the PathNotFound exception thrown here, replace with CombLoopException
           val subpath = moduleGraphs(child).path(lhs.copy(inst = None), rhs.copy(inst = None)).reverse
           expandInstancePaths(child, moduleGraphs, moduleDeps, newHierPrefix, subpath)
         } else {

@@ -2,6 +2,7 @@ package firrtlTests
 
 import firrtl.AnnotationSeq
 import firrtl.annotations.ModuleTarget
+import firrtl.graph.PathNotFoundException
 import firrtl.options.Dependency
 import firrtl.testutils.LeanTransformSpec
 import firrtl.transforms.{CheckCombLoops, EnableFixFalseCombLoops, ExtModulePathAnnotation}
@@ -881,7 +882,48 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
     runTest(firrtlInput, expectedOut)
   }
 
-  //All tests below should error/are not currently handled by this pass.
+  /** All tests below should error/are not currently handled by this pass. */
+
+  "Real bit-level combinational loop" should "throw an exception" in {
+    val input = """circuit hasloops :
+                  |  module hasloops :
+                  |    input clk : Clock
+                  |    input a : UInt<1>
+                  |    input b : UInt<1>
+                  |    output c : UInt<1>
+                  |    output d : UInt<1>
+                  |    wire y : UInt<1>
+                  |    wire z : UInt<1>
+                  |    c <= b
+                  |    z <= y
+                  |    y <= z
+                  |    d <= z
+                  |""".stripMargin
+
+    intercept[CheckCombLoops.CombLoopException] {
+      compile(parse(input), Seq(EnableFixFalseCombLoops))
+    }
+  }
+
+  "False combinational loop through multiple modules" should "throw an exception" in {
+    val input = """circuit hasloops :
+                  |  module blackbox :
+                  |    input y : UInt<1>
+                  |    output z : UInt<2>
+                  |    z <= cat(y, UInt(1))
+                  |  module hasloops :
+                  |    input a : UInt<1>
+                  |    inst inner of blackbox
+                  |    inner.y <= xor(bits(inner.z, 0, 0), a)
+                  |""".stripMargin
+
+    //This test uses PathNotFoundException instead of CheckCombLoops.CombLoopException
+    //Due to a strange error output from CheckCombLoops pass
+    intercept[PathNotFoundException] {
+      compile(parse(input), Seq(EnableFixFalseCombLoops))
+    }
+  }
+
   "Combinational loop through a combinational memory read port" should "throw an exception" in {
     val input = """circuit hasloops :
                   |  module hasloops :
@@ -904,27 +946,6 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
                   |    m.r.addr <= y
                   |    m.r.en <= UInt(1)
                   |    z <= m.r.data
-                  |    y <= z
-                  |    d <= z
-                  |""".stripMargin
-
-    intercept[CheckCombLoops.CombLoopException] {
-      compile(parse(input), Seq(EnableFixFalseCombLoops))
-    }
-  }
-
-  "Real bit-level combinational loop" should "throw an exception" in {
-    val input = """circuit hasloops :
-                  |  module hasloops :
-                  |    input clk : Clock
-                  |    input a : UInt<1>
-                  |    input b : UInt<1>
-                  |    output c : UInt<1>
-                  |    output d : UInt<1>
-                  |    wire y : UInt<1>
-                  |    wire z : UInt<1>
-                  |    c <= b
-                  |    z <= y
                   |    y <= z
                   |    d <= z
                   |""".stripMargin
