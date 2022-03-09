@@ -108,11 +108,14 @@ object FixFalseCombLoops {
       block.foreach(onStmt(_, ctx))
 
     case node: ir.DefNode =>
+      //TODO: Add comment for what this does
       var (newExpr, modified) = loopVarsToCats(node.value, ctx)
       if (modified) {
         newExpr = simplifyExpr(newExpr)
       }
       val newNode = ir.DefNode(ir.NoInfo, node.name, newExpr)
+
+      //TODO: Does this check need to occur at the top of this case, and the rest of this code only runs if it is false?
       if (ctx.combLoopVars.contains(node.name)) {
         if (getWidth(node.value.tpe) == 1) {
           //Removes 1 bit nodes from combLoopVars to avoid unnecessary computation
@@ -153,7 +156,6 @@ object FixFalseCombLoops {
         if (modified) {
           newExpr = simplifyExpr(newExpr)
         }
-
         newConnect = ir.Connect(ir.NoInfo, newConnect.loc, newExpr)
       }
 
@@ -186,6 +188,7 @@ object FixFalseCombLoops {
   // Returns transformed expr and boolean flag of whether anything was modified
   private def loopVarsToCats(s: ir.Expression, ctx: ModuleContext): (ir.Expression, Boolean) = s match {
     case ref: ir.Reference =>
+      //TODO: Add a summary of what this does
       if (ctx.combLoopVars.contains(ref.name)) {
         (convertToCats(ctx, ref.name, getWidth(ref.tpe) - 1, 0), true)
       } else {
@@ -193,6 +196,7 @@ object FixFalseCombLoops {
       }
 
     case prim: ir.DoPrim =>
+      //Recurse on each argument of a DoPrim
       var newArgs = Seq[ir.Expression]()
       var modified = false
       for (arg <- prim.args) {
@@ -252,6 +256,7 @@ object FixFalseCombLoops {
         case PrimOps.Cat =>
           simplifyCat(prim)
         case _ =>
+          //If not bits or cat, recurse on each argument of DoPrim
           var newArgs = Seq[ir.Expression]()
           for (arg <- prim.args) {
             newArgs = newArgs :+ simplifyExpr(arg)
@@ -263,30 +268,32 @@ object FixFalseCombLoops {
 
   //Desired input: some expression
   //Desired output: equivalent expression with as many unnecessary variables removed
-
   private def simplifyBits(expr: ir.DoPrim): ir.Expression = {
     val high = expr.consts.head
     val low = expr.consts(1)
 
     expr.args.head match {
+      //TODO: Add comment explaining this
       case noop: ir.Expression if low == 0 && high == getWidth(noop.tpe) - 1 => noop
 
       case prim: ir.DoPrim =>
         prim.op match {
           case PrimOps.Bits =>
-            //Handles bits(bits()
+            //Handles bits(bits())
             val innerLow = prim.consts(1)
             simplifyExpr(combineBits(prim.args.head, innerLow, high, low))
 
           case PrimOps.Cat =>
+            //TODO: Add comment explaining this
             simplifyExpr(pushDownBits(prim.args.head, prim.args(1), high, low))
 
+          //TODO: Can these two cases be combined?
           case PrimOps.AsUInt =>
-            //TODO
+            //TODO: Add comment explaining this
             simplifyExpr(createBits(prim.args.head, high, low))
 
           case PrimOps.AsSInt =>
-            //TODO Sign Extend if necessary
+            //TODO: Add comment explaining this
             simplifyExpr(createBits(prim.args.head, high, low))
 
           case _ =>
@@ -296,6 +303,7 @@ object FixFalseCombLoops {
     }
   }
 
+  //TODO: Add comment explaining this
   private def simplifyCat(expr: ir.DoPrim): ir.Expression = {
     expr.args.head match {
       case prim1: ir.DoPrim if expr.args(1).isInstanceOf[ir.DoPrim] =>
@@ -320,10 +328,12 @@ object FixFalseCombLoops {
     }
   }
 
+  //Shorthand for creating a Bits object
   private def createBits(expr: ir.Expression, high: BigInt, low: BigInt): ir.DoPrim = {
     ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(high, low), ir.UIntType(ir.IntWidth(high - low + 1)))
   }
 
+  //Shorthand for creating a Cat object
   private def createCat(msb: ir.Expression, lsb: ir.Expression): ir.DoPrim = {
     ir.DoPrim(PrimOps.Cat, Seq(msb, lsb), Seq(), ir.UIntType(ir.IntWidth(getWidth(msb.tpe) + getWidth(lsb.tpe))))
   }
@@ -335,6 +345,7 @@ object FixFalseCombLoops {
     createBits(expr, combinedHigh, combinedLow)
   }
 
+  //TODO: Add comment explaining this
   private def pushDownBits(msb: ir.Expression, lsb: ir.Expression, high: BigInt, low: BigInt): ir.Expression = {
     if (getWidth(lsb.tpe) > high) { createBits(lsb, high, low) }
     else if (low >= getWidth(lsb.tpe)) { createBits(msb, high - getWidth(lsb.tpe), low - getWidth(lsb.tpe)) }
@@ -344,6 +355,7 @@ object FixFalseCombLoops {
   }
 
   //Assigns bitwise by wrapping in bits()
+  //TODO: Add better comment to explain this
   private def bitwiseAssignment(
     ctx:   ModuleContext,
     expr:  ir.Expression,
