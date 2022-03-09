@@ -225,13 +225,7 @@ object FixFalseCombLoops {
   }
 
   //Returns width associated with inputted statement
-  private def getWidth(stmt: ir.Type): Int = stmt match {
-    case uint: ir.UIntType =>
-      uint.width.asInstanceOf[ir.IntWidth].width.toInt
-    case sint: ir.SIntType =>
-      sint.width.asInstanceOf[ir.IntWidth].width.toInt
-
-  }
+  private def getWidth(tpe: ir.Type): Int = bitWidth(tpe).toInt
 
   //Converts variable (x) into nested cats (x_high # ... # x_low)
   private def convertToCats(ctx: ModuleContext, name: String, high: Int, low: Int): ir.Expression = {
