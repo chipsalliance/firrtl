@@ -377,7 +377,6 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
     runTest(firrtlInput, expectedOut)
   }
 
-  //TODO: Ensure this is the correct output
   "False loop where a narrow wire is assigned to a wider value SInt variation bad var extend" should "not throw an exception" in {
     val firrtlInput = """circuit hasloops :
                         |  module hasloops :
@@ -395,7 +394,6 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
                         |    b_output <= b
                         |""".stripMargin
 
-    //TODO: make other SInt tests look like this, add asSInt to uses of a
     val expectedOut = """circuit hasloops :
                         |  module hasloops :
                         |    input clk : Clock
@@ -429,7 +427,6 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
     runTest(firrtlInput, expectedOut)
   }
 
-  //TODO: Ensure this is the correct output
   "False loop where a narrow wire is assigned to a wider value SInt variation good var extend" should "not throw an exception" in {
     val firrtlInput = """circuit hasloops :
                         |  module hasloops :
@@ -526,7 +523,6 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
     runTest(firrtlInput, expectedOut)
   }
 
-  //TODO: Output incorrect
   "False loop where a wider wire is assigned to a narrower value SInt variation" should "not throw an exception" in {
     val firrtlInput = """circuit hasloops :
                         |  module hasloops :
