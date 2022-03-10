@@ -138,9 +138,17 @@ object FixFalseCombLoops {
             val bitWire = ir.DefWire(ir.NoInfo, genName(ctx, wire.name, i), Utils.BoolType)
             ctx.resultCircuit += bitWire
           }
-          //Creates node wire = cat(a_n # ... # a_0)
-          val newNode =
-            ir.DefNode(ir.NoInfo, wire.name, convertToCats(ctx, wire.name, wireWidth - 1, 0))
+
+          //Creates node wire = a_n # ... # a_0
+          val nestedCats = convertToCats(ctx, wire.name, wireWidth - 1, 0)
+          val newNodeExpr = wire.tpe match {
+            case _: ir.UIntType =>
+              nestedCats
+            case _: ir.SIntType =>
+              ir.DoPrim(PrimOps.AsSInt, Seq(nestedCats), Seq.empty, ir.SIntType(ir.IntWidth(bitWidth(wire.tpe))))
+          }
+          val newNode = ir.DefNode(ir.NoInfo, wire.name, newNodeExpr)
+
           ctx.resultCircuit += newNode
         }
       } else {
@@ -185,7 +193,7 @@ object FixFalseCombLoops {
   }
 
   //Replaces loop vars in expr s with equivalent concats (a => an # an-1 # ... # a0).
-  // Returns transformed expr and boolean flag of whether anything was modified
+  //Returns transformed expr and boolean flag of whether anything was modified
   private def loopVarsToCats(s: ir.Expression, ctx: ModuleContext): (ir.Expression, Boolean) = s match {
     case ref: ir.Reference =>
       //TODO: Add a summary of what this does

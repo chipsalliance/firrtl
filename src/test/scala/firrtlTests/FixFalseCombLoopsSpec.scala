@@ -455,26 +455,26 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
                         |    output a_output : SInt<6>
                         |    output b_output : UInt<2>
                         |
-                        |    wire a0 : SInt<1>
-                        |    wire a1 : SInt<1>
-                        |    wire a2 : SInt<1>
-                        |    wire a3 : SInt<1>
-                        |    wire a4 : SInt<1>
-                        |    wire a5 : SInt<1>
-                        |    node a = cat(a5, cat(a4, cat(a3, cat(a2, cat(a1, a0)))))
+                        |    wire a0 : UInt<1>
+                        |    wire a1 : UInt<1>
+                        |    wire a2 : UInt<1>
+                        |    wire a3 : UInt<1>
+                        |    wire a4 : UInt<1>
+                        |    wire a5 : UInt<1>
+                        |    node a = asSInt(cat(a5, cat(a4, cat(a3, cat(a2, cat(a1, a0))))))
                         |    wire b0 : UInt<1>
                         |    wire b1 : UInt<1>
                         |    node b = cat(b1, b0)
                         |    a_output <= asSInt(cat(a5, cat(a4, cat(a3, cat(a2, cat(a1, a0))))))
                         |    b_output <= cat(b1, b0)
-                        |    a5 <= asSInt(bits(c, 2, 2))
-                        |    a4 <= asSInt(bits(c, 2, 2))
-                        |    a1 <= asSInt(b1)
-                        |    a2 <= asSInt(bits(c, 0, 0))
-                        |    a0 <= asSInt(b0)
-                        |    a3 <= asSInt(bits(c, 1, 1))
+                        |    a5 <= bits(c, 2, 2)
+                        |    a4 <= bits(c, 2, 2)
+                        |    a1 <= b1
+                        |    a2 <= bits(c, 0, 0)
+                        |    a0 <= b0
+                        |    a3 <= bits(c, 1, 1)
                         |    b0 <= d
-                        |    b1 <= asUInt(a0)
+                        |    b1 <= a0
                         |""".stripMargin
 
     runTest(firrtlInput, expectedOut)
@@ -552,20 +552,20 @@ class FixFalseCombLoopsSpec extends LeanTransformSpec(Seq(Dependency[CheckCombLo
                         |    output a_output : SInt<4>
                         |    output b_output : UInt<2>
                         |
-                        |    wire a0 : SInt<1>
-                        |    wire a1 : SInt<1>
-                        |    wire a2 : SInt<1>
-                        |    wire a3 : SInt<1>
-                        |    node a = cat(a3, cat(a2, cat(a1, a0)))
+                        |    wire a0 : UInt<1>
+                        |    wire a1 : UInt<1>
+                        |    wire a2 : UInt<1>
+                        |    wire a3 : UInt<1>
+                        |    node a = asSInt(cat(a3, cat(a2, cat(a1, a0))))
                         |    wire b0 : UInt<1>
                         |    wire b1 : UInt<1>
                         |    node b = cat(b1, b0)
                         |    a_output <= asSInt(cat(a3, cat(a2, cat(a1, a0))))
                         |    b_output <= cat(b1, b0)
-                        |    a1 <= asSInt(bits(c, 1, 1))
-                        |    a2 <= asSInt(bits(c, 2, 2))
-                        |    a0 <= asSInt(bits(c, 0, 0))
-                        |    a3 <= asSInt(b0)
+                        |    a1 <= bits(c, 1, 1)
+                        |    a2 <= bits(c, 2, 2)
+                        |    a0 <= bits(c, 0, 0)
+                        |    a3 <= b0
                         |    b0 <= d
                         |    b1 <= a0
                         |""".stripMargin
