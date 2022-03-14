@@ -30,13 +30,13 @@ lazy val firrtlSettings = Seq(
   libraryDependencies ++= Seq(
     "org.scala-lang" % "scala-reflect" % scalaVersion.value,
     "org.scalatest" %% "scalatest" % "3.2.10" % "test",
-    "org.scalatestplus" %% "scalacheck-1-15" % "3.2.10.0" % "test",
+    "org.scalatestplus" %% "scalacheck-1-15" % "3.2.11.0" % "test",
     "com.github.scopt" %% "scopt" % "3.7.1",
     "net.jcazevedo" %% "moultingyaml" % "0.4.2",
     "org.json4s" %% "json4s-native" % "3.6.12",
     "org.apache.commons" % "commons-text" % "1.9",
     "io.github.alexarchambault" %% "data-class" % "0.2.5",
-    "com.lihaoyi" %% "os-lib" % "0.8.0"
+    "com.lihaoyi" %% "os-lib" % "0.8.1"
   ),
   // macros for the data-class library
   libraryDependencies ++= {
