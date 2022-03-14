@@ -15,7 +15,7 @@ lazy val isAtLeastScala213 = Def.setting {
 
 lazy val firrtlSettings = Seq(
   name := "firrtl",
-  version := "1.5-SNAPSHOT",
+  version := "1.6-SNAPSHOT",
   addCompilerPlugin(scalafixSemanticdb),
   scalacOptions := Seq(
     "-deprecation",
@@ -30,13 +30,13 @@ lazy val firrtlSettings = Seq(
   libraryDependencies ++= Seq(
     "org.scala-lang" % "scala-reflect" % scalaVersion.value,
     "org.scalatest" %% "scalatest" % "3.2.10" % "test",
-    "org.scalatestplus" %% "scalacheck-1-15" % "3.2.10.0" % "test",
+    "org.scalatestplus" %% "scalacheck-1-15" % "3.2.11.0" % "test",
     "com.github.scopt" %% "scopt" % "3.7.1",
     "net.jcazevedo" %% "moultingyaml" % "0.4.2",
     "org.json4s" %% "json4s-native" % "3.6.12",
     "org.apache.commons" % "commons-text" % "1.9",
     "io.github.alexarchambault" %% "data-class" % "0.2.5",
-    "com.lihaoyi" %% "os-lib" % "0.7.8"
+    "com.lihaoyi" %% "os-lib" % "0.8.1"
   ),
   // macros for the data-class library
   libraryDependencies ++= {
@@ -89,7 +89,7 @@ lazy val testAssemblySettings = Seq(
 
 lazy val antlrSettings = Seq(
   Antlr4 / antlr4GenVisitor := true,
-  Antlr4 / antlr4GenListener := false,
+  Antlr4 / antlr4GenListener := true,
   Antlr4 / antlr4PackageName := Option("firrtl.antlr"),
   Antlr4 / antlr4Version := "4.9.3",
   Antlr4 / javaSource := (Compile / sourceManaged).value
@@ -130,6 +130,10 @@ lazy val docSettings = Seq(
   Compile / doc := (ScalaUnidoc / doc).value,
   autoAPIMappings := true,
   Compile / doc / scalacOptions ++= Seq(
+    // ANTLR-generated classes aren't really part of public API and cause
+    // errors in ScalaDoc generation
+    "-skip-packages",
+    "firrtl.antlr",
     "-Xfatal-warnings",
     "-feature",
     "-diagrams",
