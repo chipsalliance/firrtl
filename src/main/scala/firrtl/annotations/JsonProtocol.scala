@@ -283,12 +283,22 @@ object JsonProtocol {
     // this used on the first invocation to check all annotations do so
     def findTypeHints(classInst: Seq[JValue], requireClassField: Boolean = false): Seq[String] = classInst
       .flatMap({
+<<<<<<< HEAD
         case JObject(("class", JString(name)) :: fields) => name +: findTypeHints(fields.map(_._2))
         case obj: JObject if requireClassField =>
           throw new InvalidAnnotationJSONException(s"Expected field 'class' not found! $obj")
         case JObject(fields) => findTypeHints(fields.map(_._2))
         case JArray(arr)     => findTypeHints(arr)
         case oJValue         => Seq()
+=======
+        case JObject(fields) =>
+          val hint = fields.collectFirst { case ("class", JString(name)) => name }
+          if (requireClassField && hint.isEmpty)
+            throw new InvalidAnnotationJSONException(s"Expected field 'class' not found! $fields")
+          hint ++: findTypeHints(fields.map(_._2))
+        case JArray(arr) => findTypeHints(arr)
+        case _           => Seq()
+>>>>>>> a2d48a58 (Fix anno deserialization when class field is not first (#2501))
       })
       .distinct
 
