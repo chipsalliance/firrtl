@@ -787,13 +787,12 @@ class VerilogEmitter extends SeqTransform with Emitter {
       } else { // Asynchronous Reset
         assert(reset.tpe == AsyncResetType, "Error! Synchronous reset should have been removed!")
         val tv = init
-        val InfoExpr(finfo, fv) = netlist(r)
-        // TODO add register info argument and build a MultiInfo to pass
+        val InfoExpr(info, fv) = netlist(r)
         asyncResetAlwaysBlocks += (
           (
             clk,
             reset,
-            addUpdate(NoInfo, Mux(reset, tv, fv, mux_type_and_widths(tv, fv)), Seq.empty)
+            addUpdate(info, Mux(reset, tv, fv, mux_type_and_widths(tv, fv)), Seq.empty)
           )
         )
       }
@@ -901,14 +900,8 @@ class VerilogEmitter extends SeqTransform with Emitter {
             case MemoryLoadFileType.Binary => "$readmemb"
             case MemoryLoadFileType.Hex    => "$readmemh"
           }
-          if (emissionOptions.emitMemoryInitAsNoSynth) {
-            memoryInitials += Seq(s"""$readmem("$filename", ${s.name});""")
-          } else {
-            val inlineLoad = s"""initial begin
-                                |    $readmem("$filename", ${s.name});
-                                |  end""".stripMargin
-            memoryInitials += Seq(inlineLoad)
-          }
+          memoryInitials += Seq(s"""$readmem("$filename", ${s.name});""")
+
         case MemoryNoInit =>
         // do nothing
       }
@@ -1293,8 +1286,10 @@ class VerilogEmitter extends SeqTransform with Emitter {
         emit(Seq("`FIRRTL_AFTER_INITIAL"))
         emit(Seq("`endif"))
         emit(Seq("`endif // SYNTHESIS"))
-        if (!emissionOptions.emitMemoryInitAsNoSynth) {
+        if (!emissionOptions.emitMemoryInitAsNoSynth && !memoryInitials.isEmpty) {
+          emit(Seq("initial begin"))
           for (x <- memoryInitials) emit(Seq(tab, x))
+          emit(Seq("end"))
         }
       }
 

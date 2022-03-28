@@ -22,7 +22,7 @@ class firrtlCrossModule(val crossScalaVersion: String)
   // 2.12.12 -> Array("2", "12", "12") -> "12" -> 12
   private def majorVersion = crossScalaVersion.split('.')(1).toInt
 
-  def publishVersion = "1.5-SNAPSHOT"
+  def publishVersion = "1.6-SNAPSHOT"
 
   override def mainClass = T {
     Some("firrtl.stage.FirrtlMain")
@@ -52,7 +52,7 @@ class firrtlCrossModule(val crossScalaVersion: String)
       ivy"io.github.alexarchambault::data-class:0.2.5",
       ivy"org.antlr:antlr4-runtime:$antlr4Version",
       ivy"com.google.protobuf:protobuf-java:$protocVersion",
-      ivy"com.lihaoyi::os-lib:0.8.0"
+      ivy"com.lihaoyi::os-lib:0.8.1"
     ) ++ {
       if (majorVersion == 13)
         Agg(ivy"org.scala-lang.modules::scala-parallel-collections:1.0.4")
@@ -68,7 +68,7 @@ class firrtlCrossModule(val crossScalaVersion: String)
     override def ivyDeps = T {
       Agg(
         ivy"org.scalatest::scalatest:3.2.10",
-        ivy"org.scalatestplus::scalacheck-1-15:3.2.10.0"
+        ivy"org.scalatestplus::scalacheck-1-15:3.2.11.0"
       )
     }
 
