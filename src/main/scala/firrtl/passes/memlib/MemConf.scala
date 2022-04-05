@@ -14,6 +14,14 @@ case object MaskedReadWritePort extends MemPort("mrw")
 object MemPort {
 
   val all = Set(ReadPort, WritePort, MaskedWritePort, ReadWritePort, MaskedReadWritePort)
+  // Parsing used by python:  "pattern" : "(^[m]{0,1})(([r]{1})|(write))(([w]{1}|,(read)))"
+  val portPriority = collection.immutable.Seq(
+    MaskedReadWritePort,
+    MaskedWritePort,
+    ReadWritePort,
+    WritePort,
+    ReadPort
+  )
 
   def apply(s: String): Option[MemPort] = MemPort.all.find(_.name == s)
 
@@ -38,7 +46,20 @@ case class MemConf(
   ports:           Map[MemPort, Int],
   maskGranularity: Option[Int]) {
 
-  private def portsStr = ports.map { case (port, num) => Seq.fill(num)(port.name).mkString(",") }.mkString(",")
+  /* output the port information in a specific order. Basic iteration of Map appears to be non-deterministicd
+   */
+  private def portsStr: String = {
+    MemPort.portPriority.flatMap { searchPort =>
+      ports.flatMap {
+        case (port, num) =>
+          if (port == searchPort) {
+            Some(Seq.fill(num)(port.name).mkString(","))
+          } else {
+            None
+          }
+      }
+    }.mkString(",")
+  }
   private def maskGranStr = maskGranularity.map((p) => s"mask_gran $p").getOrElse("")
 
   // Assert that all of the entries in the port map are greater than zero to make it easier to compare two of these case classes
