@@ -15,6 +15,7 @@ object MemPort {
 
   val all = Set(ReadPort, WritePort, MaskedWritePort, ReadWritePort, MaskedReadWritePort)
   // Parsing used by python:  "pattern" : "(^[m]{0,1})(([r]{1})|(write))(([w]{1}|,(read)))"
+  // The following fields represent the ordering that can be parsed by the "pattern" above
   val portPriority = collection.immutable.Seq(
     MaskedReadWritePort,
     MaskedWritePort,
