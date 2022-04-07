@@ -3,7 +3,7 @@
 package firrtl.passes
 package memlib
 
-sealed abstract class MemPort(val name: String) { override def toString = name }
+sealed abstract class MemPort(val name: String) extends Product with Serializable { override def toString = name }
 
 case object ReadPort extends MemPort("read")
 case object WritePort extends MemPort("write")
@@ -13,7 +13,22 @@ case object MaskedReadWritePort extends MemPort("mrw")
 
 object MemPort {
 
+  // All ports, make sure that any chances to all is reflected in orderedPorts below
   val all = Set(ReadPort, WritePort, MaskedWritePort, ReadWritePort, MaskedReadWritePort)
+  // This is the order that ports will render in MemConf.portsStr
+  val orderedPorts = collection.immutable
+    .Seq(
+      MaskedReadWritePort,
+      MaskedWritePort,
+      ReadWritePort,
+      WritePort,
+      ReadPort
+    )
+    .zipWithIndex
+    .toMap
+
+  // uses orderedPorts when sorting MemPorts
+  implicit def ordering: Ordering[MemPort] = Ordering.by(e => orderedPorts(e))
 
   def apply(s: String): Option[MemPort] = MemPort.all.find(_.name == s)
 
@@ -38,7 +53,8 @@ case class MemConf(
   ports:           Map[MemPort, Int],
   maskGranularity: Option[Int]) {
 
-  private def portsStr = ports.map { case (port, num) => Seq.fill(num)(port.name).mkString(",") }.mkString(",")
+  private def portsStr =
+    ports.toSeq.sortBy(_._1).map { case (port, num) => Seq.fill(num)(port.name).mkString(",") }.mkString(",")
   private def maskGranStr = maskGranularity.map((p) => s"mask_gran $p").getOrElse("")
 
   // Assert that all of the entries in the port map are greater than zero to make it easier to compare two of these case classes
