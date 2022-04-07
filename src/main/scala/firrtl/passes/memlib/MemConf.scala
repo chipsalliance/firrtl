@@ -3,7 +3,7 @@
 package firrtl.passes
 package memlib
 
-sealed abstract class MemPort(val name: String) extends Product with Serializable { override def toString = name }
+sealed abstract class MemPort(val name: String) { override def toString = name }
 
 case object ReadPort extends MemPort("read")
 case object WritePort extends MemPort("write")
@@ -13,22 +13,21 @@ case object MaskedReadWritePort extends MemPort("mrw")
 
 object MemPort {
 
-  // All ports, make sure that any chances to all is reflected in orderedPorts below
-  val all = Set(ReadPort, WritePort, MaskedWritePort, ReadWritePort, MaskedReadWritePort)
   // This is the order that ports will render in MemConf.portsStr
-  val orderedPorts = collection.immutable
-    .Seq(
-      MaskedReadWritePort,
-      MaskedWritePort,
-      ReadWritePort,
-      WritePort,
-      ReadPort
-    )
-    .zipWithIndex
-    .toMap
+  val ordered: Seq[MemPort] = Seq(
+    MaskedReadWritePort,
+    MaskedWritePort,
+    ReadWritePort,
+    WritePort,
+    ReadPort
+  )
 
+  val all: Set[MemPort] = ordered.toSet
   // uses orderedPorts when sorting MemPorts
-  implicit def ordering: Ordering[MemPort] = Ordering.by(e => orderedPorts(e))
+  implicit def ordering: Ordering[MemPort] = {
+    val orderedPorts = ordered.zipWithIndex.toMap
+    Ordering.by(e => orderedPorts(e))
+  }
 
   def apply(s: String): Option[MemPort] = MemPort.all.find(_.name == s)
 
