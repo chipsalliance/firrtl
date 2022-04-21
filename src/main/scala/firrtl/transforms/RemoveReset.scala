@@ -93,6 +93,9 @@ object RemoveReset extends Transform with DependencyAPIMigration {
           // addUpdate(info, Mux(reset, tv, fv, mux_type_and_widths(tv, fv)), Seq.empty)
           val infox = MultiInfo(reset.info, reset.info, info)
           Connect(infox, ref, expr)
+        case IsInvalid(_, ref @ WRef(rname, _, RegKind, _)) if resets.contains(rname) =>
+          val Reset(_, init, info) = resets(rname)
+          Connect(info, ref, init)
         case other => other.map(onStmt)
       }
     }
