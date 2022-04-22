@@ -51,6 +51,7 @@ object RemoveReset extends Transform with DependencyAPIMigration {
   private def onModule(m: DefModule): DefModule = {
     val resets = mutable.HashMap.empty[String, Reset]
     val invalids = computeInvalids(m)
+    lazy val namespace = Namespace(m)
     def onStmt(stmt: Statement): Statement = {
       stmt match {
         /* A register is initialized to an invalid expression */
@@ -65,8 +66,32 @@ object RemoveReset extends Transform with DependencyAPIMigration {
         case Connect(info, ref @ WRef(rname, _, RegKind, _), expr) if resets.contains(rname) =>
           val reset = resets(rname)
           val muxType = Utils.mux_type_and_widths(reset.value, expr)
+<<<<<<< HEAD
           Connect(info, ref, Mux(reset.cond, reset.value, expr, muxType))
         case other => other map onStmt
+=======
+          // Use reg source locator for mux enable and true value since that's where they're defined
+          val infox = MultiInfo(reset.info, reset.info, info)
+          Connect(infox, ref, Mux(reset.cond, reset.value, expr, muxType))
+        case Connect(info, ref @ WRef(rname, _, RegKind, _), expr) if asyncResets.contains(rname) =>
+          val reset = asyncResets(rname)
+          // The `muxType` for async always blocks is located in [[VerilogEmitter.VerilogRender.regUpdate]]:
+          // addUpdate(info, Mux(reset, tv, fv, mux_type_and_widths(tv, fv)), Seq.empty)
+          val infox = MultiInfo(reset.info, reset.info, info)
+          Connect(infox, ref, expr)
+        /* Synchronously reset register that has reset value but only an invalid connection */
+        case IsInvalid(iinfo, ref @ WRef(rname, tpe, RegKind, _)) if resets.contains(rname) =>
+          // We need to mux with the invalid value to be consistent with async reset registers
+          val dummyWire = DefWire(iinfo, namespace.newName(rname), tpe)
+          val wireRef = Reference(dummyWire).copy(flow = SourceFlow)
+          val invalid = IsInvalid(iinfo, wireRef)
+          // Now mux between the invalid wire and the reset value
+          val Reset(cond, init, info) = resets(rname)
+          val muxType = Utils.mux_type_and_widths(init, wireRef)
+          val connect = Connect(info, ref, Mux(cond, init, wireRef, muxType))
+          Block(Seq(dummyWire, invalid, connect))
+        case other => other.map(onStmt)
+>>>>>>> 5093da03 (Fix optimization of register with reset but invalid connection (#2520))
       }
     }
     m.map(onStmt)
