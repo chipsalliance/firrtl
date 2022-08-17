@@ -254,6 +254,7 @@ object Serializer {
 
   private def s(node: Circuit)(implicit b: StringBuilder, indent: Int): Unit = node match {
     case Circuit(info, modules, main) =>
+      b ++= "FIRRTL version 1.1.0\n"
       b ++= "circuit "; b ++= main; b ++= " :"; s(info)
       if (modules.nonEmpty) {
         newLineNoIndent(); s(modules.head)(b, indent + 1)
