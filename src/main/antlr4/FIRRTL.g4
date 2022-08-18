@@ -38,7 +38,7 @@ version
 
 // Due to lexer problems, something like 1.1.0 is lexed as DoubleLit '.' UnsignedInt
 semver
-  : DoubleLit '.' UnsignedInt .*?
+  : SemVer .*?
   ;
 
 module
@@ -357,6 +357,10 @@ OctalLit
 
 BinaryLit
   : '"' 'b' ( '+' | '-' )? ( BinaryDigit )+ '"'
+  ;
+
+SemVer
+  : Digit+ '.' Digit+ '.' Digit+
   ;
 
 DoubleLit
