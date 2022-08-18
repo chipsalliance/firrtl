@@ -355,7 +355,7 @@ BinaryLit
   ;
 
 SemVer
-  : Digit+ '.' Digit+ '.' Digit+
+  : UnsignedInt '.' UnsignedInt '.' UnsignedInt
   ;
 
 DoubleLit

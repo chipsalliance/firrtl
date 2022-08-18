@@ -16,6 +16,7 @@ object Serializer {
   val NewLine = '\n'
   val Indent = "  "
 
+  // The version supported by the serializer.
   val version = Version(1, 1, 0)
 
   /** Converts a `FirrtlNode` into its string representation with

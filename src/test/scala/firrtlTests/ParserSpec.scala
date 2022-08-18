@@ -98,10 +98,8 @@ class ParserSpec extends FirrtlFlatSpec {
                   |FIRRTL version 1.1.0
                   |circuit Test :
                   |  module Test :
-                  |    input in : { 0 : { 0 : UInt<32>, flip 1 : UInt<32> } }
-                  |    input in2 : { 4 : { 23 : { foo : UInt<32>, bar : { flip 123 : UInt<32> } } } }
-                  |    in.0.1 <= in.0.0
-                  |    in2.4.23.bar.123 <= in2.4.23.foo
+                  |    input in : UInt<1>
+                  |    in <= UInt(0)
       """.stripMargin
     val c = firrtl.Parser.parse(input)
     firrtl.Parser.parse(c.serialize)
@@ -112,10 +110,19 @@ class ParserSpec extends FirrtlFlatSpec {
                   |FIRRTL version 1.1.1
                   |circuit Test :
                   |  module Test :
-                  |    input in : { 0 : { 0 : UInt<32>, flip 1 : UInt<32> } }
-                  |    input in2 : { 4 : { 23 : { foo : UInt<32>, bar : { flip 123 : UInt<32> } } } }
-                  |    in.0.1 <= in.0.0
-                  |    in2.4.23.bar.123 <= in2.4.23.foo
+                  |    input in : UInt<1>
+                  |    in <= UInt(0)
+      """.stripMargin
+    val c = firrtl.Parser.parse(input)
+    firrtl.Parser.parse(c.serialize)
+  }
+
+  "No version" should "be accepted" in {
+    val input = """
+                  |circuit Test :
+                  |  module Test :
+                  |    input in : UInt<1>
+                  |    in <= UInt(0)
       """.stripMargin
     val c = firrtl.Parser.parse(input)
     firrtl.Parser.parse(c.serialize)
@@ -126,17 +133,15 @@ class ParserSpec extends FirrtlFlatSpec {
                   |FIRRTL version 1.2.0
                   |circuit Test :
                   |  module Test :
-                  |    input in : { 0 : { 0 : UInt<32>, flip 1 : UInt<32> } }
-                  |    input in2 : { 4 : { 23 : { foo : UInt<32>, bar : { flip 123 : UInt<32> } } } }
-                  |    in.0.1 <= in.0.0
-                  |    in2.4.23.bar.123 <= in2.4.23.foo
+                  |    input in : UInt<1>
+                  |    in <= UInt(0)
       """.stripMargin
     firrtl.Parser.parse(input)
   }
 
   an[UnsupportedVersionException] should be thrownBy {
     val input = """
-                  |FIRRTL version 1.2.0
+                  |FIRRTL version 2.0.0
                   |crcuit Test :
                   |  module Test @@#!# :
                   |    input in1 : UInt<2>
