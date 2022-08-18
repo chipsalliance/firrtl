@@ -10,6 +10,8 @@ object Serializer {
   val NewLine = '\n'
   val Indent = "  "
 
+  val version = "1.1.0"
+
   /** Converts a `FirrtlNode` into its string representation with
     * default indentation.
     */
@@ -254,7 +256,7 @@ object Serializer {
 
   private def s(node: Circuit)(implicit b: StringBuilder, indent: Int): Unit = node match {
     case Circuit(info, modules, main) =>
-      b ++= "FIRRTL version 1.1.0\n"
+      b ++= s"FIRRTL version ${version}\n"
       b ++= "circuit "; b ++= main; b ++= " :"; s(info)
       if (modules.nonEmpty) {
         newLineNoIndent(); s(modules.head)(b, indent + 1)

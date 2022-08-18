@@ -107,6 +107,20 @@ class ParserSpec extends FirrtlFlatSpec {
     firrtl.Parser.parse(c.serialize)
   }
 
+  // FIRRTL version number
+  an[UnsupportedVersionException] should be thrownBy {
+    val input = """
+                  |FIRRTL version 1.2.0
+                  |circuit Test :
+                  |  module Test :
+                  |    input in : { 0 : { 0 : UInt<32>, flip 1 : UInt<32> } }
+                  |    input in2 : { 4 : { 23 : { foo : UInt<32>, bar : { flip 123 : UInt<32> } } } }
+                  |    in.0.1 <= in.0.0
+                  |    in2.4.23.bar.123 <= in2.4.23.foo
+      """.stripMargin
+    firrtl.Parser.parse(input)
+  }
+
   // ********** Memories **********
   "Memories" should "allow arbitrary ordering of fields" in {
     val fields = MemTests.fieldsToSeq(MemTests.fields)
