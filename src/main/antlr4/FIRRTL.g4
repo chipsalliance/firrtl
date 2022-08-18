@@ -33,11 +33,7 @@ circuit
   ;
 
 version
-  : 'FIRRTL' 'version' semver NEWLINE
-  ;
-
-semver
-  : SemVer .*?
+  : 'FIRRTL' 'version' SemVer NEWLINE
   ;
 
 module

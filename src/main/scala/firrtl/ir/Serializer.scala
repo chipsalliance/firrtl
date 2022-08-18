@@ -6,11 +6,17 @@ import firrtl.Utils
 import firrtl.backends.experimental.smt.random.DefRandom
 import firrtl.constraint.Constraint
 
+case class Version(major: Int, minor: Int, patch: Int) {
+  def serialize: String = s"$major.$minor.$patch"
+  def incompatible(that: Version): Boolean =
+    this.major > that.major || (this.major == that.major && this.minor > that.minor)
+}
+
 object Serializer {
   val NewLine = '\n'
   val Indent = "  "
 
-  val version = "1.1.0"
+  val version = Version(1, 1, 0)
 
   /** Converts a `FirrtlNode` into its string representation with
     * default indentation.
@@ -256,7 +262,7 @@ object Serializer {
 
   private def s(node: Circuit)(implicit b: StringBuilder, indent: Int): Unit = node match {
     case Circuit(info, modules, main) =>
-      b ++= s"FIRRTL version ${version}\n"
+      b ++= s"FIRRTL version ${version.serialize}\n"
       b ++= "circuit "; b ++= main; b ++= " :"; s(info)
       if (modules.nonEmpty) {
         newLineNoIndent(); s(modules.head)(b, indent + 1)
