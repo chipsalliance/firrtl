@@ -121,8 +121,8 @@ class ParserSpec extends FirrtlFlatSpec {
     val input = """
                   |circuit Test :
                   |  module Test :
-                  |    input in : UInt<1>
-                  |    in <= UInt(0)
+                  |    input in : { 0 : { 0 : { 0 : UInt<32>, flip 1 : UInt<32> } } }
+                  |    in.0.0.1 <= in.0.0.0
       """.stripMargin
     val c = firrtl.Parser.parse(input)
     firrtl.Parser.parse(c.serialize)

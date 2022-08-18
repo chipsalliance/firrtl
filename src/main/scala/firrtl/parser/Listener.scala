@@ -27,7 +27,7 @@ private[firrtl] class Listener(infoMode: InfoMode) extends FIRRTLBaseListener {
 
   override def exitCircuit(ctx: FIRRTLParser.CircuitContext): Unit = {
     if (ctx.version != null) {
-      val version = ctx.version.SemVer.getText
+      val version = ctx.version.semver.getText
       val parts = version.split("\\.")
       val (major, minor, patch) = (parts(0).toInt, parts(1).toInt, parts(2).toInt)
       if (Version(major, minor, patch).incompatible(Serializer.version)) {

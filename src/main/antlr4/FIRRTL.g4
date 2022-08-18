@@ -33,7 +33,12 @@ circuit
   ;
 
 version
-  : 'FIRRTL' 'version' SemVer NEWLINE
+  : 'FIRRTL' 'version' semver NEWLINE
+  ;
+
+// Due to lexer problems, something like 1.1.0 is lexed as DoubleLit '.' UnsignedInt
+semver
+  : DoubleLit '.' UnsignedInt
   ;
 
 module
@@ -352,10 +357,6 @@ OctalLit
 
 BinaryLit
   : '"' 'b' ( '+' | '-' )? ( BinaryDigit )+ '"'
-  ;
-
-SemVer
-  : UnsignedInt '.' UnsignedInt '.' UnsignedInt
   ;
 
 DoubleLit
