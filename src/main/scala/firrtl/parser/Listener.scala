@@ -26,16 +26,13 @@ private[firrtl] class Listener(infoMode: InfoMode) extends FIRRTLBaseListener {
   }
 
   override def exitCircuit(ctx: FIRRTLParser.CircuitContext): Unit = {
-    Option(ctx.version) match {
-      case Some(c) => {
-        val version = c.semver.getText
-        val parts = version.split("\\.")
-        val (major, minor) = (parts(0).toInt, parts(1).toInt)
-        if (major > 1 || (major == 1 && minor > 1)) {
-          throw new UnsupportedVersionException(s"FIRRTL version ${version} is not supported (greater than 1.1.x)")
-        }
+    if (ctx.version != null) {
+      val version = ctx.version.semver.getText
+      val parts = version.split("\\.")
+      val (major, minor) = (parts(0).toInt, parts(1).toInt)
+      if (major > 1 || (major == 1 && minor > 1)) {
+        throw new UnsupportedVersionException(s"FIRRTL version ${version} is not supported (greater than 1.1.x)")
       }
-      case _ =>
     }
     info = Some(visitor.visitInfo(Option(ctx.info), ctx))
     main = Some(ctx.id.getText)
