@@ -107,7 +107,6 @@ class ParserSpec extends FirrtlFlatSpec {
     firrtl.Parser.parse(c.serialize)
   }
 
-  // FIRRTL version number
   an[UnsupportedVersionException] should be thrownBy {
     val input = """
                   |FIRRTL version 1.2.0
@@ -117,6 +116,20 @@ class ParserSpec extends FirrtlFlatSpec {
                   |    input in2 : { 4 : { 23 : { foo : UInt<32>, bar : { flip 123 : UInt<32> } } } }
                   |    in.0.1 <= in.0.0
                   |    in2.4.23.bar.123 <= in2.4.23.foo
+      """.stripMargin
+    firrtl.Parser.parse(input)
+  }
+
+  an[UnsupportedVersionException] should be thrownBy {
+    val input = """
+                  |FIRRTL version 1.2.0
+                  |crcuit Test :
+                  |  module Test @@#!# :
+                  |    input in1 : UInt<2>
+                  |    input in2 : UInt<3>
+                  |    output out : UInt<4>
+                  |    out[1:0] <= in1
+                  |    out[3:2] <= in2[1:0]
       """.stripMargin
     firrtl.Parser.parse(input)
   }

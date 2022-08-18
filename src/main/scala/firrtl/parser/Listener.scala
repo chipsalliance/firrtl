@@ -26,10 +26,9 @@ private[firrtl] class Listener(infoMode: InfoMode) extends FIRRTLBaseListener {
   }
 
   override def exitCircuit(ctx: FIRRTLParser.CircuitContext): Unit = {
-    info = Some(visitor.visitInfo(Option(ctx.info), ctx))
-    main = Some(ctx.id.getText)
-    visitor.visitVersion(Option(ctx.version), ctx) match {
-      case Some(version) => {
+    Option(ctx.version) match {
+      case Some(c) => {
+        val version = c.semver.getText
         val parts = version.split("\\.")
         val (major, minor) = (parts(0).toInt, parts(1).toInt)
         if (major > 1 || (major == 1 && minor > 1)) {
@@ -38,6 +37,8 @@ private[firrtl] class Listener(infoMode: InfoMode) extends FIRRTLBaseListener {
       }
       case _ =>
     }
+    info = Some(visitor.visitInfo(Option(ctx.info), ctx))
+    main = Some(ctx.id.getText)
     ctx.children = null // Null out to save memory
   }
 

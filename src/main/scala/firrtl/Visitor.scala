@@ -58,12 +58,6 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
 
   private def string2Int(s: String): Int = string2BigInt(s).toInt
 
-  private[firrtl] def visitVersion(ctx: Option[VersionContext], parentCtx: ParserRuleContext): Option[String] =
-    ctx match {
-      case Some(c) => Some(c.semver.getText)
-      case None    => None
-    }
-
   private[firrtl] def visitInfo(ctx: Option[InfoContext], parentCtx: ParserRuleContext): Info = {
     // Convert a compressed FileInfo string into either into a singular FileInfo or a MultiInfo
     // consisting of several FileInfos
