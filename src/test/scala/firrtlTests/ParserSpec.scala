@@ -92,10 +92,24 @@ class ParserSpec extends FirrtlFlatSpec {
     ) ++ PrimOps.listing
   }
 
-  // FIRRTL version number
-  "Version" should "be parsed" in {
+  // ********** FIRRTL version number **********
+  "Version 1.1.0" should "be accepted" in {
     val input = """
                   |FIRRTL version 1.1.0
+                  |circuit Test :
+                  |  module Test :
+                  |    input in : { 0 : { 0 : UInt<32>, flip 1 : UInt<32> } }
+                  |    input in2 : { 4 : { 23 : { foo : UInt<32>, bar : { flip 123 : UInt<32> } } } }
+                  |    in.0.1 <= in.0.0
+                  |    in2.4.23.bar.123 <= in2.4.23.foo
+      """.stripMargin
+    val c = firrtl.Parser.parse(input)
+    firrtl.Parser.parse(c.serialize)
+  }
+
+  "Version 1.1.1" should "be accepted" in {
+    val input = """
+                  |FIRRTL version 1.1.1
                   |circuit Test :
                   |  module Test :
                   |    input in : { 0 : { 0 : UInt<32>, flip 1 : UInt<32> } }
