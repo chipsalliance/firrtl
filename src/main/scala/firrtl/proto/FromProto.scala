@@ -122,6 +122,9 @@ object FromProto {
   def convert(validif: Firrtl.Expression.ValidIf): ir.ValidIf =
     ir.ValidIf(convert(validif.getCondition), convert(validif.getValue), ir.UnknownType)
 
+  def convert(slice: Firrtl.Expression.WSliceNode): firrtl.passes.WSliceNode =
+    firrtl.passes.WSliceNode(convert(slice.getExpr), convert(slice.getHi).toInt, convert(slice.getLo).toInt)
+
   def convert(expr: Firrtl.Expression): ir.Expression = {
     import Firrtl.Expression._
     expr.getExpressionCase.getNumber match {
@@ -135,6 +138,7 @@ object FromProto {
       case PRIM_OP_FIELD_NUMBER       => convert(expr.getPrimOp)
       case MUX_FIELD_NUMBER           => convert(expr.getMux)
       case VALID_IF_FIELD_NUMBER      => convert(expr.getValidIf)
+      case W_SLICE_NODE_FIELD_NUMBER  => convert(expr.getWSliceNode)
     }
   }
 

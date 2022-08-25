@@ -229,8 +229,10 @@ class StructuralHash private (h: Hasher, renameModule: String => String) {
     case firrtl.WInvalid        => id(11)
     case firrtl.EmptyExpression => id(12)
     // VRandom is used in the Emitter
-    case firrtl.VRandom(width) => id(13); hash(width)
-    // ids 14 ... 19 are reserved for future Expression nodes
+    case firrtl.VRandom(width)     => id(13); hash(width)
+    case firrtl.WIntVoid(width)    => id(14); hash(width)
+    case firrtl.WIntInvalid(width) => id(15); hash(width)
+    // ids 16 ... 19 are reserved for future Expression nodes
   }
 
   private def hash(node: Statement): Unit = node match {

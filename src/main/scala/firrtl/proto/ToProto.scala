@@ -165,6 +165,13 @@ object ToProto {
           .setExpression(convert(e))
           .setIndex(convertToIntegerLiteral(value))
         eb.setSubIndex(sb)
+      case firrtl.passes.WSliceNode(expr, hi, lo) =>
+        val sb = Firrtl.Expression.WSliceNode
+          .newBuilder()
+          .setExpr(convert(expr))
+          .setHi(convertToIntegerLiteral(hi))
+          .setLo(convertToIntegerLiteral(lo))
+        eb.setWSliceNode(sb)
       case ir.SubAccess(e, index, _, _) =>
         val sb = Firrtl.Expression.SubAccess
           .newBuilder()

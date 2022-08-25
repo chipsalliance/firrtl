@@ -39,15 +39,21 @@ object CheckFlows extends Pass {
   def run(c: Circuit): Circuit = {
     val errors = new Errors()
 
-    def get_flow(e: Expression, flows: FlowMap): Flow = e match {
+    def get_flow(e: Expression, flows: FlowMap, desired: Flow): Flow = e match {
       case (e: WRef)      => flows(e.name)
-      case (e: WSubIndex) => get_flow(e.expr, flows)
-      case (e: WSubAccess) => get_flow(e.expr, flows)
+      case (e: WSubIndex) => get_flow(e.expr, flows, desired)
+      case (e: WSubAccess) => get_flow(e.expr, flows, desired)
       case (e: WSubField) =>
         e.expr.tpe match {
           case t: BundleType =>
             val f = (t.fields.find(_.name == e.name)).get
-            times(get_flow(e.expr, flows), f.flip)
+            times(get_flow(e.expr, flows, desired), f.flip)
+        }
+      case DoPrim(PrimOps.Bits, Seq(expr), _, _) => // bits can be used as sink (sub-word assignments) and source flow
+        // when bits are used on the rhs, then they are treated like any other primop
+        if (desired == SourceFlow) { SourceFlow }
+        else {
+          get_flow(expr, flows, desired)
         }
       case _ => SourceFlow
     }
@@ -62,7 +68,7 @@ object CheckFlows extends Pass {
     }
 
     def check_flow(info: Info, mname: String, flows: FlowMap, desired: Flow)(e: Expression): Unit = {
-      val flow = get_flow(e, flows)
+      val flow = get_flow(e, flows, desired)
       (flow, desired) match {
         case (SourceFlow, SinkFlow) =>
           errors.append(new WrongFlow(info, mname, e.serialize, desired, flow))

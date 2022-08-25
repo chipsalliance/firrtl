@@ -74,6 +74,18 @@ object WSubAccess {
   )
 }
 
+/** A ground type void that carries an explicit bit-width. Used in the ExpandWhens pass. */
+case class WIntVoid(width: BigInt) extends Expression with UseSerializer {
+  override def tpe = UIntType(IntWidth(width))
+  def mapExpr(f:      Expression => Expression): Expression = this
+  def mapType(f:      Type => Type):             Expression = this
+  def mapWidth(f:     Width => Width):           Expression = this
+  def foreachExpr(f:  Expression => Unit):       Unit = ()
+  def foreachType(f:  Type => Unit):             Unit = f(tpe)
+  def foreachWidth(f: Width => Unit):            Unit = ()
+}
+
+@deprecated("Use WIntVoid instead.", "FIRRTL 1.6")
 case object WVoid extends Expression with UseSerializer {
   def tpe = UnknownType
   def mapExpr(f:      Expression => Expression): Expression = this
@@ -83,6 +95,19 @@ case object WVoid extends Expression with UseSerializer {
   def foreachType(f:  Type => Unit):             Unit = ()
   def foreachWidth(f: Width => Unit):            Unit = ()
 }
+
+/** A ground type invalid that carries an explicit bit-width. Used in the ExpandWhens pass. */
+case class WIntInvalid(width: BigInt) extends Expression with UseSerializer {
+  override def tpe = UIntType(IntWidth(width))
+  def mapExpr(f:      Expression => Expression): Expression = this
+  def mapType(f:      Type => Type):             Expression = this
+  def mapWidth(f:     Width => Width):           Expression = this
+  def foreachExpr(f:  Expression => Unit):       Unit = ()
+  def foreachType(f:  Type => Unit):             Unit = f(tpe)
+  def foreachWidth(f: Width => Unit):            Unit = ()
+}
+
+@deprecated("Use WIntInvalid instead.", "FIRRTL 1.6")
 case object WInvalid extends Expression with UseSerializer {
   def tpe = UnknownType
   def mapExpr(f:      Expression => Expression): Expression = this
@@ -233,8 +258,8 @@ class WrappedExpression(val e1: Expression) {
         case (e1x: WSubField, e2x: WSubField) => (e1x.name.equals(e2x.name)) && weq(e1x.expr, e2x.expr)
         case (e1x: WSubIndex, e2x: WSubIndex) => (e1x.value == e2x.value) && weq(e1x.expr, e2x.expr)
         case (e1x: WSubAccess, e2x: WSubAccess) => weq(e1x.index, e2x.index) && weq(e1x.expr, e2x.expr)
-        case (WVoid, WVoid)       => true
-        case (WInvalid, WInvalid) => true
+        case (_: WIntVoid, _: WIntVoid) => true
+        case (_: WIntInvalid, _: WIntInvalid) => true
         case (e1x: DoPrim, e2x: DoPrim) =>
           e1x.op == e2x.op &&
             ((e1x.consts.zip(e2x.consts)).forall { case (x, y) => x == y }) &&

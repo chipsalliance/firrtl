@@ -4,6 +4,7 @@ package firrtl
 
 import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.tree.{AbstractParseTreeVisitor, ParseTreeVisitor, TerminalNode}
+
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.annotation.tailrec
@@ -13,6 +14,7 @@ import FIRRTLParser._
 import Parser.{AppendInfo, GenInfo, IgnoreInfo, InfoMode, UseInfo}
 import firrtl.ir._
 import Utils.throwInternalError
+import firrtl.passes.WSliceNode
 
 class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] with ParseTreeVisitor[FirrtlNode] {
   // Strip file path
@@ -470,12 +472,16 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
           }
         }
       case "[" =>
-        if (ctx.intLit != null) {
-          val lit = string2Int(ctx.intLit.getText)
-          SubIndex(inner, lit, UnknownType)
+        if (ctx.getChildCount == 5 || ctx.getChildCount == 6) {
+          WSliceNode(inner, string2Int(ctx.intLit(0).getText), string2Int(ctx.intLit(1).getText))
         } else {
-          val idx = visitExp(ctx.exp)
-          SubAccess(inner, idx, UnknownType)
+          assert(ctx.getChildCount == 3 || (ctx.getChildCount == 4 && ctx.subref() != null))
+          if (ctx.intLit(0) != null) {
+            val index = string2Int(ctx.intLit(0).getText)
+            WSliceNode(inner, index, index)
+          } else { // firrtl expressions are only allowed for Vec sub-accesses
+            SubAccess(inner, visitExp(ctx.exp), UnknownType)
+          }
         }
     }
     if (ctx.subref != null) {

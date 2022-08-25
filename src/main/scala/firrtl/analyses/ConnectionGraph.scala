@@ -7,7 +7,7 @@ import firrtl.annotations.{TargetToken, _}
 import firrtl.graph.{CyclicException, DiGraph, MutableDiGraph}
 import firrtl.ir._
 import firrtl.passes.MemPortUtils
-import firrtl.{InstanceKind, PortKind, SinkFlow, SourceFlow, Utils, WInvalid}
+import firrtl.{InstanceKind, PortKind, SinkFlow, SourceFlow, Utils, WIntInvalid}
 
 import scala.collection.mutable
 
@@ -338,16 +338,16 @@ object ConnectionGraph {
     * @return
     */
   def asTarget(m: ModuleTarget, tagger: TokenTagger)(e: FirrtlNode): ReferenceTarget = e match {
-    case l: Literal   => m.ref(tagger.getRef(l.value.toString))
-    case r: Reference => m.ref(r.name)
-    case s: SubIndex  => asTarget(m, tagger)(s.expr).index(s.value)
-    case s: SubField  => asTarget(m, tagger)(s.expr).field(s.name)
-    case d: DoPrim    => m.ref(tagger.getRef(d.op.serialize))
-    case _: Mux       => m.ref(tagger.getRef("mux"))
-    case _: ValidIf   => m.ref(tagger.getRef("validif"))
-    case WInvalid => m.ref(tagger.getRef("invalid"))
-    case _: Print => m.ref(tagger.getRef("print"))
-    case _: Stop  => m.ref(tagger.getRef("print"))
+    case l: Literal     => m.ref(tagger.getRef(l.value.toString))
+    case r: Reference   => m.ref(r.name)
+    case s: SubIndex    => asTarget(m, tagger)(s.expr).index(s.value)
+    case s: SubField    => asTarget(m, tagger)(s.expr).field(s.name)
+    case d: DoPrim      => m.ref(tagger.getRef(d.op.serialize))
+    case _: Mux         => m.ref(tagger.getRef("mux"))
+    case _: ValidIf     => m.ref(tagger.getRef("validif"))
+    case _: WIntInvalid => m.ref(tagger.getRef("invalid"))
+    case _: Print       => m.ref(tagger.getRef("print"))
+    case _: Stop        => m.ref(tagger.getRef("print"))
     case other => sys.error(s"Unsupported: $other")
   }
 
@@ -508,7 +508,7 @@ object ConnectionGraph {
           buildExpression(m, tagger, sinkTarget)(c.expr)
 
         case i: IsInvalid =>
-          val sourceTarget = asTarget(m, tagger)(WInvalid)
+          val sourceTarget = asTarget(m, tagger)(WIntInvalid(firrtl.bitWidth(i.expr.tpe)))
           addLabeledVertex(sourceTarget, stmt)
           mdg.addVertex(sourceTarget)
           val sinkTarget = asTarget(m, tagger)(i.expr)

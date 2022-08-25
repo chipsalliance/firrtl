@@ -436,6 +436,15 @@ message Firrtl {
       Expression index = 2;
     }
 
+    message WSliceNode {
+      // Required.
+      Expression expr = 1;
+      // Required.
+      IntegerLiteral hi = 2;
+      // Required.
+      IntegerLiteral lo = 3;
+    }
+
     message PrimOp {
 
       enum Op {
@@ -504,6 +513,7 @@ message Firrtl {
       SubIndex sub_index = 8;
       SubAccess sub_access = 9;
       PrimOp prim_op = 10;
+      WSliceNode w_slice_node = 12;
     }
   }
 }
