@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+import com.typesafe.tools.mima.core._
+
 enablePlugins(SiteScaladocPlugin)
 
 lazy val commonSettings = Seq(
@@ -61,7 +63,16 @@ lazy val firrtlSettings = Seq(
 )
 
 lazy val mimaSettings = Seq(
-  mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.5.0")
+  mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.5.4"),
+  mimaBinaryIssueFilters ++= Seq(
+    // These are real issues but users should not be extending things in the firrtl.antlr package
+    ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.antlr.FIRRTLListener.enterVersion"),
+    ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.antlr.FIRRTLListener.exitVersion"),
+    ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.antlr.FIRRTLListener.enterSemver"),
+    ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.antlr.FIRRTLListener.exitSemver"),
+    ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.antlr.FIRRTLVisitor.visitVersion"),
+    ProblemFilters.exclude[ReversedMissingMethodProblem]("firrtl.antlr.FIRRTLVisitor.visitSemver"),
+  )
 )
 
 lazy val protobufSettings = Seq(
