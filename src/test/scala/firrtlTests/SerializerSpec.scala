@@ -63,7 +63,7 @@ object SerializerSpec {
   val childModuleTabbed: String = tab(childModule)
 
   val simpleCircuit: String =
-    "circuit test :\n" + childModuleTabbed + "\n\n" + testModuleTabbed + "\n"
+    s"FIRRTL version ${Serializer.version.serialize}\ncircuit test :\n" + childModuleTabbed + "\n\n" + testModuleTabbed + "\n"
 }
 
 class SerializerSpec extends AnyFlatSpec with Matchers {
@@ -116,4 +116,9 @@ class SerializerSpec extends AnyFlatSpec with Matchers {
     serialized should be(childModuleTabbed)
   }
 
+  it should "emit whens with empty Blocks correctly" in {
+    val when = Conditionally(NoInfo, Reference("cond"), Block(Seq()), EmptyStmt)
+    val serialized = Serializer.serialize(when, 1)
+    serialized should be("  when cond :\n    skip\n")
+  }
 }

@@ -88,8 +88,74 @@ class ParserSpec extends FirrtlFlatSpec {
       "attach",
       "assert",
       "assume",
-      "cover"
+      "cover",
+      "version"
     ) ++ PrimOps.listing
+  }
+
+  // ********** FIRRTL version number **********
+  "Version 1.1.0" should "be accepted" in {
+    val input = """
+                  |FIRRTL version 1.1.0
+                  |circuit Test :
+                  |  module Test :
+                  |    input in : UInt<1>
+                  |    in <= UInt(0)
+      """.stripMargin
+    val c = firrtl.Parser.parse(input)
+    firrtl.Parser.parse(c.serialize)
+  }
+
+  "Version 1.1.1" should "be accepted" in {
+    val input = """
+                  |FIRRTL version 1.1.1
+                  |circuit Test :
+                  |  module Test :
+                  |    input in : UInt<1>
+                  |    in <= UInt(0)
+      """.stripMargin
+    val c = firrtl.Parser.parse(input)
+    firrtl.Parser.parse(c.serialize)
+  }
+
+  "No version" should "be accepted" in {
+    val input = """
+                  |circuit Test :
+                  |  module Test :
+                  |    input in : { 0 : { 0 : { 0 : UInt<32>, flip 1 : UInt<32> } } }
+                  |    in.0.0.1 <= in.0.0.0
+      """.stripMargin
+    val c = firrtl.Parser.parse(input)
+    firrtl.Parser.parse(c.serialize)
+  }
+
+  "Version 1.2.0" should "be rejected" in {
+    an[UnsupportedVersionException] should be thrownBy {
+      val input = """
+                    |FIRRTL version 1.2.0
+                    |circuit Test :
+                    |  module Test :
+                    |    input in : UInt<1>
+                    |    in <= UInt(0)
+        """.stripMargin
+      firrtl.Parser.parse(input)
+    }
+  }
+
+  "Version 2.0.0" should "be rejected" in {
+    an[UnsupportedVersionException] should be thrownBy {
+      val input = """
+                    |FIRRTL version 2.0.0
+                    |crcuit Test :
+                    |  module Test @@#!# :
+                    |    input in1 : UInt<2>
+                    |    input in2 : UInt<3>
+                    |    output out : UInt<4>
+                    |    out[1:0] <= in1
+                    |    out[3:2] <= in2[1:0]
+        """.stripMargin
+      firrtl.Parser.parse(input)
+    }
   }
 
   // ********** Memories **********
@@ -317,7 +383,7 @@ class ParserSpec extends FirrtlFlatSpec {
     }
   }
 
-  it should "be able to parse a MultiInfo as a FileInfo" in {
+  "The Parser" should "be able to parse a MultiInfo as a FileInfo" in {
     // currently MultiInfo gets flattened into a single string which can only be recovered as a FileInfo
     val info = ir.MultiInfo(Seq(ir.MultiInfo(Seq(ir.FileInfo("a"))), ir.FileInfo("b"), ir.FileInfo("c")))
     val input =
@@ -327,6 +393,17 @@ class ParserSpec extends FirrtlFlatSpec {
          |""".stripMargin
     val c = firrtl.Parser.parse(input)
     assert(c.info == ir.FileInfo("a b c"))
+  }
+
+  it should "handle parse errors gracefully" in {
+    val input =
+      s"""circuit test :
+         |  module test :
+         |    output out :
+         |""".stripMargin
+    a[SyntaxErrorsException] should be thrownBy {
+      firrtl.Parser.parse(input)
+    }
   }
 }
 
