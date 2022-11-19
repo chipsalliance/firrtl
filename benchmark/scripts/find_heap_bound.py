@@ -6,10 +6,13 @@ import argparse
 from typing import NamedTuple
 from subprocess import TimeoutExpired
 import logging
+from functools import total_ordering
 
 from monitor_job import monitor_job, JobFailedError
 
 BaseHeapSize = NamedTuple('JavaHeapSize', [('value', int), ('suffix', str)])
+
+@total_ordering
 class HeapSize(BaseHeapSize):
     K_FACTOR = 1024
     M_FACTOR = 1024*1024
@@ -50,6 +53,16 @@ class HeapSize(BaseHeapSize):
 
     def __sub__(self, rhs):
         return HeapSize.from_bytes(self.toBytes() - rhs.toBytes())
+
+
+    def __eq__(self, rhs):
+        return self.toBytes() == rhs.toBytes()
+
+    # Defining __eq__ for total_ordering forces us to explicitly inherit __hash__
+    __hash__ = BaseHeapSize.__hash__
+
+    def __ge__(self, rhs):
+        return self.toBytes() >= rhs.toBytes()
 
     @classmethod
     def from_str(cls, s: str):
@@ -137,7 +150,9 @@ def main():
     seen = set()
     timeout = None # Set by first successful run
     cur = HeapSize.from_str(args.start_size)
-    while cur not in seen:
+
+    # Do binary search
+    while cur not in seen and (step is None or step >= min_step):
         seen.add(cur)
         try:
             cmd = mk_cmd(args.java, cur, args.args)
