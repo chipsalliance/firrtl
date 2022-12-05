@@ -29,11 +29,11 @@ lazy val firrtlSettings = Seq(
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
   libraryDependencies ++= Seq(
     "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-    "org.scalatest" %% "scalatest" % "3.2.12" % "test",
+    "org.scalatest" %% "scalatest" % "3.2.14" % "test",
     "org.scalatestplus" %% "scalacheck-1-15" % "3.2.11.0" % "test",
     "com.github.scopt" %% "scopt" % "3.7.1",
     "net.jcazevedo" %% "moultingyaml" % "0.4.2",
-    "org.json4s" %% "json4s-native" % "4.0.5",
+    "org.json4s" %% "json4s-native" % "4.0.6",
     "org.apache.commons" % "commons-text" % "1.9",
     "io.github.alexarchambault" %% "data-class" % "0.2.5",
     "com.lihaoyi" %% "os-lib" % "0.8.1"
@@ -65,7 +65,8 @@ lazy val mimaSettings = Seq(
 )
 
 lazy val protobufSettings = Seq(
-  ProtobufConfig / version := "3.18.2", // CVE-2021-22569
+  // The parentheses around the version help avoid version ambiguity in release scripts
+  ProtobufConfig / version := ("3.18.2"), // CVE-2021-22569
   ProtobufConfig / sourceDirectory := baseDirectory.value / "src" / "main" / "proto",
   ProtobufConfig / protobufRunProtoc := (args => com.github.os72.protocjar.Protoc.runProtoc("-v351" +: args.toArray))
 )
