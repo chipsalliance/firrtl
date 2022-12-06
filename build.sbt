@@ -4,8 +4,8 @@ enablePlugins(SiteScaladocPlugin)
 
 lazy val commonSettings = Seq(
   organization := "edu.berkeley.cs",
-  scalaVersion := "2.12.15",
-  crossScalaVersions := Seq("2.13.7", "2.12.15")
+  scalaVersion := "2.12.17",
+  crossScalaVersions := Seq("2.13.10", "2.12.17")
 )
 
 lazy val isAtLeastScala213 = Def.setting {
@@ -29,12 +29,12 @@ lazy val firrtlSettings = Seq(
   javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
   libraryDependencies ++= Seq(
     "org.scala-lang" % "scala-reflect" % scalaVersion.value,
-    "org.scalatest" %% "scalatest" % "3.2.12" % "test",
+    "org.scalatest" %% "scalatest" % "3.2.14" % "test",
     "org.scalatestplus" %% "scalacheck-1-15" % "3.2.11.0" % "test",
     "com.github.scopt" %% "scopt" % "3.7.1",
     "net.jcazevedo" %% "moultingyaml" % "0.4.2",
-    "org.json4s" %% "json4s-native" % "4.0.5",
-    "org.apache.commons" % "commons-text" % "1.9",
+    "org.json4s" %% "json4s-native" % "4.0.6",
+    "org.apache.commons" % "commons-text" % "1.10.0",
     "io.github.alexarchambault" %% "data-class" % "0.2.5",
     "com.lihaoyi" %% "os-lib" % "0.8.1"
   ),
@@ -66,7 +66,7 @@ lazy val mimaSettings = Seq(
 
 lazy val protobufSettings = Seq(
   // The parentheses around the version help avoid version ambiguity in release scripts
-  ProtobufConfig / version := ("3.18.2"), // CVE-2021-22569
+  ProtobufConfig / version := ("3.18.3"), // CVE-2021-22569
   ProtobufConfig / sourceDirectory := baseDirectory.value / "src" / "main" / "proto",
   ProtobufConfig / protobufRunProtoc := (args => com.github.os72.protocjar.Protoc.runProtoc("-v351" +: args.toArray))
 )
