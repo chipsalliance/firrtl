@@ -318,7 +318,9 @@ class ZeroWidthTests extends LeanTransformSpec(Seq(Dependency(ZeroWidth))) {
         |""".stripMargin
 
     val result = compile(input).circuit
-    println(result.serialize)
+    val lines = result.serialize.split('\n').map(_.trim)
+    assert(lines.contains("x <= UInt<1>(\"h0\")"))
+    assert(lines.contains("y <= SInt<1>(\"h0\")"))
   }
 }
 
