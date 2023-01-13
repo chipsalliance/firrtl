@@ -13,9 +13,20 @@ lazy val isAtLeastScala213 = Def.setting {
   CrossVersion.partialVersion(scalaVersion.value).exists(_ >= (2, 13))
 }
 
+def currentVersion(major: String): String = {
+  val doDatedSnapshot = sys.props.get("datedsnapshot")
+  if (doDatedSnapshot.isDefined) {
+    val basicFormat = java.time.format.DateTimeFormatter.BASIC_ISO_DATE
+    val date = java.time.LocalDate.now().format(basicFormat)
+    s"$major-$date-SNAPSHOT"
+  } else {
+    s"$major-SNAPSHOT"
+  }
+}
+
 lazy val firrtlSettings = Seq(
   name := "firrtl",
-  version := "1.6-SNAPSHOT",
+  version := currentVersion("1.6"),
   addCompilerPlugin(scalafixSemanticdb),
   scalacOptions := Seq(
     "-deprecation",
