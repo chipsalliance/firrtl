@@ -112,8 +112,7 @@ jobs:
   publish:
     needs: [all_tests_passed]
     runs-on: ubuntu-latest
-      # TODO uncomment this before merging PR
-      #if: github.event_name == 'push'
+      if: github.event_name == 'push'
 
     steps:
       - name: Checkout
