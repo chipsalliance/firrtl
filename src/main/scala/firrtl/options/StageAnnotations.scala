@@ -29,18 +29,31 @@ trait Unserializable { this: Annotation => }
   * Note: from the perspective of transforms generating annotations that mix-in this trait, the serialized files are not
   * expected to be available to downstream transforms. Communication of information between transforms must occur
   * through the annotations that will eventually be serialized to files.
+  *
+  * The `replacements` mechanism can be used to modify the annotations especially those that are `Unserializable`,
+  * and can be combined with the `doEmitFile`
+  * flag to prevent actually emitting a file directly.
   */
 trait CustomFileEmission { this: Annotation =>
+
+  /** Override to false if you do not want this to actually emit a file.
+    *
+    * This means that baseFileName, suffix, bytes, and fileName are irrelevant.
+    * This is useful for using the replacements mechanism to transform the annotations
+    * before serialization, without actually emitting the annotations or any other file
+    * directly
+    */
+  protected def doEmitFile: Boolean = true
 
   /** Output filename where serialized content will be written
     *
     * The full annotation sequence is a parameter to allow for the location where this annotation will be serialized to
     * be a function of other annotations, e.g., if the location where information is written is controlled by a separate
-    * file location annotation.
+    * file location annotation. It is an Option if whether to write the file or not is a function of the annotations as well.
     *
     * @param annotations the annotation sequence at the time of emission
     */
-  protected def baseFileName(annotations: AnnotationSeq): String
+  protected def baseFileName(annotations: AnnotationSeq): Option[String]
 
   /** Optional suffix of the output file */
   protected def suffix: Option[String]
@@ -49,10 +62,10 @@ trait CustomFileEmission { this: Annotation =>
     *
     * If you only need to serialize a string, you can use the `getBytes` method:
     * {{{
-    *  def getBytes: Iterable[Byte] = myString.getBytes
+    *  def getBytes: Option[Iterable[Byte]] = Some(myString.getBytes)
     * }}}
     */
-  def getBytes: Iterable[Byte]
+  def getBytes: Option[Iterable[Byte]]
 
   /** Optionally, a sequence of annotations that will replace this annotation in the output annotation file.
     *

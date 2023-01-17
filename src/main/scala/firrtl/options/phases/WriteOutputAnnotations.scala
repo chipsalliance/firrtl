@@ -48,36 +48,38 @@ class WriteOutputAnnotations extends Phase {
         else { None }
       case a: CustomFileEmission =>
         val filename = a.filename(annotations)
-        val canonical = filename.getCanonicalPath()
+        if (a.doEmitFile) {
+          val canonical = filename.getCanonicalPath()
 
-        filesWritten.get(canonical) match {
-          case None =>
-            val w = new BufferedOutputStream(new FileOutputStream(filename))
-            a match {
-              // Further optimized emission
-              case buf: BufferedCustomFileEmission =>
-                val it = buf.getBytesBuffered
-                it.foreach(bytearr => w.write(bytearr))
-              // Regular emission
-              case _ =>
-                a.getBytes match {
-                  case arr: mutable.WrappedArray[Byte] => w.write(arr.array.asInstanceOf[Array[Byte]])
-                  case other => other.foreach(w.write(_))
-                }
-            }
-            w.close()
-            filesWritten(canonical) = a
-          case Some(first) =>
-            val msg =
-              s"""|Multiple CustomFileEmission annotations would be serialized to the same file, '$canonical'
-                  |  - first writer:
-                  |      class: ${first.getClass.getName}
-                  |      trimmed serialization: ${first.serialize.take(80)}
-                  |  - second writer:
-                  |      class: ${a.getClass.getName}
-                  |      trimmed serialization: ${a.serialize.take(80)}
-                  |""".stripMargin
-            throw new PhaseException(msg)
+          filesWritten.get(canonical) match {
+            case None =>
+              val w = new BufferedOutputStream(new FileOutputStream(filename))
+              a match {
+                // Further optimized emission
+                case buf: BufferedCustomFileEmission =>
+                  val it = buf.getBytesBuffered
+                  it.foreach(bytearr => w.write(bytearr))
+                // Regular emission
+                case _ =>
+                  a.getBytes match {
+                    case arr: mutable.WrappedArray[Byte] => w.write(arr.array.asInstanceOf[Array[Byte]])
+                    case other => other.foreach(w.write(_))
+                  }
+              }
+              w.close()
+              filesWritten(canonical) = a
+            case Some(first) =>
+              val msg =
+                s"""|Multiple CustomFileEmission annotations would be serialized to the same file, '$canonical'
+                    |  - first writer:
+                    |      class: ${first.getClass.getName}
+                    |      trimmed serialization: ${first.serialize.take(80)}
+                    |  - second writer:
+                    |      class: ${a.getClass.getName}
+                    |      trimmed serialization: ${a.serialize.take(80)}
+                    |""".stripMargin
+              throw new PhaseException(msg)
+          }
         }
         a.replacements(filename)
       case a => Some(a)
