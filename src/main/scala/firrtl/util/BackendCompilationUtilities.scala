@@ -188,7 +188,8 @@ object BackendCompilationUtilities extends LazyLogging {
           logger.info(line)
         },
         stderrLine => {
-          triggered = triggered || stderrLine.contains("Assertion failed") || (assertionMessageSupplied && stderrLine.contains(assertionMsg))
+          triggered = triggered || stderrLine
+            .contains("Assertion failed") || (assertionMessageSupplied && stderrLine.contains(assertionMsg))
           logger.warn(stderrLine)
         }
       )
