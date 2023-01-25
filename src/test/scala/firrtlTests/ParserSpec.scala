@@ -405,6 +405,48 @@ class ParserSpec extends FirrtlFlatSpec {
       firrtl.Parser.parse(input)
     }
   }
+
+  it should "parse smem read-under-write behavior" in {
+    val undefined = firrtl.Parser.parse(SMemTestCircuit.src(""))
+    assert(SMemTestCircuit.findRuw(undefined) == ReadUnderWrite.Undefined)
+
+    val undefined2 = firrtl.Parser.parse(SMemTestCircuit.src(" undefined"))
+    assert(SMemTestCircuit.findRuw(undefined2) == ReadUnderWrite.Undefined)
+
+    val old = firrtl.Parser.parse(SMemTestCircuit.src(" old"))
+    assert(SMemTestCircuit.findRuw(old) == ReadUnderWrite.Old)
+
+    val readNew = firrtl.Parser.parse(SMemTestCircuit.src(" new"))
+    assert(SMemTestCircuit.findRuw(readNew) == ReadUnderWrite.New)
+  }
+}
+
+/** used to test parsing and serialization of smems */
+object SMemTestCircuit {
+  def src(ruw: String): String =
+    s"""circuit Example :
+       |  module Example :
+       |    input clock : Clock
+       |    input reset : UInt<1>
+       |    input addr : UInt<3>
+       |    output data : UInt<8>
+       |
+       |    smem mem : UInt<8> [8] $ruw@[main.scala 10:25]
+       |    wire _data_WIRE : UInt @[main.scala 11:20]
+       |    _data_WIRE is invalid @[main.scala 11:20]
+       |    when UInt<1>("h1") : @[main.scala 11:20]
+       |      _data_WIRE <= addr @[main.scala 11:20]
+       |      node _data_T = or(_data_WIRE, UInt<3>("h0")) @[main.scala 11:20]
+       |      node _data_T_1 = bits(_data_T, 2, 0) @[main.scala 11:20]
+       |      read mport data_MPORT = mem[_data_T_1], clock @[main.scala 11:20]
+       |    data <= data_MPORT @[main.scala 11:8]
+       |""".stripMargin
+
+  def findRuw(c: Circuit): ReadUnderWrite.Value = {
+    val main = c.modules.head.asInstanceOf[ir.Module]
+    val mem = main.body.asInstanceOf[ir.Block].stmts.collectFirst { case m: CDefMemory => m }.get
+    mem.readUnderWrite
+  }
 }
 
 class ParserPropSpec extends FirrtlPropSpec {
