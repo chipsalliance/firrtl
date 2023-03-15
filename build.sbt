@@ -61,7 +61,7 @@ lazy val firrtlSettings = Seq(
 )
 
 lazy val mimaSettings = Seq(
-  mimaPreviousArtifacts := Set()
+  mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.6.0-RC2")
 )
 
 lazy val protobufSettings = Seq(
