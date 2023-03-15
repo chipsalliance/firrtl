@@ -152,7 +152,7 @@ lazy val docSettings = Seq(
     "-doc-source-url", {
       val branch =
         if (version.value.endsWith("-SNAPSHOT")) {
-          "master"
+          "1.6.x"
         } else {
           s"v${version.value}"
         }
