@@ -7,10 +7,10 @@ import firrtl._
 import firrtl.ir._
 import firrtl.Mappers._
 import firrtl.PrimOps._
-import firrtl.Utils.{one, zero, BoolType}
-import firrtl.options.{HasShellOptions, ShellOption}
+import firrtl.Utils.{BoolType, one, zero}
+import firrtl.options.{Dependency, HasShellOptions, ShellOption}
 import MemPortUtils.memPortField
-import firrtl.passes.memlib.AnalysisUtils.{getConnects, getOrigin, Connects}
+import firrtl.passes.memlib.AnalysisUtils.{Connects, getConnects, getOrigin}
 import WrappedExpression.weq
 import annotations._
 import firrtl.stage.{Forms, RunFirrtlTransformAnnotation}
@@ -174,7 +174,7 @@ object InferReadWritePass extends Pass {
 class InferReadWrite extends Transform with DependencyAPIMigration with SeqTransformBased with HasShellOptions {
 
   override def prerequisites = Forms.MidForm
-  override def optionalPrerequisites = Seq.empty
+  override def optionalPrerequisites = Seq(Dependency[ReplSeqMem])
   override def optionalPrerequisiteOf = Forms.MidEmitters
   override def invalidates(a: Transform) = false
 
