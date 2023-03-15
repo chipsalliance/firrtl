@@ -109,7 +109,7 @@ jobs:
   publish:
     needs: [all_tests_passed]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+      if: github.event_name == 'push'
 
     steps:
       - name: Checkout
@@ -123,7 +123,9 @@ jobs:
       - name: Setup GPG (for Publish)
         uses: olafurpg/setup-gpg@v3
       - name: Publish
-        run: sbt ci-release
+        run: |
+          sbt ci-release
+          sbt -Ddatedsnapshot ci-release
         env:
           PGP_PASSPHRASE: ${{ secrets.PGP_PASSPHRASE }}
           PGP_SECRET: ${{ secrets.PGP_SECRET }}
