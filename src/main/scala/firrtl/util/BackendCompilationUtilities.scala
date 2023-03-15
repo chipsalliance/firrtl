@@ -163,6 +163,17 @@ object BackendCompilationUtilities extends LazyLogging {
   def cppToExe(prefix: String, dir: File): ProcessBuilder =
     Seq("make", "-C", dir.toString, "-j", "-f", s"V$prefix.mk", s"V$prefix")
 
+  /** Check for failed unit test using verilator
+    * Failure determined by
+    * - supplied assertion message on stdout
+    * - "Assertion failed" on stderr
+    * - exit code not equal to 0 or 134
+    *
+    * @param prefix program to be run after adding capital "./V" to the front
+    * @param dir           working directory for program execution
+    * @param assertionMsg  message to look for on stdout
+    * @return              true
+    */
   def executeExpectingFailure(
     prefix:       String,
     dir:          File,
@@ -176,7 +187,11 @@ object BackendCompilationUtilities extends LazyLogging {
           triggered = triggered || (assertionMessageSupplied && line.contains(assertionMsg))
           logger.info(line)
         },
-        logger.warn(_)
+        stderrLine => {
+          triggered = triggered || stderrLine
+            .contains("Assertion failed") || (assertionMessageSupplied && stderrLine.contains(assertionMsg))
+          logger.warn(stderrLine)
+        }
       )
     // Fail if a line contained an assertion or if we get a non-zero exit code
     //  or, we get a SIGABRT (assertion failure) and we didn't provide a specific assertion message
