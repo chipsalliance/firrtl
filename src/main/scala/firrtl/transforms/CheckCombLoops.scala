@@ -184,6 +184,7 @@ class CheckCombLoops extends Transform with RegisteredTransform with DependencyA
         if (lhs.inst.isDefined && !lhs.memport.isDefined && lhs.inst == rhs.inst) {
           val child = moduleDeps(m)(lhs.inst.get)
           val newHierPrefix = hierPrefix :+ lhs.inst.get
+          //TODO: This should probably handle the PathNotFound exception thrown here, replace with CombLoopException
           val subpath = moduleGraphs(child).path(lhs.copy(inst = None), rhs.copy(inst = None)).reverse
           expandInstancePaths(child, moduleGraphs, moduleDeps, newHierPrefix, subpath)
         } else {
@@ -316,7 +317,31 @@ class CheckCombLoops extends Transform with RegisteredTransform with DependencyA
       logger.warn("Skipping Combinational Loop Detection")
       state
     } else {
-      val (result, errors, connectivity, _) = run(state)
+      var (result, errors, connectivity, _) = run(state)
+
+      var loopFixed = false
+      if (state.annotations.contains(EnableFixFalseCombLoops)) {
+        //If there is an error, try fixing as a false loop
+        while (errors.errors.nonEmpty) {
+          val fixedFalseLoop = FixFalseCombLoops.fixFalseCombLoops(result, errors.errors(0).getMessage)
+          //If false loop fix cannot fix circuit, it is a real error
+          if (result.circuit.serialize == fixedFalseLoop.circuit.serialize) {
+            errors.trigger()
+          }
+          //If false loop had changed circuit, iterate again on result
+          loopFixed = true
+          val (newResult, newErrors, connectivity, _) = run(fixedFalseLoop)
+          result = newResult
+          errors = newErrors
+        }
+      }
+
+      if (loopFixed) {
+        logger.warn(
+          "WARNING: Detected word-level combinational loop; Automatically transformed involved logic into equivalent " +
+            "bit-level representation with combinational loops removed!"
+        )
+      }
       errors.trigger()
       result
     }
