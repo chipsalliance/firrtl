@@ -118,6 +118,30 @@ class ParserSpec extends FirrtlFlatSpec {
     firrtl.Parser.parse(c.serialize)
   }
 
+  "Version 1.2.0" should "be accepted" in {
+    val input = """
+                  |FIRRTL version 1.2.0
+                  |circuit Test :
+                  |  module Test :
+                  |    input in : UInt<1>
+                  |    in <= UInt(0)
+      """.stripMargin
+    val c = firrtl.Parser.parse(input)
+    firrtl.Parser.parse(c.serialize)
+  }
+
+  "Version 1.2.1" should "be accepted" in {
+    val input = """
+                  |FIRRTL version 1.2.1
+                  |circuit Test :
+                  |  module Test :
+                  |    input in : UInt<1>
+                  |    in <= UInt(0)
+      """.stripMargin
+    val c = firrtl.Parser.parse(input)
+    firrtl.Parser.parse(c.serialize)
+  }
+
   "No version" should "be accepted" in {
     val input = """
                   |circuit Test :
@@ -129,10 +153,10 @@ class ParserSpec extends FirrtlFlatSpec {
     firrtl.Parser.parse(c.serialize)
   }
 
-  "Version 1.2.0" should "be rejected" in {
+  "Version 1.3.0" should "be rejected" in {
     an[UnsupportedVersionException] should be thrownBy {
       val input = """
-                    |FIRRTL version 1.2.0
+                    |FIRRTL version 1.3.0
                     |circuit Test :
                     |  module Test :
                     |    input in : UInt<1>
