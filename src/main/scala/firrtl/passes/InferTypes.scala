@@ -9,7 +9,7 @@ import firrtl.Mappers._
 import firrtl.options.Dependency
 
 object InferTypes extends Pass {
-
+  import CInferTypes.resolveSlice
   override def prerequisites = Dependency(ResolveKinds) +: firrtl.stage.Forms.MinimalHighForm
   override def invalidates(a: Transform) = false
 
@@ -54,6 +54,7 @@ object InferTypes extends Pass {
         case e: Mux        => e.copy(tpe = mux_type_and_widths(e.tval, e.fval))
         case e: ValidIf    => e.copy(tpe = e.value.tpe)
         case e @ (_: UIntLiteral | _: SIntLiteral) => e
+        case e: WSliceNode => resolveSlice(e)
       }
 
     def infer_types_s(types: TypeLookup)(s: Statement): Statement = s match {
@@ -97,6 +98,25 @@ object InferTypes extends Pass {
   }
 }
 
+/** Internal node used by the parser for the `[...]` and `[... : ...]` syntax.
+  *  CHIRRTL level type inference then converts this into either a `bits(..., ... , ...)`,
+  *  or [[ir.SubIndex]] depending on the inferred type of the inner expression.
+  */
+case class WSliceNode(expr: ir.Expression, hi: Int, lo: Int) extends ir.Expression {
+  override def tpe = ir.UnknownType
+  override def mapExpr(f: ir.Expression => ir.Expression) = copy(expr = f(expr))
+  override def mapType(f: ir.Type => ir.Type) = { f(ir.UnknownType); this }
+  override def mapWidth(f:     ir.Width => ir.Width) = this
+  override def foreachExpr(f:  ir.Expression => Unit): Unit = f(expr)
+  override def foreachType(f:  ir.Type => Unit):       Unit = f(ir.UnknownType)
+  override def foreachWidth(f: ir.Width => Unit):      Unit = ()
+  override def serialize = {
+    val suffix = if (hi == lo) { s"[$hi]" }
+    else { s"[$hi:$lo]" }
+    expr.serialize + suffix
+  }
+}
+
 object CInferTypes extends Pass {
 
   override def prerequisites = firrtl.stage.Forms.ChirrtlForm
@@ -106,6 +126,17 @@ object CInferTypes extends Pass {
   type TypeMap = collection.mutable.LinkedHashMap[String, Type]
 
   private type TypeLookup = collection.mutable.HashMap[String, Type]
+
+  /** Turns an internal slice node into either a bits primop or a sub index depending on types.
+    *  This is necessary because the parser cannot disambiguate the three AST nodes since they share the same syntax.
+    */
+  def resolveSlice(e: WSliceNode): Expression = e.expr.tpe match {
+    case _: VectorType if e.hi == e.lo =>
+      SubIndex(e.expr, e.hi, sub_type(e.expr.tpe))
+    case _ =>
+      val op = DoPrim(PrimOps.Bits, List(e.expr), List(e.hi, e.lo), UnknownType)
+      PrimOps.set_primop_type(op)
+  }
 
   def run(c: Circuit): Circuit = {
     val mtypes = (c.modules.map(m => m.name -> module_type(m))).toMap
@@ -120,6 +151,7 @@ object CInferTypes extends Pass {
         case (e: Mux)       => e.copy(tpe = mux_type(e.tval, e.fval))
         case (e: ValidIf)   => e.copy(tpe = e.value.tpe)
         case e @ (_: UIntLiteral | _: SIntLiteral) => e
+        case e: WSliceNode => resolveSlice(e)
       }
 
     def infer_types_s(types: TypeLookup)(s: Statement): Statement = s match {

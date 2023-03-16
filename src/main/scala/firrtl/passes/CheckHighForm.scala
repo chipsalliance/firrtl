@@ -207,6 +207,8 @@ trait CheckHighFormLike { this: Pass =>
     }
 
     def checkValidLoc(info: Info, mname: String, e: Expression): Unit = e match {
+      case DoPrim(PrimOps.Bits, Seq(expr), _, _) => // bit slices are allowed as locs for subword assignments
+        checkValidLoc(info, mname, expr)
       case _: UIntLiteral | _: SIntLiteral | _: DoPrim =>
         errors.append(new InvalidLOCException(info, mname))
       case _ => // Do Nothing
@@ -232,7 +234,7 @@ trait CheckHighFormLike { this: Pass =>
     def validSubexp(info: Info, mname: String)(e: Expression): Unit = {
       e match {
         case _: Reference | _: SubField | _: SubIndex | _: SubAccess => // No error
-        case _: WRef | _: WSubField | _: WSubIndex | _: WSubAccess | _: Mux | _: ValidIf => // No error
+        case _: WRef | _: WSubField | _: WSubIndex | _: WSubAccess | _: Mux | _: ValidIf | _: WSliceNode => // No error
         case _ => errors.append(new InvalidAccessException(info, mname))
       }
     }
@@ -247,7 +249,8 @@ trait CheckHighFormLike { this: Pass =>
           errors.append(new NegUIntException(info, mname))
         case ex: DoPrim => checkHighFormPrimop(info, mname, ex)
         case _: Reference | _: WRef | _: UIntLiteral | _: Mux | _: ValidIf =>
-        case ex: SubAccess => validSubexp(info, mname)(ex.expr)
+        case ex: SubAccess  => validSubexp(info, mname)(ex.expr)
+        case ex: WSliceNode => validSubexp(info, mname)(ex.expr)
         case ex => ex.foreach(validSubexp(info, mname))
       }
       e.foreach(checkHighFormW(info, mname + "/" + e.serialize))

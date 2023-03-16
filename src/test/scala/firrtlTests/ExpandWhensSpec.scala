@@ -33,9 +33,9 @@ class ExpandWhensSpec extends FirrtlFlatSpec {
     val lines = c.serialize.split("\n").map(normalized)
 
     if (expected) {
-      c.serialize.contains(check) should be(true)
+      assert(c.serialize.contains(check))
     } else {
-      lines.foreach(_.contains(check) should be(false))
+      lines.foreach(l => assert(!l.contains(check)))
     }
   }
   "Expand Whens" should "not emit INVALID" in {
@@ -146,7 +146,7 @@ class ExpandWhensSpec extends FirrtlFlatSpec {
         |    else :
         |      skip""".stripMargin
     val check =
-      "assert(clock, eq(in, UInt<1>(\"h1\")), and(and(UInt<1>(\"h1\"), p), UInt<1>(\"h1\")), \"assert0\") : test_assert"
+      "assert(clock, eq(in, UInt<1>(\"h1\")), p, \"assert0\") : test_assert"
     executeTest(input, check, true)
   }
   it should "handle stops" in {
@@ -160,7 +160,7 @@ class ExpandWhensSpec extends FirrtlFlatSpec {
         |      stop(clock, UInt(1), 1) : test_stop
         |    else :
         |      skip""".stripMargin
-    val check = """stop(clock, and(and(UInt<1>("h1"), p), UInt<1>("h1")), 1) : test_stop"""
+    val check = """stop(clock, p, 1) : test_stop"""
     executeTest(input, check, true)
   }
 }

@@ -118,10 +118,12 @@ object Serializer {
       b ++= "Fixed"; s(width); sPoint(point)
       b ++= "(\"h"; b ++= value.toString(16); b ++= "\")"
     // WIR
-    case firrtl.WVoid           => b ++= "VOID"
-    case firrtl.WInvalid        => b ++= "INVALID"
-    case firrtl.EmptyExpression => b ++= "EMPTY"
-    case other                  => b ++= other.serialize // Handle user-defined nodes
+    case firrtl.WVoid              => b ++= "VOID"
+    case firrtl.WInvalid           => b ++= "INVALID"
+    case firrtl.WIntVoid(width)    => b ++= "VOID<"; b ++= width.toString(); b += '>'
+    case firrtl.WIntInvalid(width) => b ++= "INVALID<"; b ++= width.toString(); b += '>'
+    case firrtl.EmptyExpression    => b ++= "EMPTY"
+    case other                     => b ++= other.serialize // Handle user-defined nodes
   }
 
   // Helper for some not-real Statements that only exist for Serialization

@@ -19,7 +19,7 @@ import firrtl.{
   SourceFlow,
   UnknownFlow,
   Utils,
-  WInvalid,
+  WIntInvalid,
   WireKind
 }
 
@@ -124,10 +124,10 @@ class IRLookup private[analyses] (
                 case other =>
                   sys.error(s"Cannot call expr with: $t, given declaration $other")
               }
-            case _: IsInvalid =>
+            case i: IsInvalid =>
               exprCache.getOrElseUpdate(pathless.moduleTarget, mutable.HashMap[(ReferenceTarget, Flow), Expression]())(
                 (pathless, SourceFlow)
-              ) = WInvalid
+              ) = WIntInvalid(firrtl.bitWidth(i.expr.tpe))
           }
         }
     }

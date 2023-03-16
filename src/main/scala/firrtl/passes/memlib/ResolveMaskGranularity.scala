@@ -25,7 +25,7 @@ object AnalysisUtils {
         case DefNode(_, name, value) =>
           connects(name) = value
         case IsInvalid(_, value) =>
-          connects(value.serialize) = WInvalid
+          connects(value.serialize) = WIntInvalid(bitWidth(value.tpe))
         case _ => // do nothing
       }
       s.map(getConnects(connects))

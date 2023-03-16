@@ -66,20 +66,120 @@ object ExpandWhens extends Pass {
     */
   type Defaults = Seq[mutable.Map[WrappedExpression, Expression]]
 
+  private def getVoid(tpe: ir.Type): WIntVoid = WIntVoid(bitWidth(tpe))
+  private def doConnect(
+    netlist:  Netlist,
+    defaults: Defaults,
+    lhs:      ir.Expression,
+    rhs:      ir.Expression,
+    info:     Info
+  ): Unit =
+    lhs match {
+      case ref: ir.RefLikeExpression =>
+        netlist(ref) = InfoExpr(info, rhs)
+      case otherLhs =>
+        // normalize nested bits expressions before check
+        simplifyBits(otherLhs) match {
+          case ir.DoPrim(PrimOps.Bits, Seq(ref: ir.RefLikeExpression), Seq(hi, lo), _) =>
+            val refWidth = bitWidth(ref.tpe)
+            val highest = refWidth - 1
+            assert(hi < refWidth && lo >= 0)
+            // if we are assigning the whole range, things are simple
+            if (hi == highest && lo == 0) {
+              netlist(ref) = InfoExpr(info, rhs)
+            } else {
+              // perform a read modify write
+              val (prevInfo, prev) = unwrap(
+                netlist.getOrElse(ref, getDefault(ref, defaults).getOrElse(WIntVoid(refWidth)))
+              )
+              val msb = if (hi == highest) { simplifyBits(rhs) }
+              else {
+                Utils.cat(simplifyBits(prev, highest, hi + 1), simplifyBits(rhs))
+              }
+              val full = if (lo == 0) { msb }
+              else {
+                Utils.cat(msb, simplifyBits(prev, lo - 1, 0))
+              }
+              netlist(ref) = InfoExpr(ir.MultiInfo(Seq(prevInfo, info)), full)
+            }
+          case other =>
+            throw new PassException(s"Invalid expression at the left hand side of an assignment: ${other.serialize}")
+        }
+    }
+  private def simplifyBits(e: ir.Expression, hi: BigInt, lo: BigInt): ir.Expression =
+    simplifyBits(Utils.bits(e, hi, lo))
+
+  /** performs special simplifications which are needed in the case of sub-word assignments to avoid false positives
+    *  in the connection check
+    */
+  private def simplifyBits(e: ir.Expression): ir.Expression = e match {
+    case ir.DoPrim(PrimOps.Bits, Seq(expr), Seq(hi, lo), _) =>
+      expr match {
+        // combine bits of bits
+        case ir.DoPrim(PrimOps.Bits, Seq(innerExpr), Seq(_, innerLo), _) =>
+          simplifyBits(innerExpr, hi + innerLo, lo + innerLo)
+        // push bits into mux
+        case ir.Mux(cond, tval, fval, tpe) =>
+          val tru = simplifyBits(tval, hi, lo)
+          val fals = simplifyBits(fval, hi, lo)
+          assert(tru.tpe == fals.tpe)
+          ir.Mux(cond, tru, fals, tru.tpe)
+        // push bits into concat
+        case ir.DoPrim(PrimOps.Cat, Seq(msb, lsb), _, _) =>
+          val lsbWidth = bitWidth(lsb.tpe)
+          if (lsbWidth > hi) {
+            simplifyBits(lsb, hi, lo)
+          } else if (lo >= lsbWidth) {
+            simplifyBits(msb, hi - lsbWidth, lo - lsbWidth)
+          } else {
+            Utils.cat(
+              simplifyBits(msb, hi - lsbWidth, 0),
+              simplifyBits(lsb, lsbWidth - 1, lo)
+            )
+          }
+        // reduce size of void
+        case _: WIntVoid    => WIntVoid(hi - lo + 1)
+        case _: WIntInvalid => simplifyBits(WIntInvalid(hi - lo + 1))
+        case _ => e // nothing to simplify
+      }
+    // we replace any invalids with zero because the ValidIf construct does not work well for subword assignments
+    case WIntInvalid(width) => Utils.getGroundZero(UIntType(IntWidth(width)))
+    case _                  => e // nothing to simplify
+  }
+
+  /** combines assignments from two branches */
+  private def combineBranches(
+    pred:       Expression,
+    trueValue:  Expression,
+    falseValue: Expression,
+    tinfo:      Info,
+    finfo:      Info
+  ): (Expression, Info, Info) = {
+    (trueValue, falseValue) match {
+      case (i: WIntInvalid, _: WIntInvalid) => (i, NoInfo, NoInfo)
+      case (_: WIntInvalid, fv) => (ValidIf(NOT(pred), fv, fv.tpe), finfo, NoInfo)
+      case (tv, _: WIntInvalid) => (ValidIf(pred, tv, tv.tpe), tinfo, NoInfo)
+      case (tv, fv) => (Mux(pred, tv, fv, mux_type_and_widths(tv, fv)), tinfo, finfo)
+    }
+  }
+
   /** Expands a module's when statements */
   private def onModule(m: Module): Module = {
     val namespace = Namespace(m)
     val simlist = new Simlist
 
     // Memoizes if an expression contains any WVoids inserted in this pass
-    val memoizedVoid = new mutable.HashSet[WrappedExpression] += WVoid
+    val memoizedVoid = new mutable.HashSet[WrappedExpression]
 
     // Does an expression contain WVoid inserted in this pass?
     def containsVoid(e: Expression): Boolean = e match {
-      case WVoid                => true
+      case _: WIntVoid => true
+      case ValidIf(_, _: WIntVoid, _) => true
       case ValidIf(_, value, _) => memoizedVoid(value)
-      case Mux(_, tv, fv, _)    => memoizedVoid(tv) || memoizedVoid(fv)
-      case _                    => false
+      case Mux(_, _: WIntVoid, _, _) => true
+      case Mux(_, _, _: WIntVoid, _) => true
+      case Mux(_, tv, fv, _) => memoizedVoid(tv) || memoizedVoid(fv)
+      case _                 => false
     }
 
     // Memoizes the node that holds a particular expression, if any
@@ -101,13 +201,13 @@ object ExpandWhens extends Pass {
       // Return self, unchanged
       case stmt @ (_: DefNode | EmptyStmt) => stmt
       case w: DefWire =>
-        netlist ++= (getSinkRefs(w.name, w.tpe, DuplexFlow).map(ref => we(ref) -> WVoid))
+        netlist ++= (getSinkRefs(w.name, w.tpe, DuplexFlow).map(ref => we(ref) -> getVoid(ref.tpe)))
         w
       case w: DefMemory =>
-        netlist ++= (getSinkRefs(w.name, MemPortUtils.memType(w), SourceFlow).map(ref => we(ref) -> WVoid))
+        netlist ++= (getSinkRefs(w.name, MemPortUtils.memType(w), SourceFlow).map(ref => we(ref) -> getVoid(ref.tpe)))
         w
       case w: WDefInstance =>
-        netlist ++= (getSinkRefs(w.name, w.tpe, SourceFlow).map(ref => we(ref) -> WVoid))
+        netlist ++= (getSinkRefs(w.name, w.tpe, SourceFlow).map(ref => we(ref) -> getVoid(ref.tpe)))
         w
       case r: DefRegister =>
         // Update netlist with self reference for each sink reference
@@ -115,10 +215,10 @@ object ExpandWhens extends Pass {
         r
       // For value assignments, update netlist/attaches and return EmptyStmt
       case c: Connect =>
-        netlist(c.loc) = InfoExpr(c.info, c.expr)
+        doConnect(netlist, defaults, c.loc, c.expr, c.info)
         EmptyStmt
       case c: IsInvalid =>
-        netlist(c.expr) = WInvalid
+        doConnect(netlist, defaults, c.expr, WIntInvalid(bitWidth(c.expr.tpe)), c.info)
         EmptyStmt
       case a: Attach =>
         attaches += a
@@ -161,12 +261,7 @@ object ExpandWhens extends Pass {
               case Some(defaultValue) =>
                 val (tinfo, trueValue) = unwrap(conseqNetlist.getOrElse(lvalue, defaultValue))
                 val (finfo, falseValue) = unwrap(altNetlist.getOrElse(lvalue, defaultValue))
-                (trueValue, falseValue) match {
-                  case (WInvalid, WInvalid) => (WInvalid, NoInfo, NoInfo)
-                  case (WInvalid, fv)       => (ValidIf(NOT(sx.pred), fv, fv.tpe), finfo, NoInfo)
-                  case (tv, WInvalid)       => (ValidIf(sx.pred, tv, tv.tpe), tinfo, NoInfo)
-                  case (tv, fv)             => (Mux(sx.pred, tv, fv, mux_type_and_widths(tv, fv)), tinfo, finfo)
-                }
+                combineBranches(sx.pred, trueValue, falseValue, tinfo, finfo)
               case None =>
                 // Since not in netlist, lvalue must be declared in EXACTLY one of conseq or alt
                 (conseqNetlist.getOrElse(lvalue, altNetlist(lvalue)), NoInfo, NoInfo)
@@ -205,7 +300,7 @@ object ExpandWhens extends Pass {
     // Add ports to netlist
     netlist ++= (m.ports.flatMap {
       case Port(_, name, dir, tpe) =>
-        getSinkRefs(name, tpe, to_flow(dir)).map(ref => we(ref) -> WVoid)
+        getSinkRefs(name, tpe, to_flow(dir)).map(ref => we(ref) -> getVoid(ref.tpe))
     })
     // Do traversal and construct mutable datastructures
     val bodyx = expandWhens(netlist, Seq(netlist), one)(m.body)
@@ -242,8 +337,8 @@ object ExpandWhens extends Pass {
     def handleInvalid(k: WrappedExpression, info: Info): Statement =
       if (attached.contains(k)) EmptyStmt else IsInvalid(info, k.e1)
     netlist.map {
-      case (k, WInvalid)                 => handleInvalid(k, NoInfo)
-      case (k, InfoExpr(info, WInvalid)) => handleInvalid(k, info)
+      case (k, _: WIntInvalid) => handleInvalid(k, NoInfo)
+      case (k, InfoExpr(info, _: WIntInvalid)) => handleInvalid(k, info)
       case (k, v) =>
         val (info, expr) = unwrap(v)
         Connect(info, k.e1, expr)
@@ -286,10 +381,8 @@ object ExpandWhens extends Pass {
     }
   }
 
-  private def AND(e1: Expression, e2: Expression) =
-    DoPrim(And, Seq(e1, e2), Nil, BoolType)
-  private def NOT(e: Expression) =
-    DoPrim(Eq, Seq(e, zero), Nil, BoolType)
+  private def AND(e1: Expression, e2: Expression) = Utils.and(e1, e2)
+  private def NOT(e:  Expression) = Utils.not(e)
 }
 
 class ExpandWhensAndCheck extends Transform with DependencyAPIMigration {

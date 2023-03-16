@@ -11,7 +11,7 @@ import annotation.tailrec
 
 /** Reports errors for any references that are not fully initialized
   *
-  * @note This pass looks for [[firrtl.WVoid]]s left behind by [[ExpandWhens]]
+  * @note This pass looks for [[firrtl.WIntVoid]]s left behind by [[ExpandWhens]]
   * @note Assumes single connection (ie. no last connect semantics)
   */
 object CheckInitialization extends Pass {
@@ -48,7 +48,7 @@ object CheckInitialization extends Pass {
         var void = false
         val voidDeps = collection.mutable.ArrayBuffer[Expression]()
         def hasVoid(e: Expression): Unit = e match {
-          case WVoid =>
+          case _: WIntVoid =>
             void = true
           case (_: WRef | _: WSubField) =>
             if (voidExprs.contains(e)) {

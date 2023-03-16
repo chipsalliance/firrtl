@@ -616,17 +616,19 @@ object Utils extends LazyLogging {
     case ex => ExpKind
   }
   def flow(e: Expression): Flow = e match {
-    case ex: WRef        => ex.flow
-    case ex: WSubField   => ex.flow
-    case ex: WSubIndex   => ex.flow
-    case ex: WSubAccess  => ex.flow
+    case ex: WRef       => ex.flow
+    case ex: WSubField  => ex.flow
+    case ex: WSubIndex  => ex.flow
+    case ex: WSubAccess => ex.flow
+    // bits can be used as sink (in a sub-word assignment) or as source
+    case DoPrim(PrimOps.Bits, Seq(inner), _, _) => flow(inner)
     case ex: DoPrim      => SourceFlow
     case ex: UIntLiteral => SourceFlow
     case ex: SIntLiteral => SourceFlow
     case ex: Mux         => SourceFlow
     case ex: ValidIf     => SourceFlow
-    case WInvalid => SourceFlow
-    case ex       => throwInternalError(s"flow: shouldn't be here - $e")
+    case _:  WIntInvalid => SourceFlow
+    case ex => throwInternalError(s"flow: shouldn't be here - $e")
   }
   def get_flow(s: Statement): Flow = s match {
     case sx: DefWire        => DuplexFlow
@@ -892,7 +894,7 @@ object Utils extends LazyLogging {
   def and(e1: Expression, e2: Expression): Expression = {
     assert(e1.tpe == e2.tpe)
     (e1, e2) match {
-      case (a: UIntLiteral, b: UIntLiteral) => UIntLiteral(a.value | b.value, a.width)
+      case (a: UIntLiteral, b: UIntLiteral) => UIntLiteral(a.value & b.value, a.width)
       case (True(), b)      => b
       case (a, True())      => a
       case (False(), _)     => False()
@@ -900,6 +902,16 @@ object Utils extends LazyLogging {
       case (a, b) if a == b => a
       case (a, b)           => DoPrim(PrimOps.And, Seq(a, b), Nil, BoolType)
     }
+  }
+
+  /** Applies the firrtl Cat primop. */
+  def cat(e1: Expression, e2: Expression): Expression =
+    DoPrim(PrimOps.Cat, Seq(e1, e2), Nil, UIntType(IntWidth(bitWidth(e1.tpe) + bitWidth(e2.tpe))))
+
+  /** Applies the firrtl bits primop. */
+  def bits(e1: Expression, hi: BigInt, lo: BigInt): Expression = {
+    require(lo >= 0 && hi >= lo)
+    DoPrim(PrimOps.Bits, Seq(e1), Seq(hi, lo), UIntType(IntWidth(hi - lo + 1)))
   }
 
   /** Applies the firrtl Eq primop. */

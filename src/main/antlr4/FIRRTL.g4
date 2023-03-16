@@ -190,6 +190,7 @@ subref
   : '.' fieldId subref?
   | '.' DoubleLit subref? // TODO Workaround for #470
   | '[' (intLit | exp) ']' subref?
+  | '[' intLit ':' intLit ']' subref?
   ;
 
 id
