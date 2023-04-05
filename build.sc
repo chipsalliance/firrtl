@@ -23,7 +23,7 @@ class firrtlCrossModule(val crossScalaVersion: String)
   // 2.12.12 -> Array("2", "12", "12") -> "12" -> 12
   private def majorVersion = crossScalaVersion.split('.')(1).toInt
 
-  def publishVersion = "1.6.0-RC2"
+  def publishVersion = "1.6.0-RC3"
 
   override def mainClass = T {
     Some("firrtl.stage.FirrtlMain")
