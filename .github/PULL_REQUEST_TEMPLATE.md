@@ -1,3 +1,11 @@
+<!--
+
+********** NOTICE **********
+
+This repository is only accepting bug fixes
+
+-->
+
 ### Contributor Checklist
 
 - [ ] Did you add Scaladoc to every public function/method?
@@ -44,7 +52,7 @@ Text from here to the end of the body will be considered for inclusion in the re
 
 ### Reviewer Checklist (only modified by reviewer)
 - [ ] Did you add the appropriate labels?
-- [ ] Did you mark the proper milestone (1.2.x, 1.3.0, 1.4.0) ?
+- [ ] Did you mark the proper milestone (1.6.x, 1.5.x) ?
 - [ ] Did you review?
 - [ ] Did you check whether all relevant Contributor checkboxes have been checked?
 - [ ] Did you mark as `Please Merge`?

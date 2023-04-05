@@ -136,4 +136,48 @@ class SerializerSpec extends AnyFlatSpec with Matchers {
     val readNew = parseSerializeParse(SMemTestCircuit.src(" new"))
     assert(SMemTestCircuit.findRuw(readNew) == ReadUnderWrite.New)
   }
+
+  it should "support lazy serialization" in {
+    var stmtSerialized = false
+    case class HackStmt(stmt: Statement) extends Statement {
+      def serialize: String = {
+        stmtSerialized = true
+        stmt.serialize
+      }
+      def foreachExpr(f:   Expression => Unit):       Unit = stmt.foreachExpr(f)
+      def foreachInfo(f:   Info => Unit):             Unit = stmt.foreachInfo(f)
+      def foreachStmt(f:   Statement => Unit):        Unit = stmt.foreachStmt(f)
+      def foreachString(f: String => Unit):           Unit = stmt.foreachString(f)
+      def foreachType(f:   Type => Unit):             Unit = stmt.foreachType(f)
+      def mapExpr(f:       Expression => Expression): Statement = this.copy(stmt.mapExpr(f))
+      def mapInfo(f:       Info => Info):             Statement = this.copy(stmt.mapInfo(f))
+      def mapStmt(f:       Statement => Statement):   Statement = this.copy(stmt.mapStmt(f))
+      def mapString(f:     String => String):         Statement = this.copy(stmt.mapString(f))
+      def mapType(f:       Type => Type):             Statement = this.copy(stmt.mapType(f))
+    }
+
+    val stmt = HackStmt(DefNode(NoInfo, "foo", Reference("bar")))
+    val it: Iterable[String] = Serializer.lazily(stmt)
+    assert(!stmtSerialized, "We should be able to construct the serializer lazily")
+
+    var mapExecuted = false
+    val it2: Iterable[String] = it.map { x =>
+      mapExecuted = true
+      x + ","
+    }
+    assert(!stmtSerialized && !mapExecuted, "We should be able to map the serializer lazily")
+
+    var appendExecuted = false
+    val it3: Iterable[String] = it2 ++ Seq("hi").view.map { x =>
+      appendExecuted = true
+      x
+    }
+    assert(!stmtSerialized && !mapExecuted && !appendExecuted, "We should be able to append to the serializer lazily")
+
+    val result = it3.mkString
+    assert(
+      stmtSerialized && mapExecuted && appendExecuted,
+      "Once we traverse the serializer, everything should execute"
+    )
+  }
 }

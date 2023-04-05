@@ -61,7 +61,7 @@ lazy val firrtlSettings = Seq(
 )
 
 lazy val mimaSettings = Seq(
-  mimaPreviousArtifacts := Set()
+  mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.6.0-RC2")
 )
 
 lazy val protobufSettings = Seq(
@@ -152,7 +152,7 @@ lazy val docSettings = Seq(
     "-doc-source-url", {
       val branch =
         if (version.value.endsWith("-SNAPSHOT")) {
-          "master"
+          "1.6.x"
         } else {
           s"v${version.value}"
         }

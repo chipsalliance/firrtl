@@ -1,3 +1,12 @@
+# This project is in maintenance mode
+
+Pull Requests should only be made for bug fixes against versions 1.6 and below (Chisel 3.6 and below).
+
+Please see [CIRCT](https://github.com/llvm/circt) for the next generation FIRRTL compiler.
+Also see [Chisel](https://github.com/chipsalliance/chisel).
+
+---
+
 ![FIRRTL](https://raw.githubusercontent.com/freechipsproject/firrtl/master/doc/images/firrtl_logo.svg?sanitize=true)
 
 ---
