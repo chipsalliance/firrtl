@@ -37,10 +37,7 @@ case class FirrtlFileAnnotation(file: String) extends NoTargetAnnotation with Ci
   def toCircuit(info: Parser.InfoMode): FirrtlCircuitAnnotation = {
     val circuit =
       try {
-        FirrtlStageUtils.getFileExtension(file) match {
-          case ProtoBufFile => proto.FromProto.fromFile(file)
-          case FirrtlFile   => Parser.parseFile(file, info)
-        }
+        Parser.parseFile(file, info)
       } catch {
         case a @ (_: FileNotFoundException | _: NoSuchFileException) =>
           throw new OptionsException(s"Input file '$file' not found! (Did you misspell it?)", a)
@@ -59,43 +56,6 @@ object FirrtlFileAnnotation extends HasShellOptions {
       helpText = "An input FIRRTL file",
       shortOption = Some("i"),
       helpValueName = Some("<file>")
-    )
-  )
-
-}
-
-/** Read a directory of ProtoBufs
-  *  - set with `-I/--input-directory`
-  *
-  * TODO: Does not currently support FIRRTL files.
-  * @param dir input directory name
-  */
-case class FirrtlDirectoryAnnotation(dir: String) extends NoTargetAnnotation with CircuitOption {
-
-  def toCircuit(info: Parser.InfoMode): FirrtlCircuitAnnotation = {
-    val circuit =
-      try {
-        proto.FromProto.fromDirectory(dir)
-      } catch {
-        case a @ (_: FileNotFoundException | _: NoSuchFileException) =>
-          throw new OptionsException(s"Directory '$dir' not found! (Did you misspell it?)", a)
-        case _: NotDirectoryException =>
-          throw new OptionsException(s"Directory '$dir' is not a directory")
-      }
-    FirrtlCircuitAnnotation(circuit)
-  }
-
-}
-
-object FirrtlDirectoryAnnotation extends HasShellOptions {
-
-  val options = Seq(
-    new ShellOption[String](
-      longOption = "input-directory",
-      toAnnotationSeq = a => Seq(FirrtlDirectoryAnnotation(a)),
-      helpText = "A directory of FIRRTL files",
-      shortOption = Some("I"),
-      helpValueName = Some("<directory>")
     )
   )
 

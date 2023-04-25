@@ -64,13 +64,6 @@ lazy val mimaSettings = Seq(
   mimaPreviousArtifacts := Set("edu.berkeley.cs" %% "firrtl" % "1.6.0-RC2")
 )
 
-lazy val protobufSettings = Seq(
-  // The parentheses around the version help avoid version ambiguity in release scripts
-  ProtobufConfig / version := ("3.18.3"), // CVE-2021-22569
-  ProtobufConfig / sourceDirectory := baseDirectory.value / "src" / "main" / "proto",
-  ProtobufConfig / protobufRunProtoc := (args => com.github.os72.protocjar.Protoc.runProtoc("-v351" +: args.toArray))
-)
-
 lazy val assemblySettings = Seq(
   assembly / assemblyJarName := "firrtl.jar",
   assembly / test := {},
@@ -162,7 +155,6 @@ lazy val docSettings = Seq(
 )
 
 lazy val firrtl = (project in file("."))
-  .enablePlugins(ProtobufPlugin)
   .enablePlugins(ScalaUnidocPlugin)
   .enablePlugins(Antlr4Plugin)
   .settings(
@@ -171,7 +163,6 @@ lazy val firrtl = (project in file("."))
   )
   .settings(commonSettings)
   .settings(firrtlSettings)
-  .settings(protobufSettings)
   .settings(antlrSettings)
   .settings(assemblySettings)
   .settings(inConfig(Test)(baseAssemblySettings))

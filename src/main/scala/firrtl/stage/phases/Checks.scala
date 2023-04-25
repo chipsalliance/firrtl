@@ -31,11 +31,10 @@ class Checks extends Phase {
     * @throws firrtl.options.OptionsException if any checks fail
     */
   def transform(annos: AnnotationSeq): AnnotationSeq = {
-    val inF, inS, inD, eam, ec, outF, emitter, im, inC = collection.mutable.ListBuffer[Annotation]()
+    val inF, inS, eam, ec, outF, emitter, im, inC = collection.mutable.ListBuffer[Annotation]()
     annos.foreach(_ match {
       case a: FirrtlFileAnnotation      => a +=: inF
       case a: FirrtlSourceAnnotation    => a +=: inS
-      case a: FirrtlDirectoryAnnotation => a +=: inD
       case a: EmitAllModulesAnnotation  => a +=: eam
       case a: EmitCircuitAnnotation     => a +=: ec
       case a: OutputFileAnnotation      => a +=: outF
@@ -46,7 +45,7 @@ class Checks extends Phase {
     })
 
     /* At this point, only a FIRRTL Circuit should exist */
-    if (inF.isEmpty && inS.isEmpty && inD.isEmpty && inC.isEmpty) {
+    if (inF.isEmpty && inS.isEmpty && inC.isEmpty) {
       throw new OptionsException(
         s"""|Unable to determine FIRRTL source to read. None of the following were found:
             |    - an input file:  -i, --input-file,      FirrtlFileAnnotation
@@ -61,7 +60,6 @@ class Checks extends Phase {
       throw new OptionsException(
         s"""|Multiply defined input FIRRTL sources. More than one of the following was found:
             |    - an input file (${inF.size} times):  -i, --input-file,      FirrtlFileAnnotation
-            |    - an input dir (${inD.size} times):   -I, --input-directory, FirrtlDirectoryAnnotation
             |    - FIRRTL source (${inS.size} times):      --firrtl-source,   FirrtlSourceAnnotation
             |    - FIRRTL circuit (${inC.size} times):                        FirrtlCircuitAnnotation""".stripMargin
       )
