@@ -105,7 +105,7 @@ class firrtlCrossModule(val crossScalaVersion: String)
   }
 
   /* antlr4 */
-  def antlr4Version = "4.9.3"
+  def antlr4Version = "4.13.1"
 
   def antlrSource = T.source {
     millSourcePath / "src" / "main" / "antlr4" / "FIRRTL.g4"
@@ -123,7 +123,7 @@ class firrtlCrossModule(val crossScalaVersion: String)
         // get version from antlr4/antlr version output
         val systemAntlr4Version = os.proc(f).call(check = false).out.text().trim match {
           case versionPattern(v) => v
-          case _ => "0.0.0"
+          case _                 => "0.0.0"
         }
         val systemAntlr4Path = os.Path(os.proc("bash", "-c", s"command -v $f").call().out.text().trim)
         if (checkSystemAntlr4Version)
@@ -134,12 +134,12 @@ class firrtlCrossModule(val crossScalaVersion: String)
           else
             None
         else
-          // Perform a cursory version check, avoid using antlr2
-          // check if system antlr4 version is greater than 4.0.0
-          if (versionCompare(systemAntlr4Version, "4.0.0") >= 0)
-            Some(systemAntlr4Path)
-          else
-            None
+        // Perform a cursory version check, avoid using antlr2
+        // check if system antlr4 version is greater than 4.0.0
+        if (versionCompare(systemAntlr4Version, "4.0.0") >= 0)
+          Some(systemAntlr4Path)
+        else
+          None
       } catch {
         case _: IOException =>
           None
@@ -221,7 +221,7 @@ class firrtlCrossModule(val crossScalaVersion: String)
         // get version from protoc version output
         val systemProtocVersion = os.proc("protoc", "--version").call(check = false).out.text().trim match {
           case versionPattern(v) => v
-          case _ => "0.0.0"
+          case _                 => "0.0.0"
         }
         val systemProtocPath = os.Path(os.proc("bash", "-c", "command -v protoc").call().out.text().trim)
         if (checkSystemProtocVersion)
@@ -232,12 +232,12 @@ class firrtlCrossModule(val crossScalaVersion: String)
           else
             None
         else
-          // Perform a cursory version check
-          // check if system protoc version is greater than 3.0.0
-          if (versionCompare(systemProtocVersion, "3.0.0") >= 0)
-            Some(systemProtocPath)
-          else
-            None
+        // Perform a cursory version check
+        // check if system protoc version is greater than 3.0.0
+        if (versionCompare(systemProtocVersion, "3.0.0") >= 0)
+          Some(systemProtocPath)
+        else
+          None
       } catch {
         case _: IOException =>
           None
