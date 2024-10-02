@@ -50,7 +50,7 @@ class firrtlCrossModule(val crossScalaVersion: String)
       ivy"net.jcazevedo::moultingyaml:0.4.2",
       ivy"org.json4s::json4s-native:4.0.6",
       ivy"org.apache.commons:commons-text:1.10.0",
-      ivy"io.github.alexarchambault::data-class:0.2.5",
+      ivy"io.github.alexarchambault::data-class:0.2.6",
       ivy"org.antlr:antlr4-runtime:$antlr4Version",
       ivy"com.google.protobuf:protobuf-java:$protocVersion",
       ivy"com.lihaoyi::os-lib:0.8.1"
@@ -123,7 +123,7 @@ class firrtlCrossModule(val crossScalaVersion: String)
         // get version from antlr4/antlr version output
         val systemAntlr4Version = os.proc(f).call(check = false).out.text().trim match {
           case versionPattern(v) => v
-          case _ => "0.0.0"
+          case _                 => "0.0.0"
         }
         val systemAntlr4Path = os.Path(os.proc("bash", "-c", s"command -v $f").call().out.text().trim)
         if (checkSystemAntlr4Version)
@@ -134,12 +134,12 @@ class firrtlCrossModule(val crossScalaVersion: String)
           else
             None
         else
-          // Perform a cursory version check, avoid using antlr2
-          // check if system antlr4 version is greater than 4.0.0
-          if (versionCompare(systemAntlr4Version, "4.0.0") >= 0)
-            Some(systemAntlr4Path)
-          else
-            None
+        // Perform a cursory version check, avoid using antlr2
+        // check if system antlr4 version is greater than 4.0.0
+        if (versionCompare(systemAntlr4Version, "4.0.0") >= 0)
+          Some(systemAntlr4Path)
+        else
+          None
       } catch {
         case _: IOException =>
           None
@@ -221,7 +221,7 @@ class firrtlCrossModule(val crossScalaVersion: String)
         // get version from protoc version output
         val systemProtocVersion = os.proc("protoc", "--version").call(check = false).out.text().trim match {
           case versionPattern(v) => v
-          case _ => "0.0.0"
+          case _                 => "0.0.0"
         }
         val systemProtocPath = os.Path(os.proc("bash", "-c", "command -v protoc").call().out.text().trim)
         if (checkSystemProtocVersion)
@@ -232,12 +232,12 @@ class firrtlCrossModule(val crossScalaVersion: String)
           else
             None
         else
-          // Perform a cursory version check
-          // check if system protoc version is greater than 3.0.0
-          if (versionCompare(systemProtocVersion, "3.0.0") >= 0)
-            Some(systemProtocPath)
-          else
-            None
+        // Perform a cursory version check
+        // check if system protoc version is greater than 3.0.0
+        if (versionCompare(systemProtocVersion, "3.0.0") >= 0)
+          Some(systemProtocPath)
+        else
+          None
       } catch {
         case _: IOException =>
           None
